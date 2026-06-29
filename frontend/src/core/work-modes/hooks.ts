@@ -4,11 +4,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   addSkillToWorkMode,
+  createWorkMode,
+  deleteWorkMode,
   loadWorkModes,
   removeSkillFromWorkMode,
+  updateWorkMode,
 } from "./api";
 import { FALLBACK_WORK_MODES } from "./api";
-import type { WorkModeDetail, WorkModesListResponse } from "./types";
+import type {
+  CustomWorkModeCreateRequest,
+  CustomWorkModeUpdateRequest,
+  WorkModeDetail,
+  WorkModesListResponse,
+} from "./types";
 
 /**
  * React hook that loads work modes from ``GET /api/work-modes``.
@@ -102,6 +110,59 @@ export function useRemoveSkillFromWorkMode() {
   return useMutation({
     mutationFn: ({ modeId, skillName }: { modeId: string; skillName: string }) =>
       removeSkillFromWorkMode(modeId, skillName),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["work-modes"] });
+    },
+  });
+}
+
+/**
+ * Mutation hook: create a custom work mode.
+ *
+ * On success the ``["work-modes"]`` query is invalidated so the selector
+ * and settings UI reflect the new mode immediately.
+ */
+export function useCreateWorkMode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CustomWorkModeCreateRequest) => createWorkMode(req),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["work-modes"] });
+    },
+  });
+}
+
+/**
+ * Mutation hook: update a custom work mode.
+ *
+ * Accepts the ``modeId`` plus partial update fields. On success the
+ * ``["work-modes"]`` query is invalidated.
+ */
+export function useUpdateWorkMode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      args: { modeId: string } & CustomWorkModeUpdateRequest,
+    ) => {
+      const { modeId, ...patch } = args;
+      return updateWorkMode(modeId, patch);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["work-modes"] });
+    },
+  });
+}
+
+/**
+ * Mutation hook: delete a custom work mode.
+ *
+ * On success the ``["work-modes"]`` query is invalidated. Callers should
+ * catch errors to surface the "builtin mode cannot be deleted" message.
+ */
+export function useDeleteWorkMode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (modeId: string) => deleteWorkMode(modeId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["work-modes"] });
     },

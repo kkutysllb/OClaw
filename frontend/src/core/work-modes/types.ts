@@ -104,3 +104,30 @@ export interface WorkModesListResponse {
   default_mode_id: string;
   modes: WorkModeDetail[];
 }
+
+// ---------------------------------------------------------------------------
+// Request types for custom work-mode CRUD (mirror backend request models)
+// ---------------------------------------------------------------------------
+
+/** Request body for ``POST /api/work-modes`` (create a custom work mode). */
+export interface CustomWorkModeCreateRequest {
+  /** Slug-style unique id (``^[a-z0-9][a-z0-9_-]*$``). */
+  id: string;
+  /** Display name shown in the selector and settings UI. */
+  name: string;
+  /** Short user-facing description (≤ 200 chars). */
+  description?: string;
+  /** Model-facing orchestration hint injected into the system prompt (≤ 4000 chars). */
+  orchestration_hint?: string;
+  /** Focus-area tags for the mode. */
+  focus_areas?: string[];
+}
+
+/** Request body for ``PUT /api/work-modes/{modeId}`` (update a custom work mode). */
+export interface CustomWorkModeUpdateRequest {
+  name?: string;
+  description?: string;
+  orchestration_hint?: string;
+  focus_areas?: string[];
+  enabled?: boolean;
+}

@@ -452,6 +452,7 @@ export interface Translations {
       config: string;
       skillModels: string;
       import: string;
+      workModes: string;
     };
     import: {
       title: string;
@@ -624,6 +625,37 @@ export interface Translations {
     acknowledge: {
       emptyTitle: string;
       emptyDescription: string;
+    };
+    workModes: {
+      title: string;
+      description: string;
+      createMode: string;
+      editMode: string;
+      deleteMode: string;
+      modeId: string;
+      modeIdPlaceholder: string;
+      modeIdHint: string;
+      modeName: string;
+      modeNamePlaceholder: string;
+      modeDescription: string;
+      modeDescriptionPlaceholder: string;
+      orchestrationHint: string;
+      orchestrationHintPlaceholder: string;
+      orchestrationHintHint: string;
+      focusAreas: string;
+      focusAreasPlaceholder: string;
+      save: string;
+      cancel: string;
+      confirmDelete: string;
+      builtin: string;
+      custom: string;
+      noCustomModes: string;
+      goToSkills: string;
+      goToSkillsHint: string;
+      skillCount: string;
+      createdSuccess: string;
+      updatedSuccess: string;
+      deletedSuccess: string;
     };
   };
 }

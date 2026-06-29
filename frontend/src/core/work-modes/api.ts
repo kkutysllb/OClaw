@@ -2,7 +2,12 @@ import { fetch } from "@/core/api/fetcher";
 import { getBackendBaseURL } from "@/core/config";
 
 import { DEFAULT_WORK_MODE_ID } from "./defaults";
-import type { WorkModesListResponse } from "./types";
+import type {
+  CustomWorkModeCreateRequest,
+  CustomWorkModeUpdateRequest,
+  WorkModeDetail,
+  WorkModesListResponse,
+} from "./types";
 
 /**
  * Fallback work-mode payload used when the backend is unreachable or has
@@ -112,6 +117,88 @@ export async function removeSkillFromWorkMode(
     throw new Error(
       (detail as { detail?: string }).detail ??
         `Failed to remove skill ${skillName} from mode ${modeId}`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Custom work-mode CRUD
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a custom work mode via ``POST /api/work-modes``.
+ *
+ * Throws on backend refusal — notably HTTP 409 when the id already exists.
+ * The caller should catch and surface a user-facing message.
+ */
+export async function createWorkMode(
+  req: CustomWorkModeCreateRequest,
+): Promise<WorkModeDetail> {
+  const response = await fetch(`${getBackendBaseURL()}/api/work-modes`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(req),
+  });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(
+      (detail as { detail?: string }).detail ??
+        `Failed to create work mode "${req.id}"`,
+    );
+  }
+  return (await response.json()) as WorkModeDetail;
+}
+
+/**
+ * Update a custom work mode via ``PUT /api/work-modes/{modeId}``.
+ *
+ * All fields in ``req`` are optional — only the supplied ones are updated.
+ * Throws on backend refusal — notably HTTP 404 for unknown mode ids.
+ */
+export async function updateWorkMode(
+  modeId: string,
+  req: CustomWorkModeUpdateRequest,
+): Promise<WorkModeDetail> {
+  const response = await fetch(
+    `${getBackendBaseURL()}/api/work-modes/${encodeURIComponent(modeId)}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(req),
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(
+      (detail as { detail?: string }).detail ??
+        `Failed to update work mode "${modeId}"`,
+    );
+  }
+  return (await response.json()) as WorkModeDetail;
+}
+
+/**
+ * Delete a custom work mode via ``DELETE /api/work-modes/{modeId}``.
+ *
+ * Throws on backend refusal — notably HTTP 403 for builtin modes (which
+ * cannot be deleted).
+ */
+export async function deleteWorkMode(modeId: string): Promise<void> {
+  const response = await fetch(
+    `${getBackendBaseURL()}/api/work-modes/${encodeURIComponent(modeId)}`,
+    {
+      method: "DELETE",
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(
+      (detail as { detail?: string }).detail ??
+        `Failed to delete work mode "${modeId}"`,
     );
   }
 }

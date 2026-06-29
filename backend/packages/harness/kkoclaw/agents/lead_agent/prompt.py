@@ -704,7 +704,11 @@ def get_skills_prompt_section(
         from kkoclaw.config.extensions_config import ExtensionsConfig
         from kkoclaw.skills.work_modes import load_skills_by_work_modes
 
-        extensions_config = ExtensionsConfig()
+        # Per-user resolve: merge builtin modes with the user's custom
+        # modes so that a custom mode id (e.g. "research") is recognised
+        # instead of falling back to the default mode. For DEFAULT_USER_ID
+        # this returns the builtin presets only (no DB lookup).
+        extensions_config = _resolve_extensions_config_for_user()
         # Load the cached skills-by-work-modes map once and pass it through so
         # compute_effective_skills does not re-scan the skill tree.
         skills_wm = load_skills_by_work_modes()
@@ -755,6 +759,54 @@ def get_skills_prompt_section(
     return _get_cached_skills_prompt_section(skill_signature, available_key, container_base_path, skill_evolution_section)
 
 
+def _resolve_extensions_config_for_user():
+    """Return an :class:`ExtensionsConfig` whose ``work_modes`` reflects the
+    current user's builtin + custom modes.
+
+    This is the per-user injection point for the prompt builder. For
+    ``DEFAULT_USER_ID`` (unauthenticated CLI / tests / studio) it is
+    equivalent to ``get_extensions_config()`` — the builtin presets with
+    no DB lookup — preserving legacy behaviour.
+
+    For an authenticated user the work-modes dict is replaced with the
+    merged result from
+    :func:`kkoclaw.config.user_work_modes_config.resolve_user_work_modes_sync`,
+    so that custom mode ids are recognised by
+    :func:`compute_effective_skills` and their ``orchestration_hint`` /
+    ``focus_areas`` are picked up by ``_build_work_mode_context``.
+
+    All other ExtensionsConfig fields (mcp_servers, skills, locked_skill_ids,
+    mode_skill_overrides …) are preserved from the global config.
+    """
+    try:
+        from kkoclaw.config.extensions_config import get_extensions_config
+        from kkoclaw.config.user_work_modes_config import (
+            resolve_user_work_modes_sync,
+        )
+        from kkoclaw.runtime.user_context import DEFAULT_USER_ID, get_effective_user_id
+    except Exception:
+        # Import failure → fall back to the global config (legacy behaviour).
+        from kkoclaw.config.extensions_config import get_extensions_config
+        return get_extensions_config()
+
+    try:
+        base_cfg = get_extensions_config()
+        user_id = get_effective_user_id()
+        if user_id == DEFAULT_USER_ID:
+            return base_cfg
+        wm_config = resolve_user_work_modes_sync(user_id)
+        # Replace the work_modes with the per-user merged view. Everything
+        # else (locked_skill_ids, mode_skill_overrides, …) stays as-is.
+        return base_cfg.model_copy(update={"work_modes": wm_config})
+    except Exception:
+        logger.exception(
+            "Failed to resolve per-user work modes for prompt injection — "
+            "falling back to global config"
+        )
+        from kkoclaw.config.extensions_config import get_extensions_config
+        return get_extensions_config()
+
+
 def _build_work_mode_context(
     work_mode_id: str | None,
     ext_config: Any | None,
@@ -780,8 +832,11 @@ def _build_work_mode_context(
         if ext_config is not None:
             cfg = ext_config
         else:
-            from kkoclaw.config.extensions_config import get_extensions_config
-            cfg = get_extensions_config()
+            # Per-user resolve: merge builtin modes with the user's custom
+            # modes so a custom mode's orchestration_hint / focus_areas are
+            # picked up. For DEFAULT_USER_ID this is equivalent to
+            # get_extensions_config() (builtin presets only).
+            cfg = _resolve_extensions_config_for_user()
     except Exception:
         logger.exception("Failed to load extensions config for work-mode context")
         return ""

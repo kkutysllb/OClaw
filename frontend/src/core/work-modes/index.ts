@@ -1,5 +1,7 @@
 export type {
   CustomWorkMode,
+  CustomWorkModeCreateRequest,
+  CustomWorkModeUpdateRequest,
   WorkMode,
   WorkModeDetail,
   WorkModeIcon,
@@ -16,12 +18,18 @@ export {
 export {
   FALLBACK_WORK_MODES,
   addSkillToWorkMode,
+  createWorkMode,
+  deleteWorkMode,
   loadWorkModes,
   removeSkillFromWorkMode,
+  updateWorkMode,
 } from "./api";
 export {
   resolveWorkModeById,
   useAddSkillToWorkMode,
+  useCreateWorkMode,
+  useDeleteWorkMode,
   useRemoveSkillFromWorkMode,
+  useUpdateWorkMode,
   useWorkModes,
 } from "./hooks";

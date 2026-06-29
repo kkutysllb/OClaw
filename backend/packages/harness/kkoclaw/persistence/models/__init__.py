@@ -20,5 +20,14 @@ from kkoclaw.persistence.models.run_event import RunEventRow
 from kkoclaw.persistence.run.model import RunRow
 from kkoclaw.persistence.thread_meta.model import ThreadMetaRow
 from kkoclaw.persistence.user.model import UserRow
+from kkoclaw.persistence.work_mode.model import UserWorkModeRow
 
-__all__ = ["FeedbackRow", "RunEventRow", "RunRow", "ThreadMetaRow", "UserMcpServerRow", "UserRow"]
+__all__ = [
+    "FeedbackRow",
+    "RunEventRow",
+    "RunRow",
+    "ThreadMetaRow",
+    "UserMcpServerRow",
+    "UserRow",
+    "UserWorkModeRow",
+]

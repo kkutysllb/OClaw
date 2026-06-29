@@ -6,7 +6,6 @@ import {
   GraduationCap,
   Palette,
   PenTool,
-  PlusIcon,
   BotIcon,
   WrenchIcon,
   SparklesIcon,
@@ -195,20 +194,6 @@ export function WorkModeSelector({
         );
       })}
 
-      {/* Reserved: "Add custom work mode" button (disabled for now) */}
-      <Tooltip content={t.workModes.addCustomTooltip}>
-        <button
-          type="button"
-          disabled
-          className={cn(
-            "inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground/50",
-            "cursor-not-allowed",
-          )}
-        >
-          <PlusIcon className="size-3" />
-          {t.workModes.addCustom}
-        </button>
-      </Tooltip>
     </div>
   );
 }

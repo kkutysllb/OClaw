@@ -573,7 +573,7 @@ Skills 是 OClaw 能做"几乎任何事"的关键。
 
 标准的 Agent Skill 是一种结构化能力模块，通常就是一个 Markdown 文件，里面定义了工作流、最佳实践，以及相关的参考资源。OClaw 自带一批内置 skills，覆盖研究、报告生成、演示文稿制作、网页生成、图像和视频生成等场景。真正有意思的地方在于它的扩展性：你可以加自己的 skills，替换内置 skills，或者把多个 skills 组合成复合工作流。
 
-Skills 采用按需渐进加载，不会一次性把所有内容都塞进上下文。只有任务确实需要时才加载。
+Skills 采用按需渐进加载，不会一次性把所有内容都塞进上下文。只有任务确实需要时才加载。更关键的是，OClaw 引入了**技能与工作模式（Work Mode）显式绑定**机制——每个技能通过 SKILL.md frontmatter 中的 `work_modes` 字段声明它归属哪些工作模式（如 `task` 日常办公、`coding` 编程、`core` 锁定核心常驻）。执行任务时只加载 **core 常驻技能 + 当前工作模式绑定的技能**，其余技能完全不进入上下文。这在技能数量较多时能显著节省 token、提升 Agent 的选择精度。用户在技能创建页面选择工作模式后创建的技能会**自动绑定该模式**，也可通过 PATCH 接口随时调整一个技能的归属（支持一对多）。此外，用户可以在设置页面**创建自定义工作模式**——为新模式指定名称、描述、编排提示（orchestration_hint，注入系统提示词指导模型行为）和专注领域，然后将技能绑定到该模式，实现完全个性化的工作流配置。自定义模式按用户隔离存储，每个用户拥有独立的模式集合。
 
 Tools 也是同样的思路。OClaw 自带一组核心工具：网页搜索、网页抓取、文件操作、bash 执行；同时也支持通过 MCP Server 和 Python 函数扩展自定义工具。
 
@@ -648,6 +648,30 @@ token_usage:
 此处记录最近完成的工作和近期待办，详细清单见 `docs/TODO.md`。
 
 ### 今日已完成
+- **重大架构变更：自定义工作模式（Custom Work Modes）（2026-06-29）**
+- **背景**：此前系统仅内置 `task`（日常办公）和 `coding`（编程）两个工作模式，用户无法根据自己的业务场景创建专属模式。用户需要「研究」、「代码审查」、「文档撰写」等自定义模式时无能为力，只能依赖固定的预设。
+- **改造目标**：让用户可以在设置页面创建完全自定义的工作模式，为每个模式指定编排提示（注入系统提示词指导 AI 行为）、专注领域标签和描述；自定义模式按用户隔离存储，每个用户拥有独立的模式集合。
+  - **持久化层**：新建 `user_work_modes` 表（参照 MCP 工具的 per-user 隔离模式），包含 mode_id、name、description、orchestration_hint、focus_areas_json、enabled 等字段，唯一约束 (user_id, mode_id)。内置模式（task/coding/core）不存数据库，运行时合并——避免 seed 步骤、简化架构。新建 Alembic migration + SQLAlchemy ORM model + `UserWorkModeRepository`（含 list/get/upsert/delete CRUD，拒绝 builtin ids）。
+  - **配置解析器**：新建 `user_work_modes_config.py`，核心函数 `resolve_user_work_modes(user_id)` 合并内置预设 + 用户自定义模式返回 `WorkModesConfig`；对于 `DEFAULT_USER_ID` 直接返回内置预设不查 DB；使用双检锁缓存（lru_cache + asyncio.Lock）提升性能，mutation 后通过 `invalidate_user_work_modes` 刷新。
+  - **路由层扩展**：`GET /api/work-modes` 改为 per-user（通过 `resolve_user_work_modes`）；新增 `POST /api/work-modes`（slug 验证 `^[a-z0-9][a-z0-9_-]*$` + 冲突 409）、`PUT /api/work-modes/{mode_id}`（更新自定义模式 404 检查）、`DELETE /api/work-modes/{mode_id}`（从 DB 删除，拒绝 builtin 403）。`DEFAULT_USER_ID` 对 POST/PUT/DELETE 返回 403。
+  - **运行时 per-user 注入**：新增 `_resolve_extensions_config_for_user()` helper，在 prompt 注入链路中替代全局 `get_extensions_config()`——通过 `model_copy(update={"work_modes": wm_config})` 将 ExtensionsConfig 的 work_modes 字段替换为当前用户的合并配置，保留其他字段不变。`get_skills_prompt_section` 和 `_build_work_mode_context` 两个注入点均已切换。对于 `DEFAULT_USER_ID` 行为等价于原全局配置。
+  - **前端模块扩展**：`core/work-modes/` 新增 `CustomWorkModeCreateRequest` / `CustomWorkModeUpdateRequest` 类型；`api.ts` 新增 `createWorkMode` / `updateWorkMode` / `deleteWorkMode`；`hooks.ts` 新增 `useCreateWorkMode` / `useUpdateWorkMode` / `useDeleteWorkMode` mutation hooks。
+  - **前端设置页**：设置对话框新增「工作模式」tab（`LayersIcon` 导航），新建 `work-modes-settings-page.tsx` 提供 CRUD UI——创建表单含模式 ID、显示名称、描述、编排提示（textarea）、专注领域；列表区分内置模式（只读）和自定义模式（可编辑/删除）；创建成功后 toast 提示并引导前往技能页绑定技能。i18n 新增 30+ 条中英文翻译。
+  - **前端清理**：移除工作模式选择器（`work-mode-selector.tsx`）中的置灰「添加自定义模式」按钮（入口已迁移到设置页）。
+  - **覆盖文件**：新增 `backend/packages/harness/kkoclaw/persistence/{work_mode/{model,sql,__init__}.py, migrations/versions/2026_06_29_add_user_work_modes.py}`、`backend/packages/harness/kkoclaw/config/user_work_modes_config.py`、`frontend/src/components/workspace/settings/work-modes-settings-page.tsx`、`backend/tests/test_user_work_modes.py`；修改后端 `agents/lead_agent/prompt.py`、`app/gateway/routers/work_modes.py`、`persistence/models/__init__.py`；前端 `core/work-modes/{types,api,hooks,index}.ts`、`components/workspace/settings/settings-dialog.tsx`、`components/workspace/work-mode-selector.tsx`、`core/i18n/locales/{types,zh-CN,en-US}.ts`。
+  - **验证**：后端 12 个测试全部通过（repository CRUD 5 个 + 用户隔离 2 个 + config resolver 合并 3 个 + prompt 注入 2 个）。
+- **重大架构变更：技能创建即绑定工作模式（2026-06-29）**
+  - **背景**：原架构中技能与工作模式（Work Mode）之间没有真正的绑定关系，技能的模式归属仅靠目录位置推断（`builtin/task/`、`builtin/coding/`、`builtin/core/`），用户在技能页面创建技能时并不会和工作模式绑定，执行任务时所有技能都进入候选集。这在技能数量较多时会造成严重的上下文浪费，也降低 Agent 的技能选择精度。
+  - **改造目标**：让「创建技能即绑定工作模式」成为系统的一等公民——用户在某个工作模式下创建技能时自动绑定该模式；任务执行时只加载 core 常驻技能 + 当前工作模式绑定的技能；支持一对多绑定（一个技能归属多个工作模式）。
+  - **存储机制：SKILL.md frontmatter `work_modes` 字段**：技能的模式归属从「目录推断」彻底改为「SKILL.md frontmatter 显式声明」。每个技能在 YAML frontmatter 中声明 `work_modes: [task]` / `[coding]` / `[core]` 或组合（如 `[task, coding]`）。后端新增共享 `frontmatter.py` 模块（`inject_work_modes_frontmatter` / `has_work_modes_frontmatter`），避免循环导入。
+  - **83 个 builtin SKILL.md 一次性迁移**：提供一次性迁移脚本 `scripts/migrate_builtin_work_modes.py`，扫描 `skills/builtin/{core,task,coding}/.../SKILL.md`，按目录所属模式注入 `work_modes` frontmatter。已执行成功：3 个 core（`bootstrap`、`find-skills`、`skill-creator` 锁定常驻）+ 17 个 task + 63 个 coding 全部补全；幂等验证通过（第二次运行全部 Skip）。
+  - **创建技能即绑定**：技能页面创建按钮携带 `workMode` 参数（如 `?workMode=task`），跳转到对话页后通过 `useSearchParams` 读取并注入 thread context 的 `work_mode_id`；后端 `skill_manage_tool` 创建技能时自动从 thread context 读取当前工作模式并写入 frontmatter。.skill 安装包安装时也会自动注入 `work_modes`（未指定时默认 `task`）。
+  - **存量 custom 技能惰性迁移**：`load_skills` 加载时若发现 custom 技能没有 `work_modes` frontmatter，自动按默认 `task` 归属并 best-effort 写回 SKILL.md，无需一次性迁移即可平滑升级。
+  - **后端 API 扩展**：`SkillResponse` / `SkillInstallRequest` 模型新增 `work_modes: list[str]` 字段；新增 `PATCH /api/skills/custom/{skill_name}/work-modes` 端点支持动态修改一个技能的工作模式归属；抽象方法 `ainstall_skill_from_archive` / `install_skill_from_archive` 签名扩展 `work_modes` 参数。
+  - **前端 UI 改造**：技能页面从「按锁定 ID 过滤」改为「按 `work_modes` 字段过滤」，三个标签页（builtin/core、task、coding）各自只展示归属该模式的技能；SkillCard 展示工作模式 badge；新增 `useUpdateSkillWorkModes` hook + `updateSkillWorkModes` API 支持编辑归属。
+  - **向后兼容**：保留 `mode_scope` property 和 `load_builtin_skills_by_scope` adapter 作为过渡层；`builtin_skills_by_scope` 参数继续兼容旧调用点。
+  - **覆盖文件**：新增 `backend/packages/harness/kkoclaw/skills/frontmatter.py`、`backend/scripts/migrate_builtin_work_modes.py`；修改后端 `tools/skill_manage_tool.py`、`app/gateway/routers/skills.py`、`skills/storage/{skill_storage,local_skill_storage}.py`；前端 `core/skills/{type,api,hooks,index}.ts`、`components/workspace/{skills/skills-page,settings/skill-settings-page}.tsx`、`app/workspace/chats/[thread_id]/page.tsx`。
+  - **验证**：后端 51 个测试全部通过（`test_skill_frontmatter_work_modes.py` 8 个 + `test_skill_mode_scope.py` 10 个 + `test_work_modes.py` 33 个含 5 个新增）；前端 10 个测试全部通过（`skills-page-mode-tabs.test.ts`）。
 - **重大架构变更：MCP 工具按用户隔离（2026-06-27）**
   - **背景**：此前 MCP 工具及其配置（`extensions_config.json`）为**全局共享**——所有登录用户看到并使用同一份 MCP servers 列表，任一管理员修改后对所有用户立即生效，无法满足多用户环境下的隔离需求。
   - **改造目标**：将 MCP 工具从全局共享改为**按用户隔离**，同时保留系统默认 servers 作为所有用户共享的内置工具（不可删除但可开关）。
