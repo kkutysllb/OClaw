@@ -236,8 +236,8 @@ export function WorkModesSettingsPage() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle>
               {editingId
                 ? t.settings.workModes.editMode
@@ -248,7 +248,7 @@ export function WorkModesSettingsPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 overflow-y-auto min-h-0 pr-1">
             {/* Mode ID */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium">
@@ -305,6 +305,7 @@ export function WorkModesSettingsPage() {
                 placeholder={t.settings.workModes.orchestrationHintPlaceholder}
                 rows={5}
                 maxLength={4000}
+                className="max-h-[200px] resize-y"
               />
               <p className="text-xs text-muted-foreground">
                 {t.settings.workModes.orchestrationHintHint}
@@ -326,7 +327,7 @@ export function WorkModesSettingsPage() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
