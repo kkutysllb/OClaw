@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { type PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { BackendStatusIndicator } from "@/components/desktop";
@@ -51,7 +51,21 @@ export default function ChatPage() {
   const [settings, setSettings] = useThreadSettings(threadId);
   const { tokenUsageEnabled } = useModels();
   const mountedRef = useRef(false);
+  const searchParams = useSearchParams();
   useSpecificChatMode();
+
+  // When entering a new chat via ?mode=skill&workMode=X, pre-select that
+  // work mode so skill_manage_tool auto-binds the new skill to it.
+  const workModeInitRef = useRef(false);
+  useEffect(() => {
+    if (isNewThread && !workModeInitRef.current) {
+      workModeInitRef.current = true;
+      const workMode = searchParams.get("workMode");
+      if (workMode) {
+        setSettings("context", { work_mode_id: workMode });
+      }
+    }
+  }, [isNewThread]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     mountedRef.current = true;

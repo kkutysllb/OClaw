@@ -9,11 +9,12 @@ from kkoclaw.agents.lead_agent.prompt import refresh_skills_system_prompt_cache_
 from kkoclaw.config.app_config import AppConfig
 from kkoclaw.config.extensions_config import ExtensionsConfig, SkillStateConfig, get_extensions_config, reload_extensions_config
 from kkoclaw.skills import Skill
+from kkoclaw.skills.frontmatter import inject_work_modes_frontmatter
 from kkoclaw.skills.installer import SkillAlreadyExistsError
 from kkoclaw.skills.security_scanner import scan_skill_content
 from kkoclaw.skills.storage import get_or_new_skill_storage
 from kkoclaw.skills.types import SKILL_MD_FILE, SkillCategory
-from kkoclaw.skills.work_modes import assert_skill_can_be_disabled
+from kkoclaw.skills.work_modes import assert_skill_can_be_disabled, invalidate_builtin_skills_cache
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class SkillResponse(BaseModel):
     license: str | None = Field(None, description="License information")
     category: SkillCategory = Field(..., description="Category of the skill (public or custom)")
     enabled: bool = Field(default=True, description="Whether this skill is enabled")
+    work_modes: list[str] = Field(default_factory=list, description="Work mode ids this skill is bound to (e.g. ['task', 'coding'])")
 
 
 class SkillsListResponse(BaseModel):
@@ -47,6 +49,7 @@ class SkillInstallRequest(BaseModel):
 
     thread_id: str = Field(..., description="The thread ID where the .skill file is located")
     path: str = Field(..., description="Virtual path to the .skill file (e.g., mnt/user-data/outputs/my-skill.skill)")
+    work_modes: list[str] | None = Field(None, description="Optional work mode ids to bind. If omitted and the SKILL.md has no work_modes frontmatter, defaults to ['task'].")
 
 
 class SkillInstallResponse(BaseModel):
@@ -65,6 +68,12 @@ class CustomSkillUpdateRequest(BaseModel):
     content: str = Field(..., description="Replacement SKILL.md content")
 
 
+class WorkModesUpdateRequest(BaseModel):
+    """Request model for updating a custom skill's work mode bindings."""
+
+    work_modes: list[str] = Field(..., description="New work mode ids to bind this skill to (e.g. ['task', 'coding'])")
+
+
 class CustomSkillHistoryResponse(BaseModel):
     history: list[dict]
 
@@ -81,6 +90,7 @@ def _skill_to_response(skill: Skill) -> SkillResponse:
         license=skill.license,
         category=skill.category,
         enabled=skill.enabled,
+        work_modes=list(skill.work_modes),
     )
 
 
@@ -108,7 +118,7 @@ async def list_skills(config: AppConfig = Depends(get_config)) -> SkillsListResp
 async def install_skill(request: SkillInstallRequest, config: AppConfig = Depends(get_config)) -> SkillInstallResponse:
     try:
         skill_file_path = resolve_thread_virtual_path(request.thread_id, request.path)
-        result = await get_or_new_skill_storage(app_config=config).ainstall_skill_from_archive(skill_file_path)
+        result = await get_or_new_skill_storage(app_config=config).ainstall_skill_from_archive(skill_file_path, work_modes=request.work_modes)
         await refresh_skills_system_prompt_cache_async()
         return SkillInstallResponse(**result)
     except FileNotFoundError as e:
@@ -185,6 +195,49 @@ async def update_custom_skill(skill_name: str, request: CustomSkillUpdateRequest
     except Exception as e:
         logger.error("Failed to update custom skill %s: %s", skill_name, e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to update custom skill: {str(e)}")
+
+
+@router.patch(
+    "/skills/custom/{skill_name}/work-modes",
+    response_model=CustomSkillContentResponse,
+    summary="Update Custom Skill Work Modes",
+    description="Update the work mode bindings for a custom skill by rewriting the work_modes field in the SKILL.md frontmatter.",
+)
+async def update_custom_skill_work_modes(
+    skill_name: str, request: WorkModesUpdateRequest, config: AppConfig = Depends(get_config)
+) -> CustomSkillContentResponse:
+    try:
+        skill_name = skill_name.replace("\r\n", "").replace("\n", "")
+        storage = get_or_new_skill_storage(app_config=config)
+        storage.ensure_custom_skill_is_editable(skill_name)
+        prev_content = storage.read_custom_skill(skill_name)
+        new_content = inject_work_modes_frontmatter(prev_content, request.work_modes)
+        storage.validate_skill_markdown_content(skill_name, new_content)
+        storage.write_custom_skill(skill_name, SKILL_MD_FILE, new_content)
+        storage.append_history(
+            skill_name,
+            {
+                "action": "update_work_modes",
+                "author": "human",
+                "thread_id": None,
+                "file_path": SKILL_MD_FILE,
+                "prev_content": prev_content,
+                "new_content": new_content,
+                "scanner": {"decision": "allow", "reason": "Work modes update."},
+            },
+        )
+        invalidate_builtin_skills_cache()
+        await refresh_skills_system_prompt_cache_async()
+        return await get_custom_skill(skill_name, config)
+    except HTTPException:
+        raise
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Failed to update work modes for %s: %s", skill_name, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to update work modes: {str(e)}")
 
 
 @router.delete("/skills/custom/{skill_name}", summary="Delete Custom Skill")

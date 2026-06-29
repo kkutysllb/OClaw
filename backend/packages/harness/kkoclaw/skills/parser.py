@@ -36,8 +36,6 @@ def parse_skill_file(
     skill_file: Path,
     category: SkillCategory,
     relative_path: Path | None = None,
-    *,
-    mode_scope: str | None = None,
 ) -> Skill | None:
     """Parse a SKILL.md file and extract metadata.
 
@@ -46,12 +44,13 @@ def parse_skill_file(
         category: Category of the skill.
         relative_path: Relative path from the category root to the skill
             directory.  Defaults to the skill directory name when omitted.
-        mode_scope: Work-mode binding tag ("core"/"task"/"coding") inferred
-            by the caller from the builtin sub-directory layout. ``None``
-            means the skill has no automatic mode binding (custom or legacy).
 
     Returns:
         Skill object if parsing succeeds, None otherwise.
+
+    The ``work_modes`` field is read from the YAML frontmatter (a list of
+    mode ids such as ``[task, coding]`` or ``[core]``).  When the field is
+    absent the skill is treated as uncategorised (empty tuple).
     """
     if not skill_file.exists() or skill_file.name != SKILL_MD_FILE:
         return None
@@ -96,6 +95,25 @@ def parse_skill_file(
         if license_text is not None:
             license_text = str(license_text).strip() or None
 
+        # Parse work_modes from frontmatter (one-to-many binding).
+        # Accepts a YAML list of strings, or a single string (coerced to a
+        # one-element tuple).  Absent field → empty tuple (uncategorised).
+        raw_modes = metadata.get("work_modes")
+        if raw_modes is None:
+            work_modes: tuple[str, ...] = ()
+        elif isinstance(raw_modes, list):
+            work_modes = tuple(str(m).strip() for m in raw_modes if str(m).strip())
+        elif isinstance(raw_modes, str):
+            stripped = raw_modes.strip()
+            work_modes = (stripped,) if stripped else ()
+        else:
+            logger.warning(
+                "work_modes in %s must be a list or string, got %s; treating as uncategorised",
+                skill_file,
+                type(raw_modes).__name__,
+            )
+            work_modes = ()
+
         return Skill(
             name=name,
             description=description,
@@ -105,7 +123,7 @@ def parse_skill_file(
             relative_path=relative_path or Path(skill_file.parent.name),
             category=category,
             enabled=True,  # Actual state comes from the extensions config file.
-            mode_scope=mode_scope,
+            work_modes=work_modes,
         )
 
     except Exception:

@@ -66,41 +66,27 @@ function SkillSettingsList({
 
   const modeTabs = workModesData.modes;
 
-  // Locked core skills are global — the same set across all work modes.
-  const lockedSkillIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const mode of modeTabs) {
-      for (const s of mode.skills) {
-        if (s.locked) ids.add(s.skill_id);
-      }
-    }
-    return ids;
-  }, [modeTabs]);
-
-  const isSkillLocked = (skillName: string): boolean =>
-    lockedSkillIds.has(skillName);
+  // A skill is "locked" when its frontmatter declares work_modes
+  // including "core" — these are the always-on bootstrap skills.
+  const isSkillLocked = (skill: Skill): boolean =>
+    skill.work_modes.includes("core");
 
   const filteredSkills = useMemo(() => {
     let result = skills;
     if (activeTab === "builtin") {
-      // The "内置" tab shows only the locked core skills.
-      result = result.filter((s) => lockedSkillIds.has(s.name));
+      // The "内置" tab shows only core skills that cannot be turned off.
+      result = result.filter((s) => s.work_modes.includes("core"));
     } else {
-      const mode = modeTabs.find((m) => m.id === activeTab);
-      if (mode) {
-        const modeSkillIds = new Set(mode.skills.map((s) => s.skill_id));
-        // Work-mode tabs exclude locked core skills.
-        result = result.filter(
-          (s) => modeSkillIds.has(s.name) && !lockedSkillIds.has(s.name),
-        );
-      }
+      // Work-mode tabs show skills whose work_modes includes the active tab.
+      result = result.filter((s) => s.work_modes.includes(activeTab));
     }
     return result;
-  }, [skills, activeTab, modeTabs, lockedSkillIds]);
+  }, [skills, activeTab]);
 
   const handleCreateSkill = () => {
     onClose?.();
-    router.push("/workspace/chats/new?mode=skill");
+    const workMode = activeTab === "builtin" ? "task" : activeTab;
+    router.push(`/workspace/chats/new?mode=skill&workMode=${workMode}`);
   };
 
   const isStatic = env.NEXT_PUBLIC_STATIC_WEBSITE_ONLY === "true";
@@ -132,7 +118,7 @@ function SkillSettingsList({
       )}
       {filteredSkills.length > 0 &&
         filteredSkills.map((skill) => {
-          const locked = isSkillLocked(skill.name);
+          const locked = isSkillLocked(skill);
           return (
             <Item className="w-full" variant="outline" key={skill.name}>
               <ItemContent>
@@ -149,6 +135,24 @@ function SkillSettingsList({
                         <LockIcon className="size-2.5" />
                         {t.common.locked}
                       </span>
+                    )}
+                    {/* Work mode badges */}
+                    {!locked && skill.work_modes.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        {skill.work_modes.map((mode) => (
+                          <span
+                            key={mode}
+                            className={cn(
+                              "inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-medium",
+                              mode === "core" && "bg-violet-500/15 text-violet-400",
+                              mode === "task" && "bg-cyan-500/15 text-cyan-400",
+                              mode === "coding" && "bg-amber-500/15 text-amber-400",
+                            )}
+                          >
+                            {mode}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </ItemTitle>

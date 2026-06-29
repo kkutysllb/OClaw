@@ -38,30 +38,31 @@ describe("skills page mode-scoped tabs", () => {
     expect(source).toMatch(/ModeTabPill/);
   });
 
-  test("loads work modes via useWorkModes to resolve per-mode skills", () => {
+  test("create skill carries the active work mode", () => {
     const source = read(PAGE_PATH);
 
-    // The page must call useWorkModes() so the task/coding tabs show
-    // the backend-resolved effective skill set, not a hardcoded list.
-    expect(source).toMatch(/useWorkModes\(\)/);
+    // The "Create Skill" button must pass the active work mode tab
+    // as a query param so the new chat pre-selects it.
+    expect(source).toMatch(/workMode=/);
   });
 
   test("builtin tab shows only locked core skills", () => {
     const source = read(PAGE_PATH);
 
-    // The "内置" tab must filter to show ONLY locked skills (the 3 core
-    // skills that cannot be turned off or deleted), not all 83 skills.
+    // The "内置" tab must filter to show ONLY core skills (the 3 core
+    // skills that cannot be turned off or deleted), not all skills.
     // This is the user-facing contract: "内置" = "cannot remove".
     expect(source).toMatch(/activeTab === ["']builtin["']/);
-    expect(source).toMatch(/lockedSkillIds\.has/);
+    // Core skills are identified by work_modes including "core".
+    expect(source).toMatch(/work_modes\.includes\(["']core["']\)/);
   });
 
-  test("work-mode tabs exclude locked core skills", () => {
+  test("work-mode tabs filter by work_modes field", () => {
     const source = read(PAGE_PATH);
 
-    // Work-mode tabs (task / coding) must NOT show the locked core skills
-    // — those live exclusively under the "内置" tab to avoid duplication.
-    expect(source).toMatch(/!lockedSkillIds\.has/);
+    // Work-mode tabs (task / coding) filter skills by the work_modes
+    // frontmatter field, showing only skills bound to that mode.
+    expect(source).toMatch(/work_modes\.includes\(activeTab\)/);
   });
 
   test("shows a locked badge for locked core skills", () => {

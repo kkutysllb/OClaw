@@ -13,6 +13,7 @@ from langgraph.typing import ContextT
 from kkoclaw.agents.lead_agent.prompt import refresh_skills_system_prompt_cache_async
 from kkoclaw.agents.thread_state import ThreadState
 from kkoclaw.tools.sync import make_sync_tool_wrapper
+from kkoclaw.skills.frontmatter import inject_work_modes_frontmatter
 from kkoclaw.skills.security_scanner import scan_skill_content
 from kkoclaw.skills.storage import get_or_new_skill_storage
 from kkoclaw.skills.storage.skill_storage import SkillStorage
@@ -37,6 +38,24 @@ def _get_thread_id(runtime: ToolRuntime[ContextT, ThreadState] | None) -> str | 
     if runtime.context and runtime.context.get("thread_id"):
         return runtime.context.get("thread_id")
     return runtime.config.get("configurable", {}).get("thread_id")
+
+
+def _get_work_mode_id(runtime: ToolRuntime[ContextT, ThreadState] | None) -> str | None:
+    """Read ``work_mode_id`` from the thread runtime context.
+
+    The work mode is threaded through the same context/configurable path as
+    ``thread_id``. Returns ``None`` when the caller hasn't set a work mode,
+    in which case skill creation falls back to the default mode ("task").
+    """
+    if runtime is None:
+        return None
+    if runtime.context:
+        wm = runtime.context.get("work_mode_id")
+        if wm:
+            return str(wm)
+    configurable = runtime.config.get("configurable", {})
+    wm = configurable.get("work_mode_id")
+    return str(wm) if wm else None
 
 
 def _history_record(*, action: str, file_path: str, prev_content: str | None, new_content: str | None, thread_id: str | None, scanner: dict[str, Any]) -> dict[str, Any]:
@@ -73,6 +92,7 @@ async def _skill_manage_impl(
     find: str | None = None,
     replace: str | None = None,
     expected_count: int | None = None,
+    work_modes: list[str] | None = None,
 ) -> str:
     """Manage custom skills under skills/custom/.
 
@@ -84,10 +104,19 @@ async def _skill_manage_impl(
         find: Existing text to replace for patch.
         replace: Replacement text for patch.
         expected_count: Optional expected number of replacements for patch.
+        work_modes: Optional explicit mode ids to bind (create only).
+            When omitted, the skill is auto-bound to the current thread's
+            work_mode_id, falling back to "task".
     """
     name = SkillStorage.validate_skill_name(name)
     lock = _get_lock(name)
     thread_id = _get_thread_id(runtime)
+    # Determine the work mode to bind this skill to. When the caller hasn't
+    # supplied explicit work_modes, inherit from the thread's work_mode_id
+    # (the mode the user selected when starting the conversation).  Fallback
+    # to "task" (the system default mode) so new skills are never orphaned.
+    ctx_work_mode = _get_work_mode_id(runtime)
+    bind_modes: list[str] = list(work_modes) if work_modes is not None else ([ctx_work_mode] if ctx_work_mode else ["task"])
     skill_storage = get_or_new_skill_storage()
 
     async with lock:
@@ -101,6 +130,9 @@ async def _skill_manage_impl(
                 )
             if content is None:
                 raise ValueError("content is required for create.")
+            # Inject work_modes frontmatter so the skill is auto-bound to the
+            # current work mode (or explicit modes if the caller provided them).
+            content = inject_work_modes_frontmatter(content, bind_modes)
             await _to_thread(skill_storage.validate_skill_markdown_content, name, content)
             scan = await _scan_or_raise(content, executable=False, location=f"{name}/{SKILL_MD_FILE}")
             await _to_thread(skill_storage.write_custom_skill, name, SKILL_MD_FILE, content)
@@ -110,7 +142,8 @@ async def _skill_manage_impl(
                 _history_record(action="create", file_path=SKILL_MD_FILE, prev_content=None, new_content=content, thread_id=thread_id, scanner=scan),
             )
             await refresh_skills_system_prompt_cache_async()
-            return f"Created custom skill '{name}'."
+            modes_str = ", ".join(bind_modes)
+            return f"Created custom skill '{name}' bound to work mode(s): {modes_str}."
 
         if action == "edit":
             await _to_thread(skill_storage.ensure_custom_skill_is_editable, name)
@@ -217,6 +250,7 @@ async def skill_manage_tool(
     find: str | None = None,
     replace: str | None = None,
     expected_count: int | None = None,
+    work_modes: list[str] | None = None,
 ) -> str:
     """Manage custom skills under skills/custom/.
 
@@ -228,6 +262,8 @@ async def skill_manage_tool(
         find: Existing text to replace for patch.
         replace: Replacement text for patch.
         expected_count: Optional expected number of replacements for patch.
+        work_modes: Optional mode ids to bind on create (e.g. ["task", "coding"]).
+            When omitted, auto-binds to the current thread's work mode.
     """
     return await _skill_manage_impl(
         runtime=runtime,
@@ -238,6 +274,7 @@ async def skill_manage_tool(
         find=find,
         replace=replace,
         expected_count=expected_count,
+        work_modes=work_modes,
     )
 
 

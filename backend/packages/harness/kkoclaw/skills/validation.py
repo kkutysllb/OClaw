@@ -11,7 +11,11 @@ import yaml
 from kkoclaw.skills.types import SKILL_MD_FILE
 
 # Allowed properties in SKILL.md frontmatter
-ALLOWED_FRONTMATTER_PROPERTIES = {"name", "description", "license", "allowed-tools", "metadata", "compatibility", "version", "author"}
+ALLOWED_FRONTMATTER_PROPERTIES = {"name", "description", "license", "allowed-tools", "metadata", "compatibility", "version", "author", "work_modes"}
+
+# Mode ids that are always valid regardless of config extensions.
+# "core" means shared by all modes; task/coding are the built-in presets.
+_BUILTIN_MODE_IDS = {"core", "task", "coding"}
 
 # Cross-platform compatibility keys that are normalised into metadata.compat
 # rather than rejected outright.  These keys appear in skill templates from
@@ -117,5 +121,23 @@ def _validate_skill_frontmatter(skill_dir: Path) -> tuple[bool, str, str | None]
             return False, "Description cannot contain angle brackets (< or >)", None
         if len(description) > 1024:
             return False, f"Description is too long ({len(description)} characters). Maximum is 1024 characters.", None
+
+    # Validate work_modes (optional, one-to-many mode binding)
+    raw_modes = frontmatter.get("work_modes")
+    if raw_modes is not None:
+        if isinstance(raw_modes, str):
+            mode_list = [raw_modes]
+        elif isinstance(raw_modes, list):
+            mode_list = raw_modes
+        else:
+            return False, f"work_modes must be a list or string, got {type(raw_modes).__name__}", None
+        for entry in mode_list:
+            if not isinstance(entry, str) or not entry.strip():
+                return False, "work_modes entries must be non-empty strings", None
+            mid = entry.strip()
+            # Allow built-in ids (core/task/coding) plus future custom mode
+            # ids that match the same naming convention as skill names.
+            if mid not in _BUILTIN_MODE_IDS and not re.match(r"^[a-z0-9]+(?:-[a-z0-9]+)*$", mid):
+                return False, f"work_modes entry '{mid}' is not a valid mode id", None
 
     return True, "Skill is valid!", name

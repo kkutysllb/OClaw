@@ -415,9 +415,29 @@ function SkillCard({
             </span>
           )}
         </div>
-        <p className="text-muted-foreground/70 mt-0.5 truncate text-xs">
-          {description}
-        </p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <p className="text-muted-foreground/70 truncate text-xs">
+            {description}
+          </p>
+          {/* Work mode badges */}
+          {!locked && skill.work_modes.length > 0 && (
+            <div className="flex shrink-0 items-center gap-1">
+              {skill.work_modes.map((mode) => (
+                <span
+                  key={mode}
+                  className={cn(
+                    "inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-medium",
+                    mode === "core" && "bg-violet-500/15 text-violet-400",
+                    mode === "task" && "bg-cyan-500/15 text-cyan-400",
+                    mode === "coding" && "bg-amber-500/15 text-amber-400",
+                  )}
+                >
+                  {mode}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Switch */}
@@ -464,38 +484,19 @@ export function SkillsPage() {
   // Work mode tabs from the API (task / coding / …).
   const modeTabs = workModesData.modes;
 
-  // Locked core skills are global — the same set across all work modes.
-  // Collect them once so both the "内置" tab filter and the lock badges
-  // can use the data without depending on the active tab.
-  const lockedSkillIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const mode of modeTabs) {
-      for (const s of mode.skills) {
-        if (s.locked) ids.add(s.skill_id);
-      }
-    }
-    return ids;
-  }, [modeTabs]);
-
-  const isSkillLocked = (skillName: string): boolean =>
-    lockedSkillIds.has(skillName);
+  // A skill is "locked" when its frontmatter declares work_modes
+  // including "core" — these are the always-on bootstrap skills.
+  const isSkillLocked = (skill: Skill): boolean =>
+    skill.work_modes.includes("core");
 
   const filteredSkills = useMemo(() => {
     let result = skills;
     if (activeTab === "builtin") {
-      // The "内置" tab shows only the locked core skills that cannot be
-      // turned off or deleted.
-      result = result.filter((s) => lockedSkillIds.has(s.name));
+      // The "内置" tab shows only core skills that cannot be turned off.
+      result = result.filter((s) => s.work_modes.includes("core"));
     } else {
-      const mode = modeTabs.find((m) => m.id === activeTab);
-      if (mode) {
-        const modeSkillIds = new Set(mode.skills.map((s) => s.skill_id));
-        // Work-mode tabs show the mode's own skills, excluding the locked
-        // core skills (those are managed under the "内置" tab).
-        result = result.filter(
-          (s) => modeSkillIds.has(s.name) && !lockedSkillIds.has(s.name),
-        );
-      }
+      // Work-mode tabs show skills whose work_modes includes the active tab.
+      result = result.filter((s) => s.work_modes.includes(activeTab));
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -508,10 +509,11 @@ export function SkillsPage() {
       );
     }
     return result;
-  }, [skills, activeTab, search, modeTabs, lockedSkillIds]);
+  }, [skills, activeTab, search]);
 
   const handleCreateSkill = () => {
-    router.push("/workspace/chats/new?mode=skill");
+    const workMode = activeTab === "builtin" ? "task" : activeTab;
+    router.push(`/workspace/chats/new?mode=skill&workMode=${workMode}`);
   };
 
   const activeCount = useMemo(
@@ -629,7 +631,7 @@ export function SkillsPage() {
                 <SkillCard
                   key={skill.name}
                   skill={skill}
-                  locked={isSkillLocked(skill.name)}
+                  locked={isSkillLocked(skill)}
                 />
               ))}
             </div>

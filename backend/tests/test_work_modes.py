@@ -377,6 +377,91 @@ class TestDirectoryAutoBinding:
 
 
 # ---------------------------------------------------------------------------
+# Frontmatter-driven work-mode binding (new mechanism)
+# ---------------------------------------------------------------------------
+
+
+class TestFrontmatterDrivenBinding:
+    """resolve_effective_skill_ids must use skills_by_work_modes for frontmatter-driven binding."""
+
+    def test_task_mode_includes_frontmatter_task_skills(self):
+        """Skills with work_modes=[task] appear in task mode."""
+        from kkoclaw.config.extensions_config import ExtensionsConfig
+        from kkoclaw.skills.work_modes import resolve_effective_skill_ids
+
+        cfg = ExtensionsConfig()
+        skills_wm = {
+            "bootstrap": ("core",),
+            "deep-research": ("task",),
+            "code-review": ("coding",),
+        }
+        effective = set(resolve_effective_skill_ids(cfg, "task", skills_by_work_modes=skills_wm))
+        assert "bootstrap" in effective  # core shared
+        assert "deep-research" in effective  # task-bound
+        assert "code-review" not in effective  # coding-only
+
+    def test_coding_mode_includes_frontmatter_coding_skills(self):
+        """Skills with work_modes=[coding] appear in coding mode."""
+        from kkoclaw.config.extensions_config import ExtensionsConfig
+        from kkoclaw.skills.work_modes import resolve_effective_skill_ids
+
+        cfg = ExtensionsConfig()
+        skills_wm = {
+            "bootstrap": ("core",),
+            "deep-research": ("task",),
+            "code-review": ("coding",),
+        }
+        effective = set(resolve_effective_skill_ids(cfg, "coding", skills_by_work_modes=skills_wm))
+        assert "bootstrap" in effective  # core shared
+        assert "code-review" in effective  # coding-bound
+        assert "deep-research" not in effective  # task-only
+
+    def test_multi_mode_skill_appears_in_both_modes(self):
+        """A skill with work_modes=[task, coding] appears in both modes."""
+        from kkoclaw.config.extensions_config import ExtensionsConfig
+        from kkoclaw.skills.work_modes import resolve_effective_skill_ids
+
+        cfg = ExtensionsConfig()
+        skills_wm = {
+            "bootstrap": ("core",),
+            "shared-tool": ("task", "coding"),
+        }
+        effective_task = set(resolve_effective_skill_ids(cfg, "task", skills_by_work_modes=skills_wm))
+        effective_coding = set(resolve_effective_skill_ids(cfg, "coding", skills_by_work_modes=skills_wm))
+        assert "shared-tool" in effective_task
+        assert "shared-tool" in effective_coding
+
+    def test_unbound_skill_does_not_appear(self):
+        """A skill with empty work_modes does not appear in any mode (unless added by override)."""
+        from kkoclaw.config.extensions_config import ExtensionsConfig
+        from kkoclaw.skills.work_modes import resolve_effective_skill_ids
+
+        cfg = ExtensionsConfig()
+        skills_wm = {
+            "bootstrap": ("core",),
+            "orphan-skill": (),
+        }
+        effective = set(resolve_effective_skill_ids(cfg, "task", skills_by_work_modes=skills_wm))
+        assert "orphan-skill" not in effective
+
+    def test_legacy_adapter_still_works(self):
+        """The builtin_skills_by_scope backward-compat adapter still works."""
+        from kkoclaw.config.extensions_config import ExtensionsConfig
+        from kkoclaw.skills.work_modes import resolve_effective_skill_ids
+
+        cfg = ExtensionsConfig()
+        builtin_by_scope = {
+            "core": {"bootstrap"},
+            "task": {"deep-research"},
+            "coding": {"code-review"},
+        }
+        effective = set(resolve_effective_skill_ids(cfg, "task", builtin_skills_by_scope=builtin_by_scope))
+        assert "bootstrap" in effective
+        assert "deep-research" in effective
+        assert "code-review" not in effective
+
+
+# ---------------------------------------------------------------------------
 # Locked skill enforcement
 # ---------------------------------------------------------------------------
 

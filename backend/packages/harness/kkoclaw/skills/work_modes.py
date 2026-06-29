@@ -6,13 +6,14 @@ turn an :class:`~kkoclaw.config.extensions_config.ExtensionsConfig` plus a
 ``work_mode_id`` into a concrete list of effective skill ids, and enforce that
 locked core skills cannot be disabled or removed.
 
-**Directory-based auto-binding** (the core architecture): each work mode
-automatically includes the skills filed under its matching builtin
-sub-directory (``builtin/task/`` → task mode, ``builtin/coding/`` → coding
-mode), plus the shared ``builtin/core/`` directory. This is surfaced via
-:func:`load_builtin_skills_by_scope`, which scans the disk once and caches
-the result. User overrides (``mode_skill_overrides``) and legacy
-``default_skill_ids`` are applied on top of this directory baseline.
+**Frontmatter-based binding** (the core architecture): each skill declares
+its mode membership via the ``work_modes`` field in its SKILL.md frontmatter
+(e.g. ``work_modes: [task, coding]`` or ``work_modes: [core]``). A skill is
+active in a work mode if that mode's id appears in its ``work_modes`` list,
+or if ``"core"`` appears (shared across all modes). This is surfaced via
+:func:`load_skills_by_work_modes`, which scans the disk once and caches the
+result. User overrides (``mode_skill_overrides``) and legacy
+``default_skill_ids`` are applied on top of this frontmatter baseline.
 
 These helpers are deliberately free of I/O and side effects (except for the
 disk-scan cache) so they can be unit-tested in isolation (see
@@ -37,6 +38,7 @@ __all__ = [
     "resolve_work_mode_id",
     "resolve_effective_skill_ids",
     "compute_effective_skills",
+    "load_skills_by_work_modes",
     "load_builtin_skills_by_scope",
     "invalidate_builtin_skills_cache",
     "assert_skill_can_be_disabled",
@@ -81,67 +83,77 @@ def resolve_work_mode_id(work_mode_id: str | None) -> str:
 
 
 @lru_cache(maxsize=1)
-def _scan_builtin_skills_by_scope() -> frozenset[tuple[str, frozenset[str]]]:
-    """Scan disk once and return an immutable ``{scope: frozenset(names)}`` snapshot.
+def _scan_skills_by_work_modes() -> frozenset[tuple[str, tuple[str, ...]]]:
+    """Scan disk once and return an immutable ``{(name, work_modes)}`` snapshot.
 
-    Wrapped by :func:`load_builtin_skills_by_scope` which converts to the
-    mutable dict/set view callers expect. The ``lru_cache`` ensures we only
-    walk the 83-file tree once per process unless explicitly invalidated.
+    Wrapped by :func:`load_skills_by_work_modes` which converts to the dict
+    view callers expect. The ``lru_cache`` ensures we only walk the skill tree
+    once per process unless explicitly invalidated.
     """
     from kkoclaw.config import get_app_config
     from kkoclaw.skills.storage import get_or_new_skill_storage
 
     storage = get_or_new_skill_storage(app_config=get_app_config())
     skills = storage.load_skills(enabled_only=False)
-    scope_map: dict[str, set[str]] = {}
-    for skill in skills:
-        scope = skill.mode_scope
-        if scope is None:
-            continue  # custom / legacy — no auto binding
-        scope_map.setdefault(scope, set()).add(skill.name)
-    # Convert to an immutable, hashable structure for lru_cache safety.
-    return frozenset(
-        (scope, frozenset(names)) for scope, names in scope_map.items()
-    )
+    return frozenset((skill.name, skill.work_modes) for skill in skills)
+
+
+def load_skills_by_work_modes() -> dict[str, tuple[str, ...]]:
+    """Return ``{skill_name: work_modes_tuple}`` for ALL skills (builtin + custom).
+
+    This is the frontmatter-driven binding data source. A skill is active in a
+    work mode if its returned tuple contains that mode's id, or if it contains
+    ``"core"`` (shared across all modes). The result is cached process-wide;
+    call :func:`invalidate_builtin_skills_cache` after any skill file is added,
+    removed, or renamed on disk.
+
+    Returns:
+        A dict like ``{"bootstrap": ("core",), "deep-research": ("task",),
+        "code-review": ("coding",), "my-tool": ("task", "coding")}``.
+    """
+    frozen = _scan_skills_by_work_modes()
+    return {name: modes for name, modes in frozen}
 
 
 def load_builtin_skills_by_scope() -> dict[str, set[str]]:
-    """Return ``{mode_scope: set(skill_name)}`` for all builtin skills.
+    """Backward-compat adapter: derive ``{scope: set(names)}`` from work_modes.
 
-    This is the directory-based auto-binding data source. The result is cached
-    process-wide; call :func:`invalidate_builtin_skills_cache` after any skill
-    file is added, removed, or renamed on disk.
-
-    Returns:
-        A dict like ``{"core": {"bootstrap", ...}, "task": {"deep-research", ...},
-        "coding": {"code-review", ...}}``. Skills with ``mode_scope=None``
-        (custom / legacy public) are excluded.
+    .. deprecated::
+        Use :func:`load_skills_by_work_modes` instead. This function is kept
+        only so legacy callers (and tests) that expect the directory-scope map
+        keep working during the transition. It derives the scope map from the
+        new frontmatter-driven data.
     """
-    frozen = _scan_builtin_skills_by_scope()
-    return {scope: set(names) for scope, names in frozen}
+    by_mode = load_skills_by_work_modes()
+    scope_map: dict[str, set[str]] = {}
+    for name, modes in by_mode.items():
+        for scope in modes:
+            scope_map.setdefault(scope, set()).add(name)
+    return scope_map
 
 
 def invalidate_builtin_skills_cache() -> None:
-    """Clear the disk-scan cache so the next ``load_builtin_skills_by_scope`` re-reads.
+    """Clear the disk-scan cache so the next ``load_skills_by_work_modes`` re-reads.
 
-    Call this after any operation that changes the set of builtin skill files
-    on disk (e.g. installing a new skill, deleting one, or moving files between
-    mode directories).
+    Call this after any operation that changes the set of skill files on disk
+    (e.g. installing a new skill, deleting one, or editing work_modes frontmatter).
     """
-    _scan_builtin_skills_by_scope.cache_clear()
+    _scan_skills_by_work_modes.cache_clear()
 
 
 def resolve_effective_skill_ids(
     config: ExtensionsConfig,
     work_mode_id: str | None,
     *,
+    skills_by_work_modes: dict[str, tuple[str, ...]] | None = None,
     builtin_skills_by_scope: dict[str, set[str]] | None = None,
 ) -> tuple[str, ...]:
     """Compute the effective skill ids for a work mode.
 
     Resolution order (each step only *adds* to the set, except removals):
-    1. **Directory auto-binding** (baseline): the mode's matching builtin
-       sub-directory skills + the shared ``core`` directory skills.
+    1. **Frontmatter binding** (baseline): all skills whose ``work_modes``
+       contains the active mode id, plus skills whose ``work_modes`` contains
+       ``"core"`` (shared across all modes).
     2. **Legacy default_skill_ids** (backward compat): user-configured skills
        in ``mode.default_skill_ids`` are appended on top.
     3. **Per-mode overrides**: ``added_skill_ids`` are appended;
@@ -152,10 +164,13 @@ def resolve_effective_skill_ids(
     Args:
         config: The extensions config containing work modes and overrides.
         work_mode_id: The caller's work mode id (None → default).
-        builtin_skills_by_scope: Optional pre-computed ``{scope: set(skill_name)}``
-            map from :func:`load_builtin_skills_by_scope`. When ``None``, the
+        skills_by_work_modes: Optional pre-computed ``{skill_name: work_modes}``
+            map from :func:`load_skills_by_work_modes`. When ``None``, the
             cached disk-scan result is used. Pass it explicitly in tests to
             avoid disk dependencies.
+        builtin_skills_by_scope: Deprecated alias kept for backward compat —
+            legacy callers pass ``{scope: set(names)}`` which is internally
+            converted to the frontmatter-based view.
 
     Returns:
         A de-duplicated, sorted tuple of effective skill ids for the mode.
@@ -167,9 +182,28 @@ def resolve_effective_skill_ids(
     if resolved_mode_id not in modes:
         resolved_mode_id = config.work_modes.default_mode_id
 
-    # 1. Directory auto-binding baseline.
-    by_scope = builtin_skills_by_scope if builtin_skills_by_scope is not None else load_builtin_skills_by_scope()
-    effective: set[str] = set(by_scope.get(resolved_mode_id, set())) | set(by_scope.get("core", set()))
+    # Resolve the frontmatter-driven binding map. Support both the new
+    # ``skills_by_work_modes`` param and the legacy ``builtin_skills_by_scope``
+    # param so existing callers keep working during the transition.
+    if skills_by_work_modes is not None:
+        by_wm = skills_by_work_modes
+    elif builtin_skills_by_scope is not None:
+        # Legacy adapter: invert {scope: {names}} → {name: (scopes...)}.
+        by_wm: dict[str, tuple[str, ...]] = {}
+        for scope, names in builtin_skills_by_scope.items():
+            for n in names:
+                prev = set(by_wm.get(n, ()))
+                prev.add(scope)
+                by_wm[n] = tuple(sorted(prev))
+    else:
+        by_wm = load_skills_by_work_modes()
+
+    # 1. Frontmatter binding baseline: skills that declare this mode OR "core".
+    effective: set[str] = {
+        name
+        for name, wms in by_wm.items()
+        if resolved_mode_id in wms or "core" in wms
+    }
 
     # 2. Legacy default_skill_ids (backward compat — user explicitly configured these).
     mode_cfg = modes.get(resolved_mode_id)
@@ -197,6 +231,7 @@ def compute_effective_skills(
     work_mode_id: str | None,
     extensions_config: ExtensionsConfig,
     *,
+    skills_by_work_modes: dict[str, tuple[str, ...]] | None = None,
     builtin_skills_by_scope: dict[str, set[str]] | None = None,
 ) -> set[str] | None:
     """Compute the final effective skill set for the lead agent's prompt.
@@ -256,7 +291,10 @@ def compute_effective_skills(
     # Mode is active. Compute the mode's effective set first (it already
     # contains locked skills — see ``resolve_effective_skill_ids``).
     mode_effective = resolve_effective_skill_ids(
-        extensions_config, work_mode_id, builtin_skills_by_scope=builtin_skills_by_scope
+        extensions_config,
+        work_mode_id,
+        skills_by_work_modes=skills_by_work_modes,
+        builtin_skills_by_scope=builtin_skills_by_scope,
     )
 
     # Agent has no whitelist: adopt the mode's effective set wholesale.

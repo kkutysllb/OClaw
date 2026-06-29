@@ -36,6 +36,35 @@ export interface InstallSkillResponse {
   message: string;
 }
 
+/**
+ * Update the work mode bindings for a custom skill.
+ *
+ * Calls ``PATCH /api/skills/custom/{skillName}/work-modes`` to rewrite the
+ * ``work_modes`` field in the skill's SKILL.md frontmatter.
+ */
+export async function updateSkillWorkModes(
+  skillName: string,
+  workModes: string[],
+): Promise<void> {
+  const response = await fetch(
+    `${getBackendBaseURL()}/api/skills/custom/${encodeURIComponent(skillName)}/work-modes`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ work_modes: workModes }),
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(
+      (detail as { detail?: string }).detail ??
+        `Failed to update work modes for ${skillName}`,
+    );
+  }
+}
+
 export async function installSkill(
   request: InstallSkillRequest,
 ): Promise<InstallSkillResponse> {

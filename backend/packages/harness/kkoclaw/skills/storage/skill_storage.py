@@ -180,17 +180,24 @@ class SkillStorage(ABC):
         """
 
     @abstractmethod
-    async def ainstall_skill_from_archive(self, archive_path: str | Path) -> dict:
+    async def ainstall_skill_from_archive(self, archive_path: str | Path, *, work_modes: list[str] | None = None) -> dict:
         """Async install of a skill from a ``.skill`` ZIP archive.
 
         Origin: ``kkoclaw.skills.installer.ainstall_skill_from_archive``.
+
+        Args:
+            archive_path: Path to the ``.skill`` ZIP file.
+            work_modes: Optional work mode ids to bind when the archive's
+                SKILL.md has no ``work_modes`` frontmatter.  When ``None``
+                and the frontmatter is missing the field, defaults to
+                ``['task']``.
         """
 
-    def install_skill_from_archive(self, archive_path: str | Path) -> dict:
+    def install_skill_from_archive(self, archive_path: str | Path, *, work_modes: list[str] | None = None) -> dict:
         """Sync wrapper — delegates to :meth:`ainstall_skill_from_archive`."""
         from kkoclaw.skills.installer import _run_async_install
 
-        return _run_async_install(self.ainstall_skill_from_archive(archive_path))
+        return _run_async_install(self.ainstall_skill_from_archive(archive_path, work_modes=work_modes))
 
     @abstractmethod
     def delete_custom_skill(self, name: str, *, history_meta: dict | None = None) -> None:
@@ -271,9 +278,42 @@ class SkillStorage(ABC):
                 md_path,
                 category=category,
                 relative_path=relative_path,
-                mode_scope=_infer_mode_scope(category, category_root, relative_path),
             )
             if skill:
+                # Transitional safety net: if a skill's SKILL.md has no
+                # work_modes frontmatter yet (pre-migration), apply a
+                # best-effort fallback so it doesn't silently disappear
+                # from all modes.
+                if not skill.work_modes:
+                    inferred = _infer_mode_scope(category, category_root, relative_path)
+                    if inferred:
+                        # Builtin skills: infer from physical sub-directory
+                        # (core / task / coding).  The migration script
+                        # writes frontmatter permanently, making this a no-op.
+                        skill.work_modes = (inferred,)
+                    elif category == SkillCategory.CUSTOM:
+                        # Lazy migration: custom skills created before the
+                        # work_modes frontmatter was introduced default to
+                        # the system default mode ("task").  Best-effort
+                        # write-back so subsequent loads skip this path.
+                        skill.work_modes = ("task",)
+                        try:
+                            from kkoclaw.skills.frontmatter import inject_work_modes_frontmatter
+
+                            original = md_path.read_text(encoding="utf-8")
+                            updated = inject_work_modes_frontmatter(original, ["task"])
+                            if updated != original:
+                                self.write_custom_skill(skill.name, SKILL_MD_FILE, updated)
+                                logger.info(
+                                    "Lazy-migrated custom skill '%s' work_modes to ['task']",
+                                    skill.name,
+                                )
+                        except Exception as e:
+                            logger.warning(
+                                "Failed to lazy-write work_modes for custom skill '%s': %s",
+                                skill.name,
+                                e,
+                            )
                 skills_by_name[skill.name] = skill
 
         skills = list(skills_by_name.values())

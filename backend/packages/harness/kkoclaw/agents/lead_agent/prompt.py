@@ -702,12 +702,12 @@ def get_skills_prompt_section(
     # filtering — show every enabled skill".
     if work_mode_id is not None:
         from kkoclaw.config.extensions_config import ExtensionsConfig
-        from kkoclaw.skills.work_modes import load_builtin_skills_by_scope
+        from kkoclaw.skills.work_modes import load_skills_by_work_modes
 
         extensions_config = ExtensionsConfig()
-        # Load the cached builtin-by-scope map once and pass it through so
-        # compute_effective_skills does not re-scan the 83-file tree.
-        builtin_by_scope = load_builtin_skills_by_scope()
+        # Load the cached skills-by-work-modes map once and pass it through so
+        # compute_effective_skills does not re-scan the skill tree.
+        skills_wm = load_skills_by_work_modes()
         # ``available_skills`` is a set; ``compute_effective_skills`` takes a
         # list-or-None — convert. None means "agent declared no whitelist",
         # which matches the agent's actual config semantics.
@@ -716,7 +716,7 @@ def get_skills_prompt_section(
             agent_skills_input,
             work_mode_id,
             extensions_config,
-            builtin_skills_by_scope=builtin_by_scope,
+            skills_by_work_modes=skills_wm,
         )
         if resolved is None:
             # Caller opted out of mode + agent whitelist — legacy path
@@ -803,16 +803,16 @@ def _build_work_mode_context(
     try:
         from kkoclaw.skills.work_modes import (
             compute_effective_skills,
-            load_builtin_skills_by_scope,
+            load_skills_by_work_modes,
         )
 
-        builtin_by_scope = load_builtin_skills_by_scope()
+        skills_wm = load_skills_by_work_modes()
         agent_skills_input = sorted(available_skills) if available_skills is not None else None
         effective = compute_effective_skills(
             agent_skills_input,
             work_mode_id,
             cfg,
-            builtin_skills_by_scope=builtin_by_scope,
+            skills_by_work_modes=skills_wm,
         )
         # effective is None only when both mode and agent whitelist are
         # absent — but we already have a valid mode_cfg here, so it's

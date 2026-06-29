@@ -49,14 +49,28 @@ class Skill:
     category: SkillCategory  # 'builtin' or 'custom'
     enabled: bool = False  # Whether this skill is enabled
     allowed_tools: list[str] | None = None
-    # Work-mode binding inferred from the builtin sub-directory layout:
-    #   "core"  → skills/builtin/core/   (shared by all modes)
-    #   "task"  → skills/builtin/task/   (task/office mode)
-    #   "coding"→ skills/builtin/coding/ (coding mode)
-    #   None    → custom/ or legacy public/ skills (no auto mode binding)
-    # Drives resolve_effective_skill_ids so each work mode only loads the
-    # skills physically filed under its directory plus the shared core.
-    mode_scope: str | None = None
+    # Work-mode bindings declared in SKILL.md frontmatter (one-to-many).
+    #   ("task",)              → only active in task mode
+    #   ("task", "coding")     → active in both task and coding modes
+    #   ("core",)              → shared by ALL modes (global baseline)
+    #   ()                     → uncategorised, not auto-loaded in any mode
+    #
+    # This is the single source of truth for mode membership — the physical
+    # directory layout (builtin/core, builtin/task, builtin/coding) is only a
+    # development-time organisational hint, not a runtime binding mechanism.
+    # ``resolve_effective_skill_ids`` selects skills whose ``work_modes``
+    # contains the active mode id or "core".
+    work_modes: tuple[str, ...] = ()
+
+    @property
+    def mode_scope(self) -> str | None:
+        """Backward-compat shim: first declared work mode, or None.
+
+        Legacy callers that still expect a single ``mode_scope`` string get
+        the first entry of :attr:`work_modes`. Returns ``None`` when the skill
+        is uncategorised (empty tuple).
+        """
+        return self.work_modes[0] if self.work_modes else None
 
     @property
     def skill_path(self) -> str:

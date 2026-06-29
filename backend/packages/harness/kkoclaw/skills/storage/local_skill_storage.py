@@ -114,9 +114,10 @@ class LocalSkillStorage(SkillStorage):
         tmp_path.replace(target)
         make_skill_written_path_sandbox_readable(self.get_custom_skill_dir(name), target)
 
-    async def ainstall_skill_from_archive(self, archive_path: str | Path) -> dict:
+    async def ainstall_skill_from_archive(self, archive_path: str | Path, *, work_modes: list[str] | None = None) -> dict:
         import zipfile
 
+        from kkoclaw.skills.frontmatter import has_work_modes_frontmatter, inject_work_modes_frontmatter
         from kkoclaw.skills.installer import (
             SkillAlreadyExistsError,
             _move_staged_skill_into_reserved_target,
@@ -162,6 +163,17 @@ class LocalSkillStorage(SkillStorage):
             target = custom_dir / skill_name
             if target.exists():
                 raise SkillAlreadyExistsError(f"Skill '{skill_name}' already exists")
+
+            # If the archived SKILL.md has no work_modes frontmatter, inject
+            # the caller-provided modes (or default to ["task"]) so the skill
+            # is never orphaned after installation.
+            skill_md = skill_dir / SKILL_MD_FILE
+            if skill_md.exists():
+                md_content = skill_md.read_text(encoding="utf-8")
+                if not has_work_modes_frontmatter(md_content):
+                    bind_modes = work_modes if work_modes else ["task"]
+                    md_content = inject_work_modes_frontmatter(md_content, bind_modes)
+                    skill_md.write_text(md_content, encoding="utf-8")
 
             await _scan_skill_archive_contents_or_raise(skill_dir, skill_name)
 
