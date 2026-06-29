@@ -253,7 +253,7 @@ def _spawn_watcher_process() -> None:
 
     The watcher sleeps ~2 seconds (allowing the current process to exit and
     release the port), then launches a fresh uvicorn instance with the same
-    host/port configuration.
+    host/port configuration via the project's uv-managed virtual environment.
 
     In PyInstaller frozen mode (packaged desktop), this is a no-op because
     Electron's BackendManager detects the exit and respawns automatically.
@@ -272,18 +272,29 @@ def _spawn_watcher_process() -> None:
 
     host = os.environ.get("GATEWAY_HOST", "0.0.0.0")
     port = os.environ.get("GATEWAY_PORT", "9987")
-    python = sys.executable
 
-    # Spawn a watcher that sleeps, then launches a fresh uvicorn instance.
+    # Resolve the backend directory (parent of app/gateway/routers/...)
+    backend_dir = Path(__file__).resolve().parent.parent.parent.parent
+
+    # Use 'uv run' to launch via the project's uv-managed virtual environment.
+    # This ensures the restarted gateway uses the same venv as the initial
+    # launch, regardless of which Python interpreter (conda/system) happens
+    # to be on PATH.
+    uv_bin = os.environ.get("UV_BIN", "uv")
+
     watcher_script = (
-        "import time, subprocess; "
+        "import os, time, subprocess; "
         f"time.sleep(2); "
         f"subprocess.Popen(["
-        f"r'{python}', '-m', 'uvicorn', 'app.gateway.app:app', "
+        f"r'{uv_bin}', 'run', 'uvicorn', 'app.gateway.app:app', "
         f"'--host', r'{host}', '--port', r'{port}'"
-        f"])"
+        f"], cwd=r'{backend_dir}', "
+        f"env={{**os.environ, 'PYTHONPATH': r'{backend_dir}'}})"
     )
-    launcher = [python, "-c", watcher_script]
+
+    # Use the uv binary to launch the watcher script.
+    # Prefer 'uv' on PATH; if not found, try common locations.
+    launcher = [uv_bin, "run", "python", "-c", watcher_script]
 
     # start_new_session=True detaches the watcher so it survives parent exit
     subprocess.Popen(
@@ -293,5 +304,6 @@ def _spawn_watcher_process() -> None:
         stderr=subprocess.DEVNULL,
         stdin=subprocess.DEVNULL,
         close_fds=True,
+        cwd=str(backend_dir),
     )
-    logger.info(f"Restart watcher spawned (host={host}, port={port})")
+    logger.info(f"Restart watcher spawned (host={host}, port={port}, backend={backend_dir})")
