@@ -545,20 +545,32 @@ export function SkillsPage() {
                 {t.settings.skills.description}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              {skills.length > 0 && (
-                <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="inline-flex size-2 rounded-full bg-emerald-400" />
-                  {activeCount}/{skills.length} 已启用
-                </div>
-              )}
-              <Button
-                onClick={handleCreateSkill}
-                className="bg-gradient-to-r from-violet-500 to-cyan-500 text-white hover:from-violet-600 hover:to-cyan-600 shadow-md shadow-violet-500/25 transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/30"
-              >
-                <SparklesIcon className="size-4" />
-                {t.settings.skills.createSkill}
-              </Button>
+            <div className="flex flex-col items-end gap-1.5">
+              <div className="flex items-center gap-3">
+                {skills.length > 0 && (
+                  <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="inline-flex size-2 rounded-full bg-emerald-400" />
+                    {activeCount}/{skills.length} 已启用
+                  </div>
+                )}
+                <Button
+                  onClick={handleCreateSkill}
+                  className="bg-gradient-to-r from-violet-500 to-cyan-500 text-white hover:from-violet-600 hover:to-cyan-600 shadow-md shadow-violet-500/25 transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/30"
+                >
+                  <SparklesIcon className="size-4" />
+                  {t.settings.skills.createSkill}
+                </Button>
+              </div>
+              {/* Show which work mode the new skill will be bound to */}
+              <div className="text-xs text-muted-foreground">
+                {activeTab === "builtin" ? (
+                  <span>将绑定到 <span className="font-medium text-foreground">日常办公</span> 模式</span>
+                ) : (
+                  <span>
+                    将绑定到 <span className="font-medium text-foreground">{modeTabs.find((m) => m.id === activeTab)?.name ?? activeTab}</span> 模式
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 

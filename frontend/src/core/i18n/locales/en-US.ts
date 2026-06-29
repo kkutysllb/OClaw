@@ -87,6 +87,8 @@ export const enUS: Translations = {
     placeholder: "How can I assist you today?",
     createSkillPrompt:
       "We're going to build a new skill step by step with `skill-creator`. To start, what do you want this skill to do?",
+    skillModeBanner: "Skill Creation Mode",
+    skillModeBannerHint: "The new skill will be auto-bound to the selected work mode below. Switch modes to change the binding target.",
     createCronPrompt:
       "Let's create a scheduled cron job together. Tell me: when should it run and what should it do? For example, generate a daily summary every morning at 9 AM.",
     addAttachments: "Add attachments",

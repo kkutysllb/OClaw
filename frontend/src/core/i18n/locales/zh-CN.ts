@@ -87,6 +87,8 @@ export const zhCN: Translations = {
     placeholder: "今天我能为你做些什么？",
     createSkillPrompt:
       "我们一起用 skill-creator 技能来创建一个技能吧。先问问我希望这个技能能做什么。",
+    skillModeBanner: "技能创建模式",
+    skillModeBannerHint: "新技能将自动绑定到下方选中的工作模式，切换模式可改变绑定目标",
     createCronPrompt:
       "我们一起创建一个定时任务吧。请告诉我：你想在什么时间、执行什么任务？例如每天早上9点生成工作总结。",
     addAttachments: "添加附件",

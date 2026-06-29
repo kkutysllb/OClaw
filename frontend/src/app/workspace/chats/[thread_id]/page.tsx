@@ -38,6 +38,8 @@ import {
 } from "@/core/settings";
 import { useThreadStream } from "@/core/threads/hooks";
 import { textOfMessage } from "@/core/threads/utils";
+import { useWorkModes } from "@/core/work-modes/hooks";
+import { SparklesIcon } from "lucide-react";
 import { env } from "@/env";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +55,10 @@ export default function ChatPage() {
   const mountedRef = useRef(false);
   const searchParams = useSearchParams();
   useSpecificChatMode();
+
+  // Detect skill-creation mode (?mode=skill) to show the binding banner.
+  const isSkillMode = searchParams.get("mode") === "skill";
+  const { data: workModesData } = useWorkModes();
 
   // When entering a new chat via ?mode=skill&workMode=X, pre-select that
   // work mode so skill_manage_tool auto-binds the new skill to it.
@@ -204,6 +210,13 @@ export default function ChatPage() {
                 {isNewThread && (
                   <div className={cn("max-w-(--container-width-sm) mx-auto w-full space-y-6 pb-6")}>
                     <Welcome mode={settings.context.mode} />
+                    {isSkillMode && (
+                      <SkillModeBindingBanner
+                        t={t}
+                        workModeId={settings.context.work_mode_id as string | undefined}
+                        modes={workModesData.modes}
+                      />
+                    )}
                     <WorkModeSelector
                       selectedWorkModeId={settings.context.work_mode_id as string | undefined}
                       selectedAgentName={settings.context.agent_name as string | undefined}
@@ -270,5 +283,42 @@ export default function ChatPage() {
         onClose={() => setDetailModeId(null)}
       />
     </ThreadContext.Provider>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SkillModeBindingBanner — shown when ?mode=skill to make the work-mode
+// binding explicit. Reminds the user that the new skill will be bound to
+// the currently selected work mode and that switching modes changes the
+// binding target.
+// ---------------------------------------------------------------------------
+function SkillModeBindingBanner({
+  t,
+  workModeId,
+  modes,
+}: {
+  t: ReturnType<typeof useI18n>["t"];
+  workModeId: string | undefined;
+  modes: { id: string; name: string }[];
+}) {
+  const currentMode = modes.find((m) => m.id === workModeId) ?? modes[0];
+  const modeName = currentMode?.name ?? workModeId ?? "task";
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-violet-500/30 bg-violet-500/5 p-3">
+      <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-violet-500/15 text-violet-500">
+        <SparklesIcon className="size-3.5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          {t.inputBox.skillModeBanner}
+          <span className="inline-flex items-center rounded-md bg-violet-500/15 px-1.5 py-0.5 text-xs font-semibold text-violet-500">
+            {modeName}
+          </span>
+        </div>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {t.inputBox.skillModeBannerHint}
+        </p>
+      </div>
+    </div>
   );
 }

@@ -71,6 +71,8 @@ export interface Translations {
     placeholder: string;
     createSkillPrompt: string;
     createCronPrompt: string;
+    skillModeBanner: string;
+    skillModeBannerHint: string;
     addAttachments: string;
     mode: string;
     flashMode: string;
