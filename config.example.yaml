@@ -1,0 +1,1187 @@
+# KKOCLAW 应用配置
+#
+# 使用说明：
+# - 将本文件复制为 `config.yaml` 并根据你的环境自定义
+# - 配置文件默认路径为项目根目录下的 `config.yaml`
+#   你可以显式设置 `KKOCLAW_PROJECT_ROOT` 来定义根目录，或使用
+#   `KKOCLAW_CONFIG_PATH` 来指向特定的配置文件
+# - 运行时状态默认为项目根目录下的 `.kkoclaw`。如需其他可写数据目录，
+#   可用 `KKOCLAW_HOME` 覆盖
+# - 所有字段值均支持环境变量。示例：`api_key: $OPENAI_API_KEY`
+# - `use` 路径是一个形如 "package_name.sub_package_name.module_name:class_name/variable_name" 的字符串
+
+# ============================================================================
+# Config Version (used to detect outdated config files)
+# ============================================================================
+# Bump this number when the config schema changes.
+# Run `make config-upgrade` to merge new fields into your local config.yaml.
+config_version: 8
+
+# ============================================================================
+# 日志
+# ============================================================================
+# KKOCLAW 模块的日志级别 (debug/info/warning/error)
+log_level: info
+
+# ============================================================================
+# Token Usage
+# ============================================================================
+# Enable token usage collection and display.
+# When enabled, KKOCLAW records input/output/total tokens per model call
+# and shows usage metadata in the workspace UI when providers return it.
+token_usage:
+  enabled: false
+
+# ============================================================================
+# Models Configuration
+# ============================================================================
+# Configure available LLM models for the agent to use
+
+models:
+  # 示例：OpenAI 模型
+
+  # Example: OpenAI model
+  # - name: gpt-4
+  #   display_name: GPT-4
+  #   use: langchain_openai:ChatOpenAI
+  #   model: gpt-4
+  #   api_key: $OPENAI_API_KEY # Use environment variable
+  #   request_timeout: 600.0
+  #   max_retries: 2
+  #   max_tokens: 4096
+  #   temperature: 0.7
+  #   supports_vision: true # Enable vision support for view_image tool
+
+  # Example: OpenAI Responses API model
+  # - name: gpt-5-responses
+  #   display_name: GPT-5 (Responses API)
+  #   use: langchain_openai:ChatOpenAI
+  #   model: gpt-5
+  #   api_key: $OPENAI_API_KEY
+  #   request_timeout: 600.0
+  #   max_retries: 2
+  #   use_responses_api: true
+  #   output_version: responses/v1
+  #   supports_vision: true
+
+  # Example: Ollama (native provider — preserves thinking/reasoning content)
+  #
+  # IMPORTANT: Use langchain_ollama:ChatOllama instead of langchain_openai:ChatOpenAI
+  # for Ollama models. The OpenAI-compatible endpoint (/v1/chat/completions) does NOT
+  # return reasoning_content as a separate field — thinking content is either flattened
+  # into <think> tags or dropped entirely (ollama/ollama#15293). The native Ollama API
+  # (/api/chat) correctly separates thinking from response content.
+  #
+  # Install: cd backend && uv pip install 'kkoclaw-harness[ollama]'
+  #
+  # - name: qwen3-local
+  #   display_name: Qwen3 32B (Ollama)
+  #   use: langchain_ollama:ChatOllama
+  #   model: qwen3:32b
+  #   base_url: http://localhost:11434   # No /v1 suffix — uses native /api/chat
+  #   num_predict: 8192
+  #   temperature: 0.7
+  #   reasoning: true                    # Passes think:true to Ollama native API
+  #   supports_thinking: true
+  #   supports_vision: false
+  #
+  # - name: gemma4-local
+  #   display_name: Gemma 4 27B (Ollama)
+  #   use: langchain_ollama:ChatOllama
+  #   model: gemma4:27b
+  #   base_url: http://localhost:11434
+  #   num_predict: 8192
+  #   temperature: 0.7
+  #   reasoning: true
+  #   supports_thinking: true
+  #   supports_vision: true
+  #
+  # For Docker deployments, use host.docker.internal instead of localhost:
+  #   base_url: http://host.docker.internal:11434
+
+  # Example: Anthropic Claude model
+  # - name: claude-3-5-sonnet
+  #   display_name: Claude 3.5 Sonnet
+  #   use: langchain_anthropic:ChatAnthropic
+  #   model: claude-3-5-sonnet-20241022
+  #   api_key: $ANTHROPIC_API_KEY
+  #   default_request_timeout: 600.0
+  #   max_retries: 2
+  #   max_tokens: 8192
+  #   supports_vision: true  # Enable vision support for view_image tool
+  #   when_thinking_enabled:
+  #     thinking:
+  #       type: enabled
+  #   when_thinking_disabled:
+  #     thinking:
+  #       type: disabled
+
+  # Example: Google Gemini model (native SDK, no thinking support)
+  # - name: gemini-2.5-pro
+  #   display_name: Gemini 2.5 Pro
+  #   use: langchain_google_genai:ChatGoogleGenerativeAI
+  #   model: gemini-2.5-pro
+  #   gemini_api_key: $GEMINI_API_KEY
+  #   timeout: 600.0
+  #   max_retries: 2
+  #   max_tokens: 8192
+  #   supports_vision: true
+
+  # Example: Gemini model via OpenAI-compatible gateway (with thinking support)
+  # Use PatchedChatOpenAI so that tool-call thought_signature values on tool_calls
+  # are preserved across multi-turn tool-call conversations — required by the
+  # Gemini API when thinking is enabled. See:
+  # https://docs.cloud.google.com/vertex-ai/generative-ai/docs/thought-signatures
+  # - name: gemini-2.5-pro-thinking
+  #   display_name: Gemini 2.5 Pro (Thinking)
+  #   use: kkoclaw.models.patched_openai:PatchedChatOpenAI
+  #   model: google/gemini-2.5-pro-preview   # model name as expected by your gateway
+  #   api_key: $GEMINI_API_KEY
+  #   base_url: https://<your-openai-compat-gateway>/v1
+  #   request_timeout: 600.0
+  #   max_retries: 2
+  #   max_tokens: 16384
+  #   supports_thinking: true
+  #   supports_vision: true
+  #   when_thinking_enabled:
+  #     extra_body:
+  #       thinking:
+  #         type: enabled
+  #   when_thinking_disabled:
+  #     extra_body:
+  #       thinking:
+  #         type: disabled
+
+  # Example: Zhipu GLM-5 model (requires ZHIPU_API_KEY)
+  # IMPORTANT: Use kkoclaw.models.patched_zhipu:PatchedChatZhipu instead of
+  # langchain_openai:ChatOpenAI — the standard client sends stream_options
+  # which Zhipu API rejects with error code 1210 ("API 调用参数有误").
+  # For Coding plan, use coding endpoint; for general plan, use standard endpoint.
+  # - name: glm-5.2
+  #   display_name: GLM-5.2
+  #   use: kkoclaw.models.patched_zhipu:PatchedChatZhipu
+  #   model: GLM-5.2
+  #   api_key: $ZHIPU_API_KEY
+  #   base_url: https://open.bigmodel.cn/api/coding/paas/v4  # Coding 端点
+  #   # base_url: https://open.bigmodel.cn/api/paas/v4      # 通用端点
+  #   request_timeout: 600.0
+  #   max_tokens: 384000           # GLM-5.2 单次输出上限 (官方)
+  #   max_input_tokens: 1000000    # 1M 上下文窗口
+  #   temperature: 0.7
+  #   supports_thinking: true
+  #   supports_vision: true
+  #   supports_reasoning_effort: false  # GLM-5 does not support reasoning_effort
+  #   when_thinking_enabled:
+  #     extra_body:
+  #       thinking:
+  #         type: enabled
+  #   when_thinking_disabled:
+  #     extra_body:
+  #       thinking:
+  #         type: disabled
+
+  # Example: DeepSeek model (with thinking support)
+  # Note: deepseek-chat / deepseek-reasoner aliases will be removed 2026/07/24.
+  # Use explicit deepseek-v4-flash (non-thinking + thinking modes) or deepseek-v4-pro.
+  # - name: deepseek-v4-pro
+  #   display_name: DeepSeek V4 Pro (Thinking)
+  #   use: kkoclaw.models.patched_deepseek:PatchedChatDeepSeek
+  #   model: deepseek-v4-pro
+  #   api_key: $DEEPSEEK_API_KEY
+  #   base_url: $DEEPSEEK_BASE_URL
+  #   timeout: 600.0
+  #   max_retries: 2
+  #   max_tokens: 384000           # V4 系列单次输出上限 (官方 api-docs.deepseek.com)
+  #   max_input_tokens: 1000000    # 1M 上下文窗口
+  #   supports_thinking: true
+  #   supports_vision: false
+  #   when_thinking_enabled:
+  #     extra_body:
+  #       thinking:
+  #         type: enabled
+  #   when_thinking_disabled:
+  #     extra_body:
+  #       thinking:
+  #         type: disabled
+
+  # Example: Kimi K2.5 model
+  # - name: kimi-k2.5
+  #   display_name: Kimi K2.5
+  #   use: kkoclaw.models.patched_deepseek:PatchedChatDeepSeek
+  #   model: kimi-k2.5
+  #   api_base: https://api.moonshot.cn/v1
+  #   api_key: $MOONSHOT_API_KEY
+  #   timeout: 600.0
+  #   max_retries: 2
+  #   max_tokens: 32768
+  #   supports_thinking: true
+  #   supports_vision: true  # Check your specific model's capabilities
+  #   when_thinking_enabled:
+  #     extra_body:
+  #       thinking:
+  #         type: enabled
+  #   when_thinking_disabled:
+  #     extra_body:
+  #       thinking:
+  #         type: disabled
+
+  # 示例：Novita AI（OpenAI 兼容）
+  # - name: novita-deepseek-v3.2
+  #   display_name: Novita DeepSeek V3.2
+  #   use: langchain_openai:ChatOpenAI
+  #   model: deepseek/deepseek-v3.2
+  #   api_key: $NOVITA_API_KEY
+  #   base_url: https://api.novita.ai/openai
+  #   request_timeout: 600.0
+  #   max_retries: 2
+  #   max_tokens: 4096
+  #   temperature: 0.7
+  #   supports_thinking: true
+  #   supports_vision: true
+  #   when_thinking_enabled:
+  #     extra_body:
+  #       thinking:
+  #         type: enabled
+  #   when_thinking_disabled:
+  #     extra_body:
+  #       thinking:
+  #         type: disabled
+
+  # 示例：MiniMax（OpenAI 兼容）- 国际版
+  # - name: minimax-m3
+  #   display_name: MiniMax M3
+  #   use: kkoclaw.models.patched_minimax:PatchedChatMiniMax
+  #   model: MiniMax-M3
+  #   api_key: $MINIMAX_API_KEY
+  #   base_url: $MINIMAX_BASE_URL
+  #   request_timeout: 600.0
+  #   max_retries: 2
+  #   max_tokens: 524288          # MiniMax-M3 单次输出上限 (官方)
+  #   max_input_tokens: 1000000   # 1M 上下文窗口
+  #   temperature: 0.7
+  #   supports_vision: true
+  #   supports_thinking: true
+
+  # - name: minimax-m2.5-highspeed
+  #   display_name: MiniMax M2.5 Highspeed
+  #   use: langchain_openai:ChatOpenAI
+  #   model: MiniMax-M2.5-highspeed
+  #   api_key: $MINIMAX_API_KEY
+  #   base_url: https://api.minimax.io/v1
+  #   request_timeout: 600.0
+  #   max_retries: 2
+  #   max_tokens: 4096
+  #   temperature: 1.0
+  #   supports_vision: true
+  #   supports_thinking: true
+
+  # 示例：MiniMax（OpenAI 兼容）- 中国区
+  # - name: minimax-m2.7
+  #   display_name: MiniMax M2.7
+  #   use: langchain_openai:ChatOpenAI
+  #   model: MiniMax-M2.7
+  #   api_key: $MINIMAX_API_KEY
+  #   base_url: https://api.minimaxi.com/v1
+  #   request_timeout: 600.0
+  #   max_retries: 2
+  #   max_tokens: 4096
+  #   temperature: 1.0
+  #   supports_vision: true
+  #   supports_thinking: true
+
+  # - name: minimax-m2.7-highspeed
+  #   display_name: MiniMax M2.7 Highspeed
+  #   use: langchain_openai:ChatOpenAI
+  #   model: MiniMax-M2.7-highspeed
+  #   api_key: $MINIMAX_API_KEY
+  #   base_url: https://api.minimaxi.com/v1
+  #   request_timeout: 600.0
+  #   max_retries: 2
+  #   max_tokens: 4096
+  #   temperature: 1.0
+  #   supports_vision: true
+  #   supports_thinking: true
+
+  # 示例：OpenRouter（OpenAI 兼容）
+  # - name: openrouter-gemini-2.5-flash
+  #   display_name: Gemini 2.5 Flash (OpenRouter)
+  #   use: langchain_openai:ChatOpenAI
+  #   model: google/gemini-2.5-flash-preview
+  #   api_key: $OPENAI_API_KEY
+  #   base_url: https://openrouter.ai/api/v1
+  #   request_timeout: 600.0
+  #   max_retries: 2
+  #   max_tokens: 8192
+  #   temperature: 0.7
+
+  # 示例：vLLM 0.19.0（OpenAI 兼容，支持推理切换）
+  # KKOCLAW 的 vLLM 提供者在工具调用回合间保留 vLLM 推理内容，
+  # 并通过写入 extra_body.chat_template_kwargs.enable_thinking=true/false 来切换 Qwen 风格推理。
+  # 部分推理模型还需要使用 `vllm serve ... --reasoning-parser <parser>` 启动服务器。
+  # - name: qwen3-32b-vllm
+  #   display_name: Qwen3 32B (vLLM)
+  #   use: kkoclaw.models.vllm_provider:VllmChatModel
+  #   model: Qwen/Qwen3-32B
+  #   api_key: $local_API_KEY
+  #   base_url: http://localhost:8000/v1
+  #   request_timeout: 600.0
+  #   max_retries: 2
+  #   max_tokens: 8192
+  #   max_input_tokens: 32768    # Required by SummarizationMiddleware's fraction trigger
+  #   supports_thinking: true
+  #   supports_vision: false
+  #   when_thinking_enabled:
+  #     extra_body:
+  #       chat_template_kwargs:
+  #         enable_thinking: true
+
+
+  # 示例：部署在 MindIE Engine 上的 Qwen3-Coder
+  # - name: Qwen3_Coder_480B_MindIE
+  #   display_name: Qwen3-Coder-480B (MindIE)
+  #   use: kkoclaw.models.mindie_provider:MindIEChatModel
+  #   model: Qwen3-Coder-480B-A35B-Instruct-Client
+  #   base_url: http://localhost:8989/v1
+  #   api_key: $OPENAI_API_KEY
+  #   temperature: 0
+  #   max_retries: 1
+  #   supports_thinking: false
+  #   supports_vision: false
+  #   supports_reasoning_effort: false
+  #   # --- Advanced Network Settings ---
+  #   # Due to MindIE's streaming limitations with tool calling, the provider
+  #   # uses mock-streaming (awaiting full generation). Extended timeouts are required.
+  #   read_timeout: 900.0     # 15 minutes to prevent drops during long document generation
+  #   connect_timeout: 30.0
+  #   write_timeout: 60.0
+  #   pool_timeout: 30.0
+
+# ============================================================================
+# Tool Groups Configuration
+# ============================================================================
+# Define groups of tools for organization and access control
+
+tool_groups:
+  - name: web
+  - name: file:read
+  - name: file:write
+  - name: bash
+
+# ============================================================================
+# Tools Configuration
+# ============================================================================
+# Configure available tools for the agent to use
+
+tools:
+  # ===================== Web Search =====================
+  # Recommended: Zhipu Web (domestic MCP gateway, uses ZHIPU_API_KEY)
+  # Works reliably in China. Powered by 智谱 BigModel MCP gateway.
+  - name: web_search
+    group: web
+    use: kkoclaw.community.zhipu_web.tools:web_search_tool
+    location: cn
+
+  # DuckDuckGo (no API key needed, but may timeout in China)
+  # - name: web_search
+  #   group: web
+  #   use: kkoclaw.community.ddg_search.tools:web_search_tool
+  #   max_results: 5
+
+  # InfoQuest (BytePlus, requires INFOQUEST_API_KEY)
+  # - name: web_search
+  #   group: web
+  #   use: kkoclaw.community.infoquest.tools:web_search_tool
+  #   search_time_range: 10
+
+  # Serper (Google Search API, requires SERPER_API_KEY)
+  # - name: web_search
+  #   group: web
+  #   use: kkoclaw.community.serper.tools:web_search_tool
+  #   max_results: 5
+
+  # Tavily (requires TAVILY_API_KEY)
+  # - name: web_search
+  #   group: web
+  #   use: kkoclaw.community.tavily.tools:web_search_tool
+  #   max_results: 5
+
+  # Exa (requires EXA_API_KEY)
+  # - name: web_search
+  #   group: web
+  #   use: kkoclaw.community.exa.tools:web_search_tool
+  #   max_results: 5
+
+  # Firecrawl (requires FIRECRAWL_API_KEY)
+  # - name: web_search
+  #   group: web
+  #   use: kkoclaw.community.firecrawl.tools:web_search_tool
+  #   max_results: 5
+
+  # ===================== Web Fetch =====================
+  # NOTE: Only one web_fetch provider can be active at a time.
+
+  # Recommended: Zhipu Web Reader (domestic MCP gateway, uses ZHIPU_API_KEY)
+  - name: web_fetch
+    group: web
+    use: kkoclaw.community.zhipu_web.tools:web_fetch_tool
+    timeout: 30
+
+  # Jina AI reader (API-based, works in China)
+  # - name: web_fetch
+  #   group: web
+  #   use: kkoclaw.community.jina_ai.tools:web_fetch_tool
+  #   timeout: 10
+
+  # InfoQuest fetch (BytePlus, requires INFOQUEST_API_KEY)
+  # - name: web_fetch
+  #   group: web
+  #   use: kkoclaw.community.infoquest.tools:web_fetch_tool
+  #   timeout: 10
+
+  # Exa fetch (requires EXA_API_KEY)
+  # - name: web_fetch
+  #   group: web
+  #   use: kkoclaw.community.exa.tools:web_fetch_tool
+
+  # Firecrawl fetch (requires FIRECRAWL_API_KEY)
+  # - name: web_fetch
+  #   group: web
+  #   use: kkoclaw.community.firecrawl.tools:web_fetch_tool
+
+  # ===================== Image Search =====================
+  # DuckDuckGo image search (may timeout in China)
+  - name: image_search
+    group: web
+    use: kkoclaw.community.image_search.tools:image_search_tool
+    max_results: 5
+
+  # InfoQuest image search (BytePlus, requires INFOQUEST_API_KEY)
+  # - name: image_search
+  #   group: web
+  #   use: kkoclaw.community.infoquest.tools:image_search_tool
+  #   image_search_time_range: 10
+  #   image_size: i
+
+  # File operations tools
+  - name: ls
+    group: file:read
+    use: kkoclaw.sandbox.tools:ls_tool
+
+  - name: read_file
+    group: file:read
+    use: kkoclaw.sandbox.tools:read_file_tool
+
+  - name: glob
+    group: file:read
+    use: kkoclaw.sandbox.tools:glob_tool
+    max_results: 200
+
+  - name: grep
+    group: file:read
+    use: kkoclaw.sandbox.tools:grep_tool
+    max_results: 100
+
+  - name: write_file
+    group: file:write
+    use: kkoclaw.sandbox.tools:write_file_tool
+
+  - name: str_replace
+    group: file:write
+    use: kkoclaw.sandbox.tools:str_replace_tool
+
+  # Bash execution tool
+  # Active only when using an isolated shell sandbox or when
+  # sandbox.allow_host_bash: true explicitly opts into host bash.
+  - name: bash
+    group: bash
+    use: kkoclaw.sandbox.tools:bash_tool
+
+# ============================================================================
+# Tool Search Configuration (Deferred Tool Loading)
+# ============================================================================
+# When enabled, MCP tools are not loaded into the agent's context directly.
+# Instead, they are listed by name in the system prompt and discoverable
+# via the tool_search tool at runtime.
+# This reduces context usage and improves tool selection accuracy when
+# multiple MCP servers expose a large number of tools.
+
+tool_search:
+  enabled: false
+
+# ============================================================================
+# Sandbox Configuration
+# ============================================================================
+# Choose between local sandbox (direct execution) or Docker-based AIO sandbox
+
+# Option 1: Local Sandbox (Default)
+# Executes commands directly on the host machine
+uploads:
+  # Application-level upload limits enforced by the gateway and exposed to the
+  # frontend before file selection.
+  max_files: 10
+  max_file_size: 52428800    # 50 MiB
+  max_total_size: 104857600  # 100 MiB
+  # Automatic Office/PDF conversion runs on the backend host before sandbox
+  # isolation applies. Keep this disabled unless uploads come from a fully
+  # trusted source and you intentionally accept host-side parser risk.
+  auto_convert_documents: false
+  # Controls which PDF-to-Markdown converter is used whenever PDF conversion
+  # runs. Automatic upload conversion is gated separately by
+  # auto_convert_documents.
+  # auto        — prefer pymupdf4llm when installed; fall back to MarkItDown for
+  #               image-based or encrypted PDFs (recommended default).
+  # pymupdf4llm — always use pymupdf4llm (must be installed: uv add pymupdf4llm).
+  #               Better heading/table extraction; faster on most files.
+  # markitdown  — always use MarkItDown (original behaviour, no extra dependency).
+  pdf_converter: auto
+
+sandbox:
+  use: kkoclaw.sandbox.local:LocalSandboxProvider
+  # Host bash execution is disabled by default because LocalSandboxProvider is
+  # not a secure isolation boundary for shell access. Enable only for fully
+  # trusted, single-user local workflows.
+  allow_host_bash: false
+  # Optional: Mount additional host directories into the sandbox.
+  # Each mount maps a host path to a virtual container path accessible by the agent.
+  # mounts:
+  #   - host_path: /home/user/my-project    # Absolute path on the host machine
+  #     container_path: /mnt/my-project     # Virtual path inside the sandbox
+  #     read_only: true                     # Whether the mount is read-only (default: false)
+
+  # Tool output truncation limits (characters).
+  # bash uses middle-truncation (head + tail) since errors can appear anywhere in the output.
+  # read_file and ls use head-truncation since their content is front-loaded.
+  # Set to 0 to disable truncation.
+  bash_output_max_chars: 20000
+  read_file_output_max_chars: 50000
+  ls_output_max_chars: 20000
+
+# Option 2: Container-based AIO Sandbox
+# Executes commands in isolated containers (Docker or Apple Container)
+# On macOS: Automatically prefers Apple Container if available, falls back to Docker
+# On other platforms: Uses Docker
+# Uncomment to use:
+# sandbox:
+#   use: kkoclaw.community.aio_sandbox:AioSandboxProvider
+#
+#   # Optional: Container image to use (works with both Docker and Apple Container)
+#   # Default: all-in-one-sandbox:latest
+#   # Recommended: all-in-one-sandbox:latest (works on both x86_64 and arm64)
+#   # image: all-in-one-sandbox:latest
+#
+#   # Optional: Base port for sandbox containers (default: 8080)
+#   # port: 8080
+
+#   # Optional: Maximum number of concurrent sandbox containers (default: 3)
+#   # When the limit is reached the least-recently-used sandbox is evicted to
+#   # make room for new ones. Use a positive integer here; omit this field to use the default.
+#   # replicas: 3
+#
+#   # Optional: Prefix for container names (default: kkoclaw-sandbox)
+#   #   container_prefix: kkoclaw-sandbox
+#
+#   # Optional: Additional mount directories from host to container
+#   # NOTE: Skills directory is automatically mounted from skills.path to skills.container_path
+#   # mounts:
+#   #   # Other custom mounts
+#   #   - host_path: /path/on/host
+#   #     container_path: /home/user/shared
+#   #     read_only: false
+#   #
+#   #   # KKOCLAW will surface configured container_path values to the agent,
+#   #   # so it can directly read/write mounted directories such as /home/user/shared
+#
+#   # Optional: Environment variables to inject into the sandbox container
+#   # Values starting with $ will be resolved from host environment variables
+#   # environment:
+#   #   NODE_ENV: production
+#   #   DEBUG: "false"
+#   #   API_KEY: $MY_API_KEY        # Reads from host's MY_API_KEY env var
+#   #   DATABASE_URL: $DATABASE_URL  # Reads from host's DATABASE_URL env var
+
+# Option 3: Provisioner-managed AIO Sandbox (docker-compose-dev)
+# Each sandbox_id gets a dedicated Pod in k3s, managed by the provisioner.
+# Recommended for production or advanced users who want better isolation and scalability.:
+# sandbox:
+#   use: kkoclaw.community.aio_sandbox:AioSandboxProvider
+#   provisioner_url: http://provisioner:9194
+
+# ============================================================================
+# 子智能体配置
+# ============================================================================
+# Configure timeouts for subagent execution
+# Subagents are background workers delegated tasks by the lead agent
+
+# subagents:
+#   # Default timeout in seconds for all subagents (default: 900 = 15 minutes)
+#   timeout_seconds: 900
+#   # Optional global max-turn override for all subagents
+#   # max_turns: 120
+#
+#   # LangGraph recursion_limit formula for subagents (default: max_turns * 3 + 20)
+#   # Increase if complex subagents hit GraphRecursionError before finishing.
+#   # Example: with max_turns=25, default gives 25*3+20=95 steps.
+#   # recursion_limit_multiplier: 3   # multiplier (default: 3)
+#   # recursion_limit_base: 20         # base offset (default: 20)
+#
+#   # Optional per-agent overrides (applies to both built-in and custom agents)
+#   agents:
+#     general-purpose:
+#       timeout_seconds: 1800  # 30 minutes for complex multi-step tasks
+#       max_turns: 160
+#       # model: qwen3:32b     # Use a specific model (default: inherit from lead agent)
+#       # skills:               # Skill whitelist (default: inherit all enabled skills)
+#       #   - web-search
+#       #   - data-analysis
+#     bash:
+#       timeout_seconds: 300   # 5 minutes for quick command execution
+#       max_turns: 80
+#       # skills: []            # No skills for bash agent
+#
+#   # Optional parent-model -> subagent-model routing.
+#   # All names here are user-configured examples and must match entries in `models:`.
+#   # `fallback: default` means "fall back to models[0]" when preferred_models are unavailable.
+#   # model_routing:
+#   #   enabled: true
+#   #   rules:
+#   #     - parent_models: ["deepseek-v4-flash", "deepseek-v4-pro"]
+#   #       include_subagent_types: ["general-purpose"]
+#   #       exclude_subagent_types: ["bash"]
+#   #       preferred_models: ["glm-5.1", "minimax-m2.5"]
+#   #       fallback: default
+#
+#   # Custom subagent types: define specialized agents with their own prompts,
+#   # tools, skills, and model configuration. Custom agents are available via
+#   # the `task` tool alongside built-in types (general-purpose, bash).
+#   # custom_agents:
+#   #   analysis:
+#   #     description: "Data analysis specialist for processing datasets and generating insights"
+#   #     system_prompt: |
+#   #       You are a data analysis subagent. Focus on:
+#   #       - Processing and analyzing datasets
+#   #       - Generating visualizations
+#   #       - Providing statistical insights
+#   #     tools:                  # Tool whitelist (null = inherit all)
+#   #       - bash
+#   #       - read_file
+#   #       - write_file
+#   #     skills:                 # Skill whitelist (null = inherit all, [] = none)
+#   #       - data-analysis
+#   #       - visualization
+#   #     model: inherit          # 'inherit' uses parent's model
+#   #     max_turns: 80
+#   #     timeout_seconds: 600
+#
+#   # Model override: by default, subagents inherit the lead agent's model.
+#   # Set `model` to use a different model (e.g., a local Ollama model for cost savings).
+#   # The model name must match a name defined in the `models:` section above.
+
+# ============================================================================
+# ACP Agent 配置
+# ============================================================================
+# Configure external ACP-compatible agents for the built-in `invoke_acp_agent` tool.
+
+# acp_agents:
+#   claude_code:
+#   # KKOCLAW expects an ACP adapter here. The standard `claude` CLI does not
+#     command: npx
+#     args: ["-y", "@zed-industries/claude-agent-acp"]
+#     description: Claude Code for implementation, refactoring, and debugging
+#     model: null
+#     # auto_approve_permissions: false  # Set to true to auto-approve ACP permission requests
+#     # env:                             # Optional: inject environment variables into the agent subprocess
+#     #   ANTHROPIC_API_KEY: $ANTHROPIC_API_KEY  # $VAR resolves from host environment
+#
+#   codex:
+#     # KKOCLAW expects an ACP adapter here. The standard `codex` CLI does not
+#     # speak ACP directly. Install `codex-acp` separately or use:
+#     command: npx
+#     args: ["-y", "@zed-industries/codex-acp"]
+#     description: Codex CLI for repository tasks and code generation
+#     model: null
+#     # auto_approve_permissions: false  # Set to true to auto-approve ACP permission requests
+#     # env:                             # Optional: inject environment variables into the agent subprocess
+#     #   OPENAI_API_KEY: $OPENAI_API_KEY  # $VAR resolves from host environment
+
+# ============================================================================
+# Agent 运行时限制
+# ============================================================================
+# Top-level ceilings that govern how long a single agent run can grind
+# before it is forced to stop. These apply to ALL top-level agents
+# (lead_agent / coding_agent / cron / IM channels).
+#
+# 背景：旧版本中 recursion_limit 被硬编码为 100（约 50 个交互轮），
+# 复杂多步骤任务（如代码库分析、长 todo 列表）会被中途截断。
+# 现在默认提升到 500，并允许在此处调节。
+#
+# 调高 = 允许更长任务一直跑到完成；调低 = 更严格的安全网防止失控。
+
+agent_recursion_limit: 500
+
+# TodoMiddleware 在 agent 想提前退出但还有未完成 todo 时，最多强制
+# 重入 model 节点的次数。调高 = 允许 agent 磨完长 todo 列表；
+# 设为 0 = 关闭安全网（不建议，可能引起无限循环烧爆 token）。
+todo_max_completion_reminders: 10
+
+# ============================================================================
+# 技能配置
+# ============================================================================
+# Configure skills directory for specialized agent workflows
+
+skills:
+  # Path to skills directory on the host (relative to project root or absolute)
+  # Default: skills under the project root
+  # Override with KKOCLAW_SKILLS_PATH when this field is omitted.
+  # Uncomment to customize:
+  # path: /absolute/path/to/custom/skills
+
+  # Path where skills are mounted in the sandbox container
+  # This is used by the agent to access skills in both local and Docker sandbox
+  # Default: /mnt/skills
+  container_path: /mnt/skills
+
+# Note: To restrict which skills are loaded for a specific custom agent,
+# define a `skills` list in that agent's `config.yaml` (e.g. `agents/my-agent/config.yaml`):
+# - Omitted or null: load all globally enabled skills (default)
+# - []: disable all skills for this agent
+# - ["skill-name"]: load only specific skills
+
+# ============================================================================
+# 标题生成配置
+# ============================================================================
+# Automatic conversation title generation settings
+
+title:
+  enabled: true
+  max_words: 6
+  max_chars: 60
+  model_name: null # Use default model (first model in models list)
+
+# ============================================================================
+# 摘要配置
+# ============================================================================
+# Automatically summarize conversation history when token limits are approached
+# This helps maintain context in long conversations without exceeding model limits
+
+summarization:
+  enabled: true
+
+  # Model to use for summarization (null = use default model)
+  # Recommended: Use a lightweight, cost-effective model like "gpt-4o-mini" or similar
+  model_name: null
+
+  # Trigger conditions - at least one required
+  # Summarization runs when ANY threshold is met (OR logic)
+  # You can specify a single trigger or a list of triggers
+  trigger:
+    # Trigger when token count reaches 15564
+    - type: tokens
+      value: 15564
+    # Uncomment to also trigger when message count reaches 50
+    # - type: messages
+    #   value: 50
+    # Uncomment to trigger when 80% of model's max input tokens is reached
+    # - type: fraction
+    #   value: 0.8
+
+  # Context retention policy after summarization
+  # Specifies how much recent history to preserve
+  keep:
+    # Keep the most recent 10 messages (recommended)
+    type: messages
+    value: 10
+    # Alternative: Keep specific token count
+    # type: tokens
+    # value: 3000
+    # Alternative: Keep percentage of model's max input tokens
+    # type: fraction
+    # value: 0.3
+
+  # Maximum tokens to keep when preparing messages for summarization
+  # Set to null to skip trimming (not recommended for very long conversations)
+  trim_tokens_to_summarize: 15564
+
+  # Custom summary prompt template (null = use default LangChain prompt)
+  # The prompt should guide the model to extract important context
+  summary_prompt: null
+
+  # Recently-loaded skill files are excluded from summarization so the agent
+  # does not lose skill instructions after a compression pass. Claude Code uses
+  # a similar strategy (keep the most recent ~5 skills, ~25k total tokens, with
+  # a ~5k cap per skill). Set preserve_recent_skill_count to 0 to disable.
+  preserve_recent_skill_count: 5
+  preserve_recent_skill_tokens: 25000
+  preserve_recent_skill_tokens_per_skill: 5000
+  skill_file_read_tool_names:
+    - read_file
+    - read
+    - view
+    - cat
+
+# ============================================================================
+# 记忆配置
+# ============================================================================
+# Global memory mechanism
+# Stores user context and conversation history for personalized responses
+memory:
+  enabled: true
+  storage_path: memory.json # Path relative to backend directory
+  debounce_seconds: 30 # Wait time before processing queued updates
+  model_name: null # Use default model
+  max_facts: 100 # Maximum number of facts to store
+  fact_confidence_threshold: 0.7 # Minimum confidence for storing facts
+  injection_enabled: true # Whether to inject memory into system prompt
+  max_injection_tokens: 2000 # Maximum tokens for memory injection; observe retrieval stats before raising to 2500-3000
+  retrieval:
+    enabled: false # Whether to rank facts using current conversation context
+    strategy: tfidf # Current supported retrieval strategy
+    context_max_turns: 4 # Number of recent user/final-assistant turns used as current context
+    context_max_chars: 4000 # Max characters retained when building current context
+    similarity_weight: 0.6 # Weight for TF-IDF similarity in final ranking
+    confidence_weight: 0.4 # Weight for stored fact confidence in final ranking
+    min_similarity: 0.0 # Lower similarity floor before weighted ranking
+    # Debug retrieval behavior via `/api/memory/retrieval/stats` before tuning summarization.trigger or token budgets
+
+# ============================================================================
+# 自定义 Agent 管理 API
+# ============================================================================
+# Controls whether the HTTP gateway exposes custom-agent SOUL/USER.md management.
+# Keep this disabled unless the gateway is behind a trusted authenticated admin boundary.
+agents_api:
+  enabled: false
+
+# ============================================================================
+# Skill Self-Evolution Configuration
+# ============================================================================
+# Allow the agent to autonomously create and improve skills in skills/custom/.
+skill_evolution:
+  enabled: false # Set to true to allow agent-managed writes under skills/custom
+  moderation_model_name: null # Model for LLM-based security scanning (null = use default model)
+
+# ============================================================================
+# Checkpointer Configuration (DEPRECATED — use `database` instead)
+# ============================================================================
+# Legacy standalone checkpointer config. Kept for backward compatibility.
+# Prefer the unified `database` section below, which drives BOTH the
+# LangGraph checkpointer AND KKOCLAW application data (runs, feedback,
+# events) from a single backend setting.
+#
+# If both `checkpointer` and `database` are present, `checkpointer`
+# takes precedence for LangGraph state persistence only.
+#
+# Relative paths are anchored to the runtime home (~/.kkoclaw on web), so
+# the gateway can be launched from `backend/` without dropping a hidden
+# .kkoclaw into the working tree.
+# checkpointer:
+#   type: sqlite
+#   connection_string: checkpoints.db
+#
+# checkpointer:
+#   type: postgres
+#   connection_string: postgresql://user:password@localhost:5432/kkoclaw
+
+# ============================================================================
+# 数据库
+# ============================================================================
+# Unified storage backend for LangGraph checkpointer and KKOCLAW
+# application data (runs, threads metadata, feedback, etc.).
+#
+# backend: memory  -- No persistence, data lost on restart
+# backend: sqlite  -- Single-node deployment, files in sqlite_dir
+# backend: postgres -- Production multi-node deployment
+#
+# If this section is omitted or empty in config.yaml, KKOCLAW uses:
+#   backend: sqlite
+#   sqlite_dir: <runtime_home>/data       # default ~/.kkoclaw/data
+#
+# Relative sqlite_dir values are anchored to the runtime home (not CWD), so
+# dev launches from `backend/` never drop a hidden .kkoclaw into the repo.
+#
+# SQLite mode uses a single kkoclaw.db file with WAL journal mode
+# for both checkpointer and application data.
+#
+# Postgres mode: put your connection URL in .env as DATABASE_URL,
+# then reference it here with $DATABASE_URL.
+# Install the driver first:
+#   Local:  uv sync --extra postgres
+#   Docker: UV_EXTRAS=postgres docker compose build
+#
+# NOTE: When both `checkpointer` and `database` are configured,
+# `checkpointer` takes precedence for LangGraph state persistence.
+# If you use `database`, you can remove the `checkpointer` section.
+# database:
+#   backend: sqlite
+#   sqlite_dir: <runtime_home>/data       # anchored to ~/.kkoclaw by default
+#
+# database:
+#   backend: postgres
+#   postgres_url: $DATABASE_URL
+database:
+  backend: sqlite
+  sqlite_dir: .kkoclaw/data   # resolved to <runtime_home>/.kkoclaw/data
+
+# ============================================================================
+# 运行事件配置
+# ============================================================================
+# Storage backend for run events (messages + execution traces).
+#
+# backend: memory  -- No persistence, data lost on restart (default)
+# backend: db      -- SQL database via ORM, full query capability (production)
+# backend: jsonl   -- Append-only JSONL files (lightweight single-node persistence)
+#
+# run_events:
+#   backend: memory
+#   max_trace_content: 10240    # Truncation threshold for trace content (db backend, bytes)
+#   track_token_usage: true     # Accumulate token counts to RunRow
+run_events:
+  backend: memory
+  max_trace_content: 10240
+  track_token_usage: true
+
+# ============================================================================
+# 定时任务配置
+# Cron Job Configuration
+# ============================================================================
+cron_management:
+  enabled: true
+
+# ============================================================================
+# IM 渠道配置
+# ============================================================================
+# Connect KKOCLAW to external messaging platforms.
+# All channels use outbound connections (WebSocket or polling) — no public IP required.
+
+# channels:
+#   # LangGraph-compatible Gateway API base URL for thread/message management (default: http://localhost:9193/api)
+#   # For Docker deployments, use the Docker service name instead of localhost:
+#   #   langgraph_url: http://gateway:9193/api
+#   #   gateway_url: http://gateway:9193
+#   langgraph_url: http://localhost:9193/api
+#   # Gateway API URL for auxiliary queries like /models, /memory (default: http://localhost:9193)
+#   gateway_url: http://localhost:9193
+#   #
+#   # Docker Compose note:
+#   # If channels run inside the gateway container, use container DNS names instead
+#   # of localhost, for example:
+#   # langgraph_url: http://gateway:9193/api
+#   # gateway_url: http://gateway:9193
+#   # You can also set KKOCLAW_CHANNELS_LANGGRAPH_URL / KKOCLAW_CHANNELS_GATEWAY_URL.
+#
+#   # Optional: default mobile/session settings for all IM channels
+#   session:
+#     assistant_id: lead_agent  # or a custom agent name; custom agents route via lead_agent + agent_name
+#     config:
+#       recursion_limit: 100
+#     context:
+#       thinking_enabled: true
+#       is_plan_mode: false
+#       subagent_enabled: false
+#
+#   feishu:
+#     enabled: false
+#     app_id: $FEISHU_APP_ID
+#     app_secret: $FEISHU_APP_SECRET
+#     # domain: https://open.feishu.cn       # China (default)
+#     # domain: https://open.larksuite.com   # International
+#
+#   slack:
+#     enabled: false
+#     bot_token: $SLACK_BOT_TOKEN     # xoxb-...
+#     app_token: $SLACK_APP_TOKEN     # xapp-... (Socket Mode)
+#     allowed_users: []               # empty = allow all; can also be a single Slack user ID string, e.g. U123456, but list form is recommended
+#
+#   telegram:
+#     enabled: false
+#     bot_token: $TELEGRAM_BOT_TOKEN
+#     allowed_users: []               # empty = allow all
+#
+#   wechat:
+#     enabled: false
+#     bot_token: $WECHAT_BOT_TOKEN
+#     ilink_bot_id: $WECHAT_ILINK_BOT_ID
+#     # Optional: allow first-time QR bootstrap when bot_token is absent
+#     qrcode_login_enabled: true
+#     # Optional: sent as iLink-App-Id header when provided
+#     ilink_app_id: ""
+#     # Optional: sent as SKRouteTag header when provided
+#     route_tag: ""
+#     allowed_users: []               # empty = allow all
+#     # Optional: long-polling timeout in seconds
+#     polling_timeout: 35
+#     # Optional: QR poll interval in seconds when qrcode_login_enabled is true
+#     qrcode_poll_interval: 2
+#     # Optional: QR bootstrap timeout in seconds
+#     qrcode_poll_timeout: 180
+#     # Optional: persist getupdates cursor under the gateway container volume
+#     state_dir: ./.kkoclaw/wechat/state
+#     # Optional: max inbound image size in bytes before skipping download
+#     max_inbound_image_bytes: 20971520
+#     # Optional: max outbound image size in bytes before skipping upload
+#     max_outbound_image_bytes: 20971520
+#     # Optional: max inbound file size in bytes before skipping download
+#     max_inbound_file_bytes: 52428800
+#     # Optional: max outbound file size in bytes before skipping upload
+#     max_outbound_file_bytes: 52428800
+#     # Optional: allowed file extensions for regular file receive/send
+#     allowed_file_extensions: [".txt", ".md", ".pdf", ".csv", ".json", ".yaml", ".yml", ".xml", ".html", ".log", ".zip", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".rtf"]
+#
+#     # Optional: channel-level session overrides
+#     session:
+#       assistant_id: mobile-agent  # custom agent names are supported here too
+#       context:
+#         thinking_enabled: false
+#
+#       # Optional: per-user overrides by user_id
+#       users:
+#         "123456789":
+#           assistant_id: vip-agent
+#           config:
+#             recursion_limit: 150
+#           context:
+#             thinking_enabled: true
+#             subagent_enabled: true
+#   wecom:
+#     enabled: false
+#     bot_id: $WECOM_BOT_ID
+#     bot_secret: $WECOM_BOT_SECRET
+#
+#   dingtalk:
+#     enabled: false
+#     client_id: $DINGTALK_CLIENT_ID
+#     client_secret: $DINGTALK_CLIENT_SECRET
+#     allowed_users: []               # empty = allow all
+#     card_template_id: ""            # Optional: AI Card template ID for streaming updates
+
+# ============================================================================
+# 安全护栏配置
+# ============================================================================
+# Optional pre-execution authorization for tool calls.
+# When enabled, every tool call passes through the configured provider
+# before execution. Three options: built-in allowlist, OAP policy provider,
+# or custom provider. See backend/docs/GUARDRAILS.md for full documentation.
+#
+# Providers are loaded by class path via resolve_variable (same as models/tools).
+
+# --- Option 1: Built-in AllowlistProvider (zero external deps) ---
+# guardrails:
+#   enabled: true
+#   provider:
+#     use: kkoclaw.guardrails.builtin:AllowlistProvider
+#     config:
+#       denied_tools: ["bash", "write_file"]
+
+# --- Option 2: OAP passport provider (open standard, any implementation) ---
+#   The Open Agent Passport (OAP) spec defines passport format and decision codes.
+#   Any OAP-compliant provider works. Example using APort (reference implementation):
+#     pip install aport-agent-guardrails && aport setup --framework kkoclaw
+# guardrails:
+#   enabled: true
+#   provider:
+#     use: aport_guardrails.providers.generic:OAPGuardrailProvider
+
+# --- Option 3: Custom provider (any class with evaluate/aevaluate methods) ---
+# guardrails:
+#   enabled: true
+#   provider:
+#     use: my_package:MyGuardrailProvider
+#     config:
+#       key: value
+
+# ============================================================================
+# Token Economy 系统（Kun-inspired token 优化）
+# ============================================================================
+# 多层 token 经济机制，默认全部禁用。显式开启后激活：
+#   1. concise_responses: 注入 system-reminder 指示模型简洁回复
+#   2. compress_history_tool_results: 截断旧 ToolMessage 内容
+#      （head+tail 策略，保护代码块/URL/文件路径不被破坏）
+#   3. storm_breaker: 抑制同回合内完全相同的工具调用
+#
+# 注意：Storm Breaker 集成在 TokenEconomyMiddleware 中，
+# 通过 storm_breaker_* 字段控制。
+# token_economy:
+#   enabled: false                          # 总开关，默认禁用
+#   concise_responses: true                 # 注入简洁响应指令
+#   compress_history_tool_results: true     # 压缩历史工具结果
+#   max_history_tool_result_chars: 2000     # 历史工具结果保留字符数
+#   recent_tool_result_count: 4             # 最近 N 条 ToolMessage 免压缩
+#   storm_breaker_enabled: true             # 启用同回合重复抑制
+#   storm_breaker_threshold: 2              # 相同调用出现 N 次后抑制
+#   storm_breaker_window: 8                 # 滑动窗口大小
+
+# ============================================================================
+# 熔断器配置
+# ============================================================================
+# Circuit breaker for LLM calls prevents repeated requests to a failing provider.
+# When the failure threshold is reached, subsequent calls fast-fail until recovery.
+#
+# This is useful for:
+# - Avoiding rate-limit bans during provider outages
+# - Reducing resource exhaustion from retry loops
+# - Gracefully degrading when LLM services are unavailable
+
+# circuit_breaker:
+#   # Number of consecutive failures before opening the circuit (default: 5)
+#   failure_threshold: 5
+#   # Time in seconds before attempting to recover (default: 60)
+#   recovery_timeout_sec: 60
+
+# ============================================================================
+# Coding Agent 配置 (独立代码工程 Agent)
+# ============================================================================
+# coding_agent 是一个独立的 graph，专为代码工程任务优化。
+# 它在 lead_agent 的中间件链基础上，增加了 coding 专用工具集和状态结构。
+#
+# coding_agent:
+#   # 总开关，设为 false 时 coding_agent graph 不会注册
+#   enabled: true
+#   # 模型覆盖，设为 null 则使用全局默认模型
+#   model: null
+#   # 沙箱模式：local | docker
+#   sandbox: local
+#   # 默认权限模式：safe-only（只读+安全操作）| safe（需确认危险操作）| yolo（全自动）
+#   default_permission_mode: safe-only
+#   # 轻量 TDD-first + 编辑后验证默认开启，无需手动配置。
+#   # 如需特殊关闭，可显式设置 post_edit_verify_enabled: false。
+#   # 如需更严格的验证策略，可切换验证模式：soft（仅提醒）| hard（预留强约束模式）
+#   post_edit_verify_mode: soft
+#   # 顺向前向阶段转移自动接受（回退/跳级/进 delivery 仍需人工确认）
+#   auto_accept_forward_stage: false
+#   worktree:
+#     # 是否启用 git worktree 隔离
+#     enabled: true
+#     # 是否在 Agent 启动时自动创建 worktree
+#     auto_create: false
+#     # worktree 创建时的基准分支
+#     base_branch: main
+#   git:
+#     # 是否自动 commit Agent 产生的变更
+#     auto_commit: false
+#     # 强制使用 Conventional Commits 格式
+#     conventional_commits: true
+#   test:
+#     # 测试通过后是否自动 commit
+#     auto_run: false
+#     # 支持的测试框架列表
+#     frameworks: [pytest, jest, vitest, "go test"]
+
+coding_agent:
+  enabled: true
+  model: null
+  sandbox: local
+  default_permission_mode: safe-only
+  post_edit_verify_mode: soft
+  auto_accept_forward_stage: false
+  worktree:
+    enabled: true
+    auto_create: false
+    base_branch: main
+  git:
+    auto_commit: false
+    conventional_commits: true
+  test:
+    auto_run: false
+    frameworks:
+    - pytest
+    - jest
+    - vitest
+    - go test

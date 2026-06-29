@@ -1,0 +1,192 @@
+"""Async Store factory — backend mirrors the configured checkpointer.
+
+The store and checkpointer share the same ``checkpointer`` section in
+*config.yaml* so they always use the same persistence backend:
+
+- ``type: memory``   → :class:`langgraph.store.memory.InMemoryStore`
+- ``type: sqlite``   → :class:`langgraph.store.sqlite.aio.AsyncSqliteStore`
+- ``type: postgres`` → :class:`langgraph.store.postgres.aio.AsyncPostgresStore`
+
+Usage (e.g. FastAPI lifespan)::
+
+    from kkoclaw.runtime.store import make_store
+
+    async with make_store() as store:
+        app.state.store = store
+"""
+
+from __future__ import annotations
+
+import contextlib
+import logging
+from collections.abc import AsyncIterator
+
+from langgraph.store.base import BaseStore
+
+from kkoclaw.config.app_config import AppConfig, get_app_config
+from kkoclaw.config.database_config import DatabaseConfig
+from kkoclaw.runtime.store.provider import POSTGRES_CONN_REQUIRED, POSTGRES_STORE_INSTALL, SQLITE_STORE_INSTALL, ensure_sqlite_parent_dir, resolve_sqlite_conn_str
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# SQLite WAL helper
+# ---------------------------------------------------------------------------
+
+_SQLITE_WAL_PRAGMAS = """
+PRAGMA journal_mode=WAL;
+PRAGMA busy_timeout=10000;
+PRAGMA synchronous=NORMAL;
+PRAGMA temp_store=MEMORY;
+"""
+
+
+@contextlib.asynccontextmanager
+async def _wal_sqlite_store(conn_str: str) -> AsyncIterator[BaseStore]:
+    """Create an AsyncSqliteStore with WAL mode and a 10s busy timeout."""
+    import aiosqlite
+    from langgraph.store.sqlite.aio import AsyncSqliteStore
+
+    async with aiosqlite.connect(conn_str, isolation_level=None) as conn:
+        await conn.executescript(_SQLITE_WAL_PRAGMAS)
+        store = AsyncSqliteStore(conn)
+        await store.setup()
+        logger.info("Store: using AsyncSqliteStore with WAL (%s)", conn_str)
+        yield store
+
+# ---------------------------------------------------------------------------
+# Internal backend factory
+# ---------------------------------------------------------------------------
+
+
+@contextlib.asynccontextmanager
+async def _async_store(config) -> AsyncIterator[BaseStore]:
+    """Async context manager that constructs and tears down a Store.
+
+    The ``config`` argument is a :class:`kkoclaw.config.checkpointer_config.CheckpointerConfig`
+    instance — the same object used by the checkpointer factory.
+    """
+    if config.type == "memory":
+        from langgraph.store.memory import InMemoryStore
+
+        logger.info("Store: using InMemoryStore (in-process, not persistent)")
+        yield InMemoryStore()
+        return
+
+    if config.type == "sqlite":
+        try:
+            from langgraph.store.sqlite.aio import AsyncSqliteStore
+        except ImportError as exc:
+            raise ImportError(SQLITE_STORE_INSTALL) from exc
+
+        conn_str = resolve_sqlite_conn_str(config.connection_string or "store.db")
+        ensure_sqlite_parent_dir(conn_str)
+
+        async with _wal_sqlite_store(conn_str) as store:
+            yield store
+        return
+
+    if config.type == "postgres":
+        try:
+            from langgraph.store.postgres.aio import AsyncPostgresStore  # type: ignore[import]
+        except ImportError as exc:
+            raise ImportError(POSTGRES_STORE_INSTALL) from exc
+
+        if not config.connection_string:
+            raise ValueError(POSTGRES_CONN_REQUIRED)
+
+        async with AsyncPostgresStore.from_conn_string(config.connection_string) as store:
+            await store.setup()
+            logger.info("Store: using AsyncPostgresStore")
+            yield store
+        return
+
+    raise ValueError(f"Unknown store backend type: {config.type!r}")
+
+
+# ---------------------------------------------------------------------------
+# Unified database-backed store factory (mirrors checkpointer provider)
+# ---------------------------------------------------------------------------
+
+
+@contextlib.asynccontextmanager
+async def _async_store_from_database(db_config: DatabaseConfig) -> AsyncIterator[BaseStore]:
+    """Async context manager that constructs a Store from unified DatabaseConfig."""
+    if db_config.backend == "memory":
+        from langgraph.store.memory import InMemoryStore
+
+        yield InMemoryStore()
+        return
+
+    if db_config.backend == "sqlite":
+        try:
+            from langgraph.store.sqlite.aio import AsyncSqliteStore
+        except ImportError as exc:
+            raise ImportError(SQLITE_STORE_INSTALL) from exc
+
+        # Anchor the path to runtime_home via resolve_sqlite_conn_str; see
+        # the matching fix in _async_checkpointer_from_database above.
+        conn_str = resolve_sqlite_conn_str(db_config.checkpointer_sqlite_path)
+        ensure_sqlite_parent_dir(conn_str)
+
+        async with _wal_sqlite_store(conn_str) as store:
+            yield store
+        return
+
+    if db_config.backend == "postgres":
+        try:
+            from langgraph.store.postgres.aio import AsyncPostgresStore
+        except ImportError as exc:
+            raise ImportError(POSTGRES_STORE_INSTALL) from exc
+
+        if not db_config.postgres_url:
+            raise ValueError(POSTGRES_CONN_REQUIRED)
+
+        async with AsyncPostgresStore.from_conn_string(db_config.postgres_url) as store:
+            await store.setup()
+            logger.info("Store: using AsyncPostgresStore")
+            yield store
+        return
+
+    raise ValueError(f"Unknown database backend: {db_config.backend!r}")
+
+
+# ---------------------------------------------------------------------------
+# Public async context manager
+# ---------------------------------------------------------------------------
+
+
+@contextlib.asynccontextmanager
+async def make_store(app_config: AppConfig | None = None) -> AsyncIterator[BaseStore]:
+    """Async context manager that yields a Store whose backend matches the
+    configured checkpointer.
+
+    Reads from the same ``checkpointer`` section of *config.yaml* used by
+    :func:`kkoclaw.runtime.checkpointer.async_provider.make_checkpointer` so
+    that both singletons always use the same persistence technology::
+
+        async with make_store(app_config) as store:
+            app.state.store = store
+
+    Yields an :class:`~langgraph.store.memory.InMemoryStore` when no
+    ``checkpointer`` section is configured (emits a WARNING in that case).
+    """
+    if app_config is None:
+        app_config = get_app_config()
+
+    if app_config.checkpointer is None:
+        # Fallback: unified database config (same priority as make_checkpointer)
+        db_config = getattr(app_config, "database", None)
+        if db_config is not None and db_config.backend != "memory":
+            async with _async_store_from_database(db_config) as store:
+                yield store
+            return
+
+        from langgraph.store.memory import InMemoryStore
+
+        logger.warning("No 'checkpointer' or 'database' section in config.yaml — using InMemoryStore for the store. Thread list will be lost on server restart. Configure a sqlite or postgres backend for persistence.")
+        yield InMemoryStore()
+        return
+
+    async with _async_store(app_config.checkpointer) as store:
+        yield store
