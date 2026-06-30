@@ -1,36 +1,35 @@
 "use client";
 
-import {
-  Briefcase,
-  Code2,
-  GraduationCap,
-  Palette,
-  PenTool,
-  BotIcon,
-  WrenchIcon,
-  SparklesIcon,
-  type LucideIcon,
-} from "lucide-react";
+import { Briefcase, Code2, SparklesIcon, type LucideIcon } from "lucide-react";
 
 import { useI18n } from "@/core/i18n/hooks";
 import {
-  resolveWorkMode,
-  resolveWorkModeByAgentName,
-  type WorkModeIcon as WorkModeIconType,
+  resolveWorkModeById,
+  useWorkModes,
+  type WorkModeDetail,
 } from "@/core/work-modes";
 import { cn } from "@/lib/utils";
 
-const ICON_MAP: Record<WorkModeIconType, LucideIcon> = {
-  Briefcase: Briefcase,
-  Code2: Code2,
-  PenTool: PenTool,
-  ResearchIcon: PenTool,
-  GraduationCap: GraduationCap,
-  Sparkles: SparklesIcon,
-  Bot: BotIcon,
-  Wrench: WrenchIcon,
-  Palette: Palette,
+// Icon lookup for builtin modes. Custom modes default to SparklesIcon.
+const BUILTIN_ICONS: Record<string, LucideIcon> = {
+  task: Briefcase,
+  coding: Code2,
 };
+
+/**
+ * Map a legacy ``agent_name`` to a work-mode id by matching against the
+ * API-backed mode list. Returns ``undefined`` when no match is found.
+ */
+function _agentNameToModeId(
+  modes: WorkModeDetail[],
+  agentName: string | undefined,
+): string | undefined {
+  if (!agentName) return undefined;
+  // coding_agent → coding, etc. Only builtin modes carry agent_name mapping.
+  return modes.find(
+    (m) => m.builtin && m.lead_agent_name === agentName,
+  )?.id;
+}
 
 function resolveI18nPath(path: string, obj: unknown): string | undefined {
   if (!path.startsWith("workModes.")) return path;
@@ -68,13 +67,22 @@ export function WorkModeBadge({
   className?: string;
 }) {
   const { t } = useI18n();
-  // Prefer the explicit work_mode_id; fall back to deriving from agent_name
-  // for legacy threads created before the work_mode_id contract.
-  const mode = workModeId
-    ? resolveWorkMode(workModeId)
-    : resolveWorkModeByAgentName(agentName);
-  const Icon = ICON_MAP[mode.icon] ?? BotIcon;
-  const displayName = resolveI18nPath(mode.name, t) ?? mode.name;
+  const { data } = useWorkModes();
+
+  // Resolve from the API-backed list (includes custom modes).
+  // Falls back to default when workModeId / agentName are absent.
+  const mode = resolveWorkModeById(
+    data.modes,
+    workModeId ?? _agentNameToModeId(data.modes, agentName),
+  );
+  const Icon = mode.builtin
+    ? (BUILTIN_ICONS[mode.id] ?? Briefcase)
+    : SparklesIcon;
+  // Builtin mode names are i18n keys (e.g. "workModes.task.name");
+  // custom mode names are literal strings set by the user.
+  const displayName = mode.builtin
+    ? (resolveI18nPath(mode.name, t) ?? mode.name)
+    : mode.name;
 
   return (
     <div
