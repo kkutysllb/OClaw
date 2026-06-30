@@ -60,15 +60,22 @@ export interface ThreadGroup {
  * from a deleted custom mode) are synthesized as a transient mode with
  * ``order: 999`` so they sort last but remain visible.
  *
+ * When ``extraModes`` is provided, those modes are merged with the builtin
+ * list so custom (user-defined) modes display their user-set name instead
+ * of falling back to the raw mode id.
+ *
  * Returns an empty array when ``threads`` is empty — callers should render
  * an empty state rather than hiding the section entirely.
  */
-export function groupThreadsByWorkMode(threads: AgentThread[]): ThreadGroup[] {
+export function groupThreadsByWorkMode(
+  threads: AgentThread[],
+  extraModes: WorkMode[] = [],
+): ThreadGroup[] {
   if (threads.length === 0) {
     return [];
   }
 
-  const modes = getAvailableWorkModes([]);
+  const modes = getAvailableWorkModes(extraModes);
   const byMode = new Map<string, AgentThread[]>();
   for (const thread of threads) {
     const modeId = resolveThreadWorkModeId(thread);
@@ -96,6 +103,10 @@ export function groupThreadsByWorkMode(threads: AgentThread[]): ThreadGroup[] {
 function synthesizeUnknownMode(modeId: string): WorkMode {
   return {
     id: modeId,
+    // Use the modeId as a last-resort label. Callers that pass the
+    // full API-backed mode list via ``extraModes`` will never hit this
+    // path — it only triggers for orphaned mode ids (e.g. a custom mode
+    // that was deleted after the thread was created).
     name: modeId,
     icon: "Bot",
     builtin: false,

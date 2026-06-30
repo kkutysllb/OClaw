@@ -104,14 +104,19 @@ export function WorkModeSelector({
   // Once the API payload arrives, prefer its ordering and any custom modes
   // it may carry. We merge by id so the API's authoritative list wins for
   // duplicates but builtins stay visible if the API hasn't returned yet.
+  //
+  // Builtin mode names are i18n keys (resolved via resolveI18nPath below).
+  // Custom mode names are literal strings set by the user — use them as-is.
   const apiModes: WorkMode[] = isLoading
     ? []
     : data.modes.map((m) => ({
         id: m.id,
-        name: `workModes.${m.id}.name`,
-        description: m.description
-          ? `workModes.${m.id}.description`
-          : undefined,
+        name: m.builtin ? `workModes.${m.id}.name` : m.name,
+        description: m.builtin
+          ? m.description
+            ? `workModes.${m.id}.description`
+            : undefined
+          : m.description,
         icon: iconForModeId(m.id),
         agent_name: agentNameForModeId(m.id),
         builtin: m.builtin,

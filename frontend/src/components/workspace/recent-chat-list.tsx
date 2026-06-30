@@ -9,6 +9,7 @@ import {
   MoreHorizontal,
   Pencil,
   Share2,
+  SparklesIcon,
   Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -53,6 +54,8 @@ import {
 } from "@/core/threads/export";
 import { groupThreadsByWorkMode } from "@/core/threads/grouping";
 import type { ThreadGroup } from "@/core/threads/grouping";
+import type { WorkMode } from "@/core/work-modes/types";
+import { useWorkModes } from "@/core/work-modes/hooks";
 import {
   useDeleteThread,
   useRenameThread,
@@ -74,6 +77,7 @@ import { isIMEComposing } from "@/lib/ime";
 const GROUP_ICON_MAP: Record<string, LucideIcon> = {
   Briefcase,
   Code2,
+  Sparkles: SparklesIcon,
 };
 
 /**
@@ -133,9 +137,22 @@ export function RecentChatList() {
   const { mutate: deleteThread } = useDeleteThread();
   const { mutate: renameThread } = useRenameThread();
 
-  // Group threads by their resolved work mode. Old threads (no localStorage
-  // override) fall back via agent_name → default task mode.
-  const groups = groupThreadsByWorkMode(threads);
+  // Group threads by their resolved work mode. Pass the API-backed mode
+  // list (includes custom modes) so custom mode names display correctly
+  // instead of falling back to the raw mode id.
+  const { data: workModesData } = useWorkModes();
+  const extraModes: WorkMode[] = workModesData.modes
+    .filter((m) => !m.builtin)
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      description: m.description,
+      icon: "Sparkles",
+      builtin: false,
+      enabled: true,
+      order: m.is_default ? 0 : 10,
+    }));
+  const groups = groupThreadsByWorkMode(threads, extraModes);
 
   // Rename dialog state
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
