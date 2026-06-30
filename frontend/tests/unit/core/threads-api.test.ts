@@ -44,4 +44,24 @@ describe("threads api", () => {
     expect(source).toMatch(/export function saveThreadWorkModeId/);
     expect(source).toMatch(/export function getThreadWorkModeId/);
   });
+
+  test("AgentThreadContext type includes user_workspace_path for runtime forwarding", () => {
+    const source = read("src/core/threads/types.ts");
+    expect(source).toMatch(/user_workspace_path\??\s*:\s*string/);
+  });
+
+  test("thread.submit context includes user_workspace_path from settings", () => {
+    // The submit() call in useThreadStream builds the run context from the
+    // LocalSettings.context spread. We assert that the context object
+    // literal passed to thread.submit contains a user_workspace_path key so
+    // the backend's _CONTEXT_CONFIGURABLE_KEYS whitelist can pick it up.
+    const source = read("src/core/threads/hooks.ts");
+    expect(source).toMatch(/user_workspace_path/);
+  });
+
+  test("settings local exports saveThreadWorkspacePath / getThreadWorkspacePath", () => {
+    const source = read("src/core/settings/local.ts");
+    expect(source).toMatch(/export function saveThreadWorkspacePath/);
+    expect(source).toMatch(/export function getThreadWorkspacePath/);
+  });
 });

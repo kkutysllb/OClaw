@@ -4,6 +4,7 @@ import {
   THREAD_AGENT_KEY_PREFIX,
   THREAD_MODEL_KEY_PREFIX,
   THREAD_WORK_MODE_KEY_PREFIX,
+  THREAD_WORKSPACE_PATH_KEY_PREFIX,
   getLocalSettings,
   getThreadModelName,
   saveLocalSettings,
@@ -24,6 +25,8 @@ const threadAgentNames = new Map<string, string | undefined>();
 const threadAgentHasOverride = new Set<string>();
 const threadWorkModeIds = new Map<string, string | undefined>();
 const threadWorkModeHasOverride = new Set<string>();
+const threadWorkspacePaths = new Map<string, string | undefined>();
+const threadWorkspacePathHasOverride = new Set<string>();
 
 let baseSettings: LocalSettings = DEFAULT_LOCAL_SETTINGS;
 let baseSettingsLoaded = false;
@@ -81,6 +84,8 @@ function handleStorage(event: StorageEvent) {
     threadAgentHasOverride.clear();
     threadWorkModeIds.clear();
     threadWorkModeHasOverride.clear();
+    threadWorkspacePaths.clear();
+    threadWorkspacePathHasOverride.clear();
     emitChange();
     return;
   }
@@ -101,6 +106,14 @@ function handleStorage(event: StorageEvent) {
     if (event.key.startsWith(THREAD_WORK_MODE_KEY_PREFIX)) {
       const threadId = event.key.slice(THREAD_WORK_MODE_KEY_PREFIX.length);
       _refreshThreadWorkModeSnapshot(threadId);
+      emitChange();
+      return;
+    }
+    if (event.key.startsWith(THREAD_WORKSPACE_PATH_KEY_PREFIX)) {
+      const threadId = event.key.slice(
+        THREAD_WORKSPACE_PATH_KEY_PREFIX.length,
+      );
+      _refreshThreadWorkspacePathSnapshot(threadId);
       emitChange();
       return;
     }
@@ -208,6 +221,46 @@ export function hasThreadWorkModeOverride(threadId: string): boolean {
   }
 
   return threadWorkModeHasOverride.has(threadId);
+}
+
+// ------------------------------------------------------------------
+// Per-thread user_workspace_path snapshot (mirrors work_mode_id logic)
+// ------------------------------------------------------------------
+
+function _refreshThreadWorkspacePathSnapshot(threadId: string) {
+  const raw = localStorage.getItem(
+    `${THREAD_WORKSPACE_PATH_KEY_PREFIX}${threadId}`,
+  );
+  if (raw === null) {
+    threadWorkspacePaths.delete(threadId);
+    threadWorkspacePathHasOverride.delete(threadId);
+  } else {
+    threadWorkspacePathHasOverride.add(threadId);
+    // Empty string sentinel = explicit default workspace (path = undefined).
+    threadWorkspacePaths.set(threadId, raw === "" ? undefined : raw);
+  }
+}
+
+export function getThreadWorkspacePathSnapshot(
+  threadId: string,
+): string | undefined {
+  ensureBaseSettingsLoaded();
+
+  if (!threadWorkspacePathHasOverride.has(threadId)) {
+    _refreshThreadWorkspacePathSnapshot(threadId);
+  }
+
+  return threadWorkspacePaths.get(threadId);
+}
+
+export function hasThreadWorkspacePathOverride(threadId: string): boolean {
+  ensureBaseSettingsLoaded();
+
+  if (!threadWorkspacePathHasOverride.has(threadId)) {
+    _refreshThreadWorkspacePathSnapshot(threadId);
+  }
+
+  return threadWorkspacePathHasOverride.has(threadId);
 }
 
 export const updateLocalSettings: LocalSettingsSetter = (key, value) => {

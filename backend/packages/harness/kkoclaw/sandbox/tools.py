@@ -800,6 +800,7 @@ def validate_local_tool_path(path: str, thread_data: ThreadDataState | None, *, 
     _reject_path_traversal(path)
     resolved = Path(path).expanduser().resolve()
     project_root = thread_data.get("project_root")
+    user_workspace_path = thread_data.get("user_workspace_path")
 
     # 1. Project root
     if project_root:
@@ -808,6 +809,14 @@ def validate_local_tool_path(path: str, thread_data: ThreadDataState | None, *, 
             return
         except ValueError:
             pass  # not under project_root — try other roots below
+
+    # 1b. User-selected workspace path (per-thread, set via WorkspaceSelector)
+    if user_workspace_path:
+        try:
+            resolved.relative_to(Path(user_workspace_path).expanduser().resolve())
+            return
+        except ValueError:
+            pass  # not under user_workspace_path — try other roots below
 
     # 2. Default allowed roots (app home, coding home, system temp)
     for allowed_root in _get_default_allowed_roots():
@@ -1135,6 +1144,9 @@ def validate_local_bash_command_paths(command: str, thread_data: ThreadDataState
     project_root = thread_data.get("project_root")
     if project_root:
         allowed_paths.append(str(Path(project_root).resolve()) + "/")
+    user_workspace_path = thread_data.get("user_workspace_path")
+    if user_workspace_path:
+        allowed_paths.append(str(Path(user_workspace_path).resolve()) + "/")
     _validate_local_bash_shell_tokens(command, allowed_paths)
     url_spans = _non_file_url_spans(command)
 

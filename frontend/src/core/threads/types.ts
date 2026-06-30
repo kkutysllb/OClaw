@@ -27,6 +27,16 @@ export interface AgentThreadContext extends Record<string, unknown> {
    * ("task") when absent.
    */
   work_mode_id?: string;
+  /**
+   * Per-thread user-selected workspace directory.
+   *
+   * When set, the backend's sandbox grants bash/read/write access to
+   * this directory for the current thread. Forwarded via the gateway's
+   * ``_CONTEXT_CONFIGURABLE_KEYS`` whitelist and injected into
+   * ``thread_data`` by ``ThreadDataMiddleware``. Falls back to the
+   * default user data root (~/.kkoclaw) when absent.
+   */
+  user_workspace_path?: string;
 }
 
 export interface AgentThread extends Thread<AgentThreadState> {

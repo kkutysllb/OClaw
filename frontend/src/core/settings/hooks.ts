@@ -5,6 +5,7 @@ import {
   applyThreadAgentOverride,
   applyThreadModelOverride,
   applyThreadWorkModeOverride,
+  applyThreadWorkspacePathOverride,
   type LocalSettings,
 } from "./local";
 import {
@@ -12,8 +13,10 @@ import {
   getThreadAgentSnapshot,
   getThreadModelSnapshot,
   getThreadWorkModeSnapshot,
+  getThreadWorkspacePathSnapshot,
   hasThreadAgentOverride,
   hasThreadWorkModeOverride,
+  hasThreadWorkspacePathOverride,
   subscribe,
   updateLocalSettings,
   updateThreadSettings,
@@ -73,6 +76,18 @@ export function useThreadSettings(
     () => false,
   );
 
+  const threadWorkspacePath = useSyncExternalStore(
+    subscribe,
+    () => getThreadWorkspacePathSnapshot(threadId),
+    () => undefined,
+  );
+
+  const threadHasWorkspacePathOverride = useSyncExternalStore(
+    subscribe,
+    () => hasThreadWorkspacePathOverride(threadId),
+    () => false,
+  );
+
   const settings = useMemo(
     () => {
       let result = applyThreadModelOverride(baseSettings, threadModelName);
@@ -86,6 +101,11 @@ export function useThreadSettings(
         threadWorkModeId,
         threadHasWorkModeOverride,
       );
+      result = applyThreadWorkspacePathOverride(
+        result,
+        threadWorkspacePath,
+        threadHasWorkspacePathOverride,
+      );
       return result;
     },
     [
@@ -95,6 +115,8 @@ export function useThreadSettings(
       threadHasAgentOverride,
       threadWorkModeId,
       threadHasWorkModeOverride,
+      threadWorkspacePath,
+      threadHasWorkspacePathOverride,
     ],
   );
 

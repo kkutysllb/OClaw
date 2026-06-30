@@ -86,6 +86,7 @@ import { useFollowupsContext } from "./followups-context";
 import { useThread } from "./messages/context";
 import { ModeHoverGuide } from "./mode-hover-guide";
 import { Tooltip } from "./tooltip";
+import { WorkspaceSelector } from "./workspace-selector";
 
 type InputMode = "flash" | "thinking" | "pro" | "ultra";
 
@@ -505,6 +506,14 @@ export function InputBox({
             </PromptInputActionMenuContent>
           </PromptInputActionMenu> */}
             <AddAttachmentsButton className="px-2!" />
+            <WorkspaceSelector
+              selectedPath={
+                context.user_workspace_path as string | undefined
+              }
+              onSelect={(user_workspace_path) =>
+                onContextChange?.({ ...context, user_workspace_path })
+              }
+            />
             <PromptInputActionMenu>
               <ModeHoverGuide
                 mode={

@@ -141,6 +141,18 @@ class ThreadDataMiddleware(AgentMiddleware[ThreadDataMiddlewareState]):
             paths.update(self._get_coding_scratch_paths(thread_id))
             paths["project_root"] = project_root
 
+        # Per-thread user-selected workspace: when the user picks a local
+        # directory via the WorkspaceSelector UI, the path is forwarded here
+        # so the sandbox can grant bash/read/write access to it. Stored under
+        # a distinct key (``user_workspace_path``) to avoid clobbering the
+        # internal sandbox ``workspace_path``.
+        user_workspace_path = (
+            context.get("user_workspace_path")
+            or configurable.get("user_workspace_path")
+        )
+        if user_workspace_path:
+            paths["user_workspace_path"] = str(user_workspace_path)
+
         if last_message and isinstance(last_message, HumanMessage):
             messages[-1] = HumanMessage(
                 content=last_message.content,

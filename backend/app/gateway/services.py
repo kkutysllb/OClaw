@@ -142,6 +142,12 @@ _CONTEXT_CONFIGURABLE_KEYS: frozenset[str] = frozenset(
         # compute the effective skill set for this turn. Falls back to the
         # default mode ("task") when absent — see ``resolve_work_mode_id``.
         "work_mode_id",
+        # Per-thread user-selected workspace directory. Read by
+        # ``ThreadDataMiddleware`` (injects into ``thread_data``) and the
+        # sandbox path validator (adds to the bash/read/write allow-list).
+        # Distinct from the internal sandbox ``workspace_path`` to avoid
+        # collision.
+        "user_workspace_path",
     }
 )
 

@@ -838,6 +838,11 @@ export function useThreadStream({
                 // undefined — see ``_CONTEXT_CONFIGURABLE_KEYS`` in
                 // ``app/gateway/services.py``.
                 work_mode_id: context.work_mode_id,
+                // Forward the per-thread user-selected workspace path so
+                // the backend sandbox grants bash/read/write access to
+                // this directory. Falls back to the default user data
+                // root (~/.kkoclaw) when undefined.
+                user_workspace_path: context.user_workspace_path,
               },
             },
           );

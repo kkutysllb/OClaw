@@ -35,6 +35,7 @@ import {
   useThreadSettings,
   saveThreadAgentName,
   saveThreadWorkModeId,
+  saveThreadWorkspacePath,
 } from "@/core/settings";
 import { useThreadStream } from "@/core/threads/hooks";
 import { textOfMessage } from "@/core/threads/utils";
@@ -107,6 +108,12 @@ export default function ChatPage() {
       // used to restore the thread's mode on remount.
       saveThreadAgentName(createdThreadId, settings.context.agent_name as string | undefined);
       saveThreadWorkModeId(createdThreadId, settings.context.work_mode_id as string | undefined);
+      // Lock the user-selected workspace path so reopening the thread
+      // restores the same directory sandbox permissions.
+      saveThreadWorkspacePath(
+        createdThreadId,
+        settings.context.user_workspace_path as string | undefined,
+      );
     },
     onFinish: (state) => {
       if (document.hidden || !document.hasFocus()) {
