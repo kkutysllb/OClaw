@@ -13,6 +13,23 @@ logger = logging.getLogger(__name__)
 _DOCKER_MODE = os.environ.get("CI") == "true" and os.path.exists("/.dockerenv")
 
 
+def _expand_path_tokens(value: Any) -> Any:
+    """Expand ``~`` and ``$VAR`` in *value* when it is a string.
+
+    MCP server ``args`` are passed verbatim to the child process (npx/uvx).
+    Unlike a shell, the subprocess does **not** expand ``~`` or environment
+    variables, so a config entry like ``"~/.kkoclaw"`` would be treated as a
+    literal directory name and fail with "path not found".
+
+    This helper mirrors ``os.path.expandvars`` + ``os.path.expanduser`` so
+    config files can use the same path syntax as a shell. Non-string values
+    are returned unchanged.
+    """
+    if not isinstance(value, str):
+        return value
+    return os.path.expanduser(os.path.expandvars(value))
+
+
 def build_server_params(server_name: str, config: McpServerConfig) -> dict[str, Any]:
     """Build server parameters for MultiServerMCPClient.
 
@@ -30,7 +47,10 @@ def build_server_params(server_name: str, config: McpServerConfig) -> dict[str, 
         if not config.command:
             raise ValueError(f"MCP server '{server_name}' with stdio transport requires 'command' field")
         params["command"] = config.command
-        params["args"] = config.args
+        # Expand ``~`` and ``$VAR`` in each arg so configs can reference
+        # the user home dir or runtime paths (e.g. ``~/.kkoclaw``) without
+        # hard-coding absolute paths. Non-string args pass through untouched.
+        params["args"] = [_expand_path_tokens(a) for a in (config.args or [])]
         # Add environment variables if present
         if config.env:
             params["env"] = config.env
