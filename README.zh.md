@@ -648,6 +648,20 @@ token_usage:
 此处记录最近完成的工作和近期待办，详细清单见 `docs/TODO.md`。
 
 ### 今日已完成
+- **新功能：对话级工作区路径选择（2026-06-29）**
+  - **背景**：此前所有对话的 sandbox bash/文件工具只能访问固定的内部工作区（`~/.kkoclaw/threads/{id}/workspace/`）和 MCP Filesystem 根目录（`~/.kkoclaw`），用户无法让 AI 直接操作自己电脑上的任意项目目录（如 `~/Documents/Projects/my-app`）。每次想让 AI 处理本地代码或文档都要手动复制文件到工作区，体验割裂。
+  - **改造目标**：在输入对话框下方增加一个工作区选择 chip，让用户为**每个对话独立**指定本地工作区路径；AI 的 bash/read/write 工具自动获得该目录的访问权限，无需手动复制文件。选择按对话隔离，通过 localStorage 持久化，重开对话自动恢复。
+  - **后端**：
+    - `_CONTEXT_CONFIGURABLE_KEYS` 白名单新增 `user_workspace_path` 转发键（`services.py`），让前端 context → LangGraph configurable 透传。
+    - `ThreadDataMiddleware.before_agent` 在 `project_root` 注入之后，新增 `user_workspace_path` 注入到 `thread_data`，键名刻意区别于 sandbox 内部的 `workspace_path` 避免冲突。
+    - sandbox 路径校验器 `validate_local_tool_path`（工具读写）和 `validate_local_bash_command_paths`（bash 命令）均新增 tiered allow-list 分支：用户工作区路径 resolve 后命中即放行。
+  - **前端**：
+    - 新建 `WorkspaceSelector` 组件，作为 chip 嵌入 `input-box.tsx`（位于附件按钮与操作菜单之间）。桌面端点击「选择目录」调用原生 `dialog:pick-directory` IPC；Web 端始终内联显示文本输入框（避免 Radix `DropdownMenuItem` 自动关闭菜单的陷阱）。
+    - 最近路径列表（localStorage `kkoclaw.recent-workspace-paths`，最多 5 项），支持一键清除。
+    - 数据流：`useThreadStream` submit 时转发 `user_workspace_path`；`useThreadSettings` 通过 `useSyncExternalStore` 订阅快照，新建对话 `onStart` 时 `saveThreadWorkspacePath` 持久化，重开对话自动恢复。完全镜像已有的 `work_mode_id` 持久化模式。
+  - **键名设计**：使用 `user_workspace_path` 而非 `workspace_path`，因为后者在 `thread_data` 中已被 sandbox 内部工作区（`~/.kkoclaw/threads/{id}/user-data/workspace/`）占用。
+  - **覆盖文件**：后端 `app/gateway/services.py`、`agents/middlewares/thread_data_middleware.py`、`sandbox/tools.py`；前端 `components/workspace/workspace-selector.tsx`（新建）、`components/workspace/input-box.tsx`、`core/threads/{types,hooks}.ts`、`core/settings/{local,store,hooks,index}.ts`、`app/workspace/chats/[thread_id]/page.tsx`、`core/i18n/locales/{types,zh-CN,en-US}.ts`。
+  - **验证**：后端 138 个测试全部通过（`test_sandbox_tools_security.py` + `test_gateway_services.py`）；前端 TypeScript 编译 0 错误；前端 8 个单元测试全部通过（`threads-api.test.ts` 含 3 个新增 `user_workspace_path` 断言）。
 - **重大架构变更：自定义工作模式（Custom Work Modes）（2026-06-29）**
 - **背景**：此前系统仅内置 `task`（日常办公）和 `coding`（编程）两个工作模式，用户无法根据自己的业务场景创建专属模式。用户需要「研究」、「代码审查」、「文档撰写」等自定义模式时无能为力，只能依赖固定的预设。
 - **改造目标**：让用户可以在设置页面创建完全自定义的工作模式，为每个模式指定编排提示（注入系统提示词指导 AI 行为）、专注领域标签和描述；自定义模式按用户隔离存储，每个用户拥有独立的模式集合。

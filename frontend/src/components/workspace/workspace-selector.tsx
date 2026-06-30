@@ -46,10 +46,15 @@ function basenameOf(path: string): string {
  * A compact chip that shows the active workspace and lets the user pick
  * a local directory for the current thread.
  *
- * - **Desktop (Electron)**: uses the native `dialog:pick-directory` IPC
- *   via ``pickDirectory()``.
- * - **Web**: falls back to a text input where the user can paste an
- *   absolute path.
+ * - **Desktop (Electron)**: renders a "Select directory..." menu item
+ *   that opens the native ``dialog:pick-directory`` picker via
+ *   ``pickDirectory()``. The dropdown closes so the native dialog can
+ *   take over.
+ * - **Web**: renders an inline text input (always visible while the
+ *   dropdown is open) where the user can paste an absolute path. The
+ *   input lives inside a plain ``<div>`` rather than a
+ *   ``DropdownMenuItem`` so Radix does not auto-close the menu on
+ *   focus / click.
  *
  * The selected path is stored per-thread in localStorage and surfaced to
  * the backend via ``user_workspace_path`` in the run context.
@@ -67,17 +72,17 @@ export function WorkspaceSelector({
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const [showManualInput, setShowManualInput] = useState(false);
   const [manualPath, setManualPath] = useState("");
   const [recentPaths, setRecentPaths] = useState<string[]>([]);
   const [picking, setPicking] = useState(false);
+  const desktop = isDesktop();
 
   // Refresh recent paths every time the dropdown opens so the list stays
-  // in sync if the user added a path from another tab/thread.
+  // in sync if the user added a path from another tab/thread. Also reset
+  // the manual input so it does not carry over stale text.
   useEffect(() => {
     if (open) {
       setRecentPaths(getRecentWorkspacePaths());
-      setShowManualInput(false);
       setManualPath("");
     }
   }, [open]);
@@ -88,11 +93,9 @@ export function WorkspaceSelector({
   }, [selectedPath, t.inputBox.workspaceDefault]);
 
   const handlePickDirectory = useCallback(async () => {
-    if (!isDesktop()) {
-      // Web fallback: reveal the manual input row instead of trying IPC.
-      setShowManualInput(true);
-      return;
-    }
+    // Should only be invoked on desktop because the menu item is hidden
+    // on web. Guard anyway in case of a stale render.
+    if (!desktop) return;
     setPicking(true);
     try {
       const picked = await pickDirectory({ title: t.inputBox.workspace });
@@ -104,7 +107,7 @@ export function WorkspaceSelector({
     } finally {
       setPicking(false);
     }
-  }, [onSelect, t.inputBox.workspace]);
+  }, [desktop, onSelect, t.inputBox.workspace]);
 
   const handleManualSubmit = useCallback(() => {
     const trimmed = manualPath.trim();
@@ -170,26 +173,32 @@ export function WorkspaceSelector({
 
           <DropdownMenuSeparator />
 
-          {/* Select directory (native picker on desktop) */}
-          <DropdownMenuItem
-            onClick={handlePickDirectory}
-            disabled={picking}
-            className="gap-2"
-          >
-            <PlusIcon className="size-3.5 shrink-0" />
-            <span className="text-sm">
-              {isDesktop()
-                ? t.inputBox.workspaceSelectDirectory
-                : t.inputBox.workspaceEnterPath}
-            </span>
-            {picking && (
-              <span className="ml-auto animate-pulse text-[10px]">...</span>
-            )}
-          </DropdownMenuItem>
+          {/* Desktop: native directory picker menu item */}
+          {desktop && (
+            <DropdownMenuItem
+              onClick={handlePickDirectory}
+              disabled={picking}
+              className="gap-2"
+            >
+              <PlusIcon className="size-3.5 shrink-0" />
+              <span className="text-sm">
+                {t.inputBox.workspaceSelectDirectory}
+              </span>
+              {picking && (
+                <span className="ml-auto animate-pulse text-[10px]">...</span>
+              )}
+            </DropdownMenuItem>
+          )}
 
-          {/* Web / manual path input */}
-          {showManualInput && (
+          {/* Web: always-visible inline manual input.
+              Rendered as a plain <div> (NOT a DropdownMenuItem) so Radix
+              does not auto-close the dropdown when the user focuses the
+              input or clicks the confirm button. */}
+          {!desktop && (
             <div className="flex flex-col gap-1.5 p-2">
+              <span className="text-muted-foreground px-1 text-[10px]">
+                {t.inputBox.workspaceEnterPath}
+              </span>
               <Input
                 value={manualPath}
                 onChange={(e) => setManualPath(e.target.value)}
@@ -202,14 +211,14 @@ export function WorkspaceSelector({
                     handleManualSubmit();
                   }
                   if (e.key === "Escape") {
-                    setShowManualInput(false);
+                    setOpen(false);
                   }
                 }}
               />
               <div className="flex justify-end gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setShowManualInput(false)}
+                  onClick={() => setOpen(false)}
                   className="text-muted-foreground px-2 py-1 text-[10px] hover:text-foreground"
                 >
                   {t.common.cancel}

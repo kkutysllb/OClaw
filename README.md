@@ -648,6 +648,20 @@ Statistics are isolated per logged-in user — each user can only see their own 
 This section records recently completed work and near-term pending items. See `docs/TODO.md` for the full list.
 
 ### Completed Today
+- **New feature: Per-thread workspace path selection (2026-06-29)**
+  - **Background**: Previously every thread's sandbox bash/file tools could only access the fixed internal workspace (`~/.kkoclaw/threads/{id}/workspace/`) and the MCP Filesystem root (`~/.kkoclaw`). Users could not let the AI directly operate on arbitrary project directories on their own machine (e.g. `~/Documents/Projects/my-app`). Every time they wanted the AI to work on local code or docs they had to manually copy files into the workspace — a fragmented experience.
+  - **Goal**: Add a workspace-selector chip below the input box so the user can pick a local workspace path **per thread**. The AI's bash/read/write tools automatically gain access to that directory, no manual file copying required. Selections are isolated per thread, persisted via localStorage, and restored automatically when reopening a thread.
+  - **Backend**:
+    - Added `user_workspace_path` to the `_CONTEXT_CONFIGURABLE_KEYS` allow-list (`services.py`) so the frontend context is forwarded into the LangGraph configurable.
+    - `ThreadDataMiddleware.before_agent` now injects `user_workspace_path` into `thread_data` right after `project_root`. The key is intentionally distinct from the internal sandbox `workspace_path` to avoid collisions.
+    - Both sandbox path validators — `validate_local_tool_path` (tool read/write) and `validate_local_bash_command_paths` (bash commands) — gained a new tiered allow-list branch that resolves the user workspace path and admits it.
+  - **Frontend**:
+    - New `WorkspaceSelector` component embedded as a chip in `input-box.tsx` (between the attachments button and the action menu). On desktop, clicking "Select directory" invokes the native `dialog:pick-directory` IPC; on web, an inline text input is always shown (avoiding the Radix `DropdownMenuItem` auto-close trap).
+    - Recent paths list (localStorage `kkoclaw.recent-workspace-paths`, max 5 entries) with one-click clear.
+    - Data flow: `useThreadStream` forwards `user_workspace_path` on submit; `useThreadSettings` subscribes to snapshots via `useSyncExternalStore`, and the new-thread `onStart` hook calls `saveThreadWorkspacePath` for persistence so reopening a thread restores it automatically. This mirrors the existing `work_mode_id` persistence pattern exactly.
+  - **Key naming**: Uses `user_workspace_path` rather than `workspace_path`, because the latter is already occupied in `thread_data` by the internal sandbox workspace (`~/.kkoclaw/threads/{id}/user-data/workspace/`).
+  - **Files touched**: backend `app/gateway/services.py`, `agents/middlewares/thread_data_middleware.py`, `sandbox/tools.py`; frontend `components/workspace/workspace-selector.tsx` (new), `components/workspace/input-box.tsx`, `core/threads/{types,hooks}.ts`, `core/settings/{local,store,hooks,index}.ts`, `app/workspace/chats/[thread_id]/page.tsx`, `core/i18n/locales/{types,zh-CN,en-US}.ts`.
+  - **Verification**: 138 backend tests pass (`test_sandbox_tools_security.py` + `test_gateway_services.py`); frontend TypeScript compiles with 0 errors; 8 frontend unit tests pass (`threads-api.test.ts` including 3 new `user_workspace_path` assertions).
 - **Major architecture change: Custom Work Modes (2026-06-29)**
 - **Background**: The system previously shipped only two builtin work modes — `task` (daily office) and `coding` (programming). Users could not create their own modes tailored to their business scenarios (e.g. "research", "code-review", "documentation"). They were limited to the fixed presets with no way to define custom orchestration guidance.
 - **Goal**: Allow users to create fully custom work modes from the settings page — each with an orchestration hint (injected into the system prompt to guide AI behavior), focus-area tags, and a description. Custom modes are stored per-user, giving each user an independent mode set.
