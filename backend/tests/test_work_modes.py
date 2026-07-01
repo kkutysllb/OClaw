@@ -462,6 +462,100 @@ class TestFrontmatterDrivenBinding:
 
 
 # ---------------------------------------------------------------------------
+# Regression: custom (per-user) work modes must not silently fall back to task
+# ---------------------------------------------------------------------------
+
+
+class TestCustomWorkModeResolution:
+    """A custom work mode id (e.g. ``stock-quant``) created by the user must be
+    recognised when the caller passes a per-user ``ExtensionsConfig`` whose
+    ``work_modes.modes`` contains that id.
+
+    Previously ``resolve_work_mode_id`` only checked the *global* builtin
+    ``ExtensionsConfig().work_modes.modes`` (task / coding), so any custom mode
+    was silently rewritten to ``task``. This made every custom mode behave
+    exactly like 日常办公, pulling in all task-bound skills — the symptom the
+    user reported as "model in stock-quant mode still lists daily-office
+    skills".
+    """
+
+    def test_custom_mode_not_silently_rewritten_to_task(self):
+        """resolve_effective_skill_ids must honour a custom mode in the passed config."""
+        from kkoclaw.config.extensions_config import (
+            ExtensionsConfig,
+            WorkModesConfig,
+            WorkModeConfig,
+        )
+        from kkoclaw.skills.work_modes import resolve_effective_skill_ids
+
+        custom_mode = WorkModeConfig(
+            id="stock-quant",
+            name="股票量化",
+            description="Quantitative trading research",
+            builtin=False,
+            default_skill_ids=(),
+        )
+        cfg = ExtensionsConfig(
+            work_modes=WorkModesConfig(
+                modes={
+                    "task": ExtensionsConfig().work_modes.modes["task"],
+                    "coding": ExtensionsConfig().work_modes.modes["coding"],
+                    "stock-quant": custom_mode,
+                },
+                default_mode_id="task",
+            ),
+        )
+        # Only core + stock-quant-bound skills should be effective.
+        skills_wm = {
+            "bootstrap": ("core",),
+            "deep-research": ("task",),  # 日常办公技能
+            "quant-backtest": ("stock-quant",),
+        }
+        effective = set(
+            resolve_effective_skill_ids(cfg, "stock-quant", skills_by_work_modes=skills_wm)
+        )
+        # stock-quant-bound skill must be present
+        assert "quant-backtest" in effective
+        # core shared skill must be present
+        assert "bootstrap" in effective
+        # 日常办公 skill MUST NOT leak into stock-quant mode
+        assert "deep-research" not in effective, (
+            "custom mode 'stock-quant' was silently rewritten to 'task' — "
+            "resolve_work_mode_id must honour the per-user config's modes, "
+            "not just the global builtin presets"
+        )
+
+    def test_resolve_work_mode_id_honours_config_param(self):
+        """resolve_work_mode_id(work_mode_id, config=...) must recognise custom modes."""
+        from kkoclaw.config.extensions_config import (
+            ExtensionsConfig,
+            WorkModesConfig,
+            WorkModeConfig,
+        )
+        from kkoclaw.skills.work_modes import resolve_work_mode_id
+
+        custom_mode = WorkModeConfig(
+            id="research",
+            name="研究模式",
+            builtin=False,
+            default_skill_ids=(),
+        )
+        cfg = ExtensionsConfig(
+            work_modes=WorkModesConfig(
+                modes={
+                    "task": ExtensionsConfig().work_modes.modes["task"],
+                    "research": custom_mode,
+                },
+                default_mode_id="task",
+            ),
+        )
+        # With config, custom mode is recognised
+        assert resolve_work_mode_id("research", config=cfg) == "research"
+        # Without config, custom mode falls back to default (backward compat)
+        assert resolve_work_mode_id("research") == "task"
+
+
+# ---------------------------------------------------------------------------
 # Locked skill enforcement
 # ---------------------------------------------------------------------------
 

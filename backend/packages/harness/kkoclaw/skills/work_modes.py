@@ -48,7 +48,11 @@ __all__ = [
 ]
 
 
-def resolve_work_mode_id(work_mode_id: str | None) -> str:
+def resolve_work_mode_id(
+    work_mode_id: str | None,
+    *,
+    config: ExtensionsConfig | None = None,
+) -> str:
     """Normalize a caller-supplied work mode id, falling back to the default.
 
     Empty/None/unknown ids all collapse to :data:`DEFAULT_WORK_MODE_ID` so
@@ -60,8 +64,24 @@ def resolve_work_mode_id(work_mode_id: str | None) -> str:
     Callers that need strict validation (e.g. admin APIs) should validate
     against ``config.work_modes.modes`` themselves.
 
+    .. important::
+       Custom (per-user) work modes such as ``stock-quant`` are NOT present in
+       the global builtin ``ExtensionsConfig().work_modes.modes`` (which only
+       contains ``task`` and ``coding``). Callers that have already resolved a
+       per-user config — e.g. via
+       :func:`kkoclaw.config.user_work_modes_config.resolve_user_work_modes_sync`
+       — MUST pass it via ``config=`` so the custom mode id is recognised
+       instead of being silently rewritten to ``task``. Without this argument,
+       every custom mode behaves exactly like 日常办公, pulling in all
+       task-bound skills (bug: "model in stock-quant mode still lists
+       daily-office skills").
+
     Args:
         work_mode_id: The raw work mode id from the runtime context, or None.
+        config: Optional per-user extensions config whose ``work_modes.modes``
+            is consulted for mode recognition. When omitted, the global
+            builtin config is used (backward-compatible behaviour for callers
+            that only deal with task / coding).
 
     Returns:
         A work mode id. For known modes this is the id itself; for empty/None/
@@ -72,11 +92,16 @@ def resolve_work_mode_id(work_mode_id: str | None) -> str:
     work_mode_id = work_mode_id.strip()
     if not work_mode_id:
         return DEFAULT_WORK_MODE_ID
-    # Check against shipped modes — unknown ids fall back to default. We import
-    # lazily to avoid a circular dependency at module load time.
+    # Check against the supplied config's modes first (per-user custom modes
+    # live here); fall back to the global builtin config for backward compat.
+    # We import lazily to avoid a circular dependency at module load time.
     from kkoclaw.config.extensions_config import ExtensionsConfig
 
-    modes = ExtensionsConfig().work_modes.modes
+    modes = (
+        config.work_modes.modes
+        if config is not None
+        else ExtensionsConfig().work_modes.modes
+    )
     if work_mode_id not in modes:
         return DEFAULT_WORK_MODE_ID
     return work_mode_id
@@ -175,7 +200,11 @@ def resolve_effective_skill_ids(
     Returns:
         A de-duplicated, sorted tuple of effective skill ids for the mode.
     """
-    resolved_mode_id = resolve_work_mode_id(work_mode_id)
+    # NOTE: pass ``config`` so per-user custom modes (e.g. ``stock-quant``)
+    # are recognised. Without it, resolve_work_mode_id would silently rewrite
+    # any custom mode to the global default (``task``), causing every
+    # task-bound skill to leak into the custom mode.
+    resolved_mode_id = resolve_work_mode_id(work_mode_id, config=config)
 
     # Unknown mode → fall back to the default mode's effective set.
     modes = config.work_modes.modes
@@ -378,7 +407,7 @@ def add_skill_to_mode(
     Returns:
         A new config with the override applied.
     """
-    resolved = resolve_work_mode_id(mode_id)
+    resolved = resolve_work_mode_id(mode_id, config=config)
     overrides = dict(config.mode_skill_overrides)
     current = overrides.get(resolved, ModeSkillOverridesConfig())
     added = list(current.added_skill_ids)
@@ -418,7 +447,7 @@ def remove_skill_from_mode(
         ValueError: If *skill_name* is a locked core skill.
     """
     assert_skill_can_be_removed_from_mode(skill_name, mode_id)
-    resolved = resolve_work_mode_id(mode_id)
+    resolved = resolve_work_mode_id(mode_id, config=config)
     overrides = dict(config.mode_skill_overrides)
     current = overrides.get(resolved, ModeSkillOverridesConfig())
     removed = list(current.removed_skill_ids)

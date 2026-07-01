@@ -157,6 +157,21 @@ def _get_work_mode_repo():
     return UserWorkModeRepository(sf)
 
 
+async def _resolve_per_user_ext_config():
+    """Return an ExtensionsConfig whose work_modes reflects the current user.
+
+    Merges builtin modes with the user's custom modes so that custom mode
+    ids (e.g. ``stock-quant``) are recognised by
+    :func:`resolve_effective_skill_ids` instead of being silently rewritten
+    to the default mode. All other ExtensionsConfig fields are preserved
+    from the global config.
+    """
+    user_id = get_effective_user_id()
+    ext_config = get_extensions_config()
+    wm_config = await resolve_user_work_modes(user_id)
+    return ext_config.model_copy(update={"work_modes": wm_config})
+
+
 def _build_mode_detail(
     mode_id: str,
     mode_cfg: WorkModeConfig,
@@ -198,12 +213,13 @@ def _build_mode_detail(
     description="Retrieve all work modes (builtin + per-user custom) with their effective skill sets.",
 )
 async def list_work_modes(config: AppConfig = Depends(get_config)) -> WorkModesListResponse:
-    user_id = get_effective_user_id()
-    ext_config = get_extensions_config()
+    # Per-user resolve: merge builtin modes with custom modes so custom mode
+    # ids are recognised by resolve_effective_skill_ids. Without this, a
+    # custom mode like "stock-quant" would be silently rewritten to "task",
+    # causing task-bound skills to leak into the API response.
+    ext_config = await _resolve_per_user_ext_config()
     locked_set = set(ext_config.locked_skill_ids)
-
-    # Resolve the effective work-modes config for this user (builtin + custom).
-    wm_config = await resolve_user_work_modes(user_id)
+    wm_config = ext_config.work_modes
 
     modes: list[WorkModeDetailResponse] = []
     for mode_id, mode_cfg in wm_config.modes.items():
@@ -291,8 +307,8 @@ async def create_custom_work_mode(
     # Return the freshly created mode detail. Resolve the merged config so
     # the response includes effective skills (empty for a brand-new mode
     # apart from locked core skills).
-    ext_config = get_extensions_config()
-    wm_config = await resolve_user_work_modes(user_id)
+    ext_config = await _resolve_per_user_ext_config()
+    wm_config = ext_config.work_modes
     mode_cfg = wm_config.modes.get(mode_id)
     if mode_cfg is None:  # defensive — should never happen after upsert
         raise HTTPException(status_code=500, detail="Failed to load created work mode.")
@@ -356,8 +372,8 @@ async def update_custom_work_mode(
 
     invalidate_user_work_modes(user_id)
 
-    ext_config = get_extensions_config()
-    wm_config = await resolve_user_work_modes(user_id)
+    ext_config = await _resolve_per_user_ext_config()
+    wm_config = ext_config.work_modes
     mode_cfg = wm_config.modes.get(mode_id)
     if mode_cfg is None:
         raise HTTPException(status_code=500, detail="Failed to load updated work mode.")
@@ -431,9 +447,9 @@ async def add_skill_to_work_mode(
     skill_name: str,
     config: AppConfig = Depends(get_config),
 ) -> WorkModeSkillActionResponse:
-    resolved = resolve_work_mode_id(mode_id)
+    ext_config = await _resolve_per_user_ext_config()
+    resolved = resolve_work_mode_id(mode_id, config=ext_config)
     try:
-        ext_config = get_extensions_config()
         updated = add_skill_to_mode(ext_config, resolved, skill_name)
         updated.save()
         reload_extensions_config()
@@ -464,9 +480,9 @@ async def remove_skill_from_work_mode(
     skill_name: str,
     config: AppConfig = Depends(get_config),
 ) -> WorkModeSkillActionResponse:
-    resolved = resolve_work_mode_id(mode_id)
+    ext_config = await _resolve_per_user_ext_config()
+    resolved = resolve_work_mode_id(mode_id, config=ext_config)
     try:
-        ext_config = get_extensions_config()
         updated = remove_skill_from_mode(ext_config, resolved, skill_name)
         updated.save()
         reload_extensions_config()
