@@ -404,7 +404,7 @@ export const zhCN: Translations = {
 
   // Page titles (document title)
   pages: {
-    appName: "KKOCLAW",
+    appName: "OClaw",
     chats: "对话",
     newChat: "新对话",
     untitled: "未命名",

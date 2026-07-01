@@ -18,9 +18,6 @@ export async function Header({ className, homeURL }: HeaderProps) {
       <div className="flex items-center gap-6">
         <a href={homeURL ?? "/"}>
           <h1 className="font-serif text-xl">
-            <span className="bg-gradient-to-r from-pink-500 via-amber-400 via-yellow-300 to-cyan-400 bg-clip-text text-transparent font-extrabold tracking-wider">
-              KK
-            </span>
             <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
               OClaw
             </span>
@@ -29,7 +26,7 @@ export async function Header({ className, homeURL }: HeaderProps) {
       </div>
       <nav className="mr-8 ml-auto flex items-center gap-8 text-sm font-medium">
         <a
-          href="https://github.com/kkutysllb/kk_OClaw"
+          href="https://github.com/kkutysllb/OClaw"
           target="_blank"
           rel="noopener noreferrer"
           className="text-secondary-foreground hover:text-foreground transition-colors"
@@ -37,7 +34,7 @@ export async function Header({ className, homeURL }: HeaderProps) {
           Docs
         </a>
         <a
-          href="https://github.com/kkutysllb/kk_OClaw"
+          href="https://github.com/kkutysllb/OClaw"
           target="_blank"
           rel="noopener noreferrer"
           className="text-secondary-foreground hover:text-foreground transition-colors"

@@ -7,7 +7,7 @@ import type { Metadata } from "next";
 import { DesktopProviders } from "@/components/desktop/providers";
 
 export const metadata: Metadata = {
-  title: "KK OClaw",
+  title: "OClaw",
   icons: {
     icon: "/favicon.svg",
   },

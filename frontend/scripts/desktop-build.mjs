@@ -148,7 +148,7 @@ export async function Header({ className, homeURL }: HeaderProps) {
       </div>
       <nav className="mr-8 ml-auto flex items-center gap-8 text-sm font-medium">
         <a
-          href="https://github.com/kkutysllb/kk_OClaw"
+          href="https://github.com/kkutysllb/OClaw"
           target="_blank"
           rel="noopener noreferrer"
           className="text-secondary-foreground hover:text-foreground transition-colors"
@@ -156,7 +156,7 @@ export async function Header({ className, homeURL }: HeaderProps) {
           Docs
         </a>
         <a
-          href="https://github.com/kkutysllb/kk_OClaw"
+          href="https://github.com/kkutysllb/OClaw"
           target="_blank"
           rel="noopener noreferrer"
           className="text-secondary-foreground hover:text-foreground transition-colors"
@@ -353,8 +353,8 @@ export default function WorkspaceLayout({
     // is the leading comment ("Desktop static export: no cookies() access").
     // If you add/remove a component in the source version, mirror the change
     // here — otherwise the desktop packaged build silently loses the change
-    // (historically bitten by the WorkspaceTaskTabs omission, which caused the
-    // multi-tab feature to work in dev but vanish in packaged builds).
+    // (historically bitten by stale component references surviving in the
+    // patch after the feature was removed from source).
     file: join(APP_DIR, "workspace", "workspace-content.tsx"),
     content: `import { Toaster } from "sonner";
 
@@ -362,7 +362,6 @@ import { QueryClientProvider } from "@/components/query-client-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { CommandPalette } from "@/components/workspace/command-palette";
 import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
-import { WorkspaceTaskTabs } from "@/components/workspace/workspace-task-tabs";
 
 // Desktop static export: no cookies() access
 export function WorkspaceContent({
@@ -373,7 +372,6 @@ export function WorkspaceContent({
       <SidebarProvider className="h-screen" defaultOpen={false}>
         <WorkspaceSidebar />
         <SidebarInset className="min-w-0">
-          <WorkspaceTaskTabs />
           {children}
         </SidebarInset>
       </SidebarProvider>

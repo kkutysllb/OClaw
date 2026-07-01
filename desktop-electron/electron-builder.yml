@@ -107,5 +107,5 @@ linux:
 publish:
   provider: github
   owner: kkutysllb
-  repo: kk_OClaw
+  repo: OClaw
   releaseType: release

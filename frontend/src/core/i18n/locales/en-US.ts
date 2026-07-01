@@ -419,7 +419,7 @@ export const enUS: Translations = {
 
   // Page titles (document title)
   pages: {
-    appName: "KKOCLAW",
+    appName: "OClaw",
     chats: "Chats",
     newChat: "New chat",
     untitled: "Untitled",

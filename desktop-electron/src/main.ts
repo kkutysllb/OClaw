@@ -453,7 +453,7 @@ function buildAppMenu(): Menu {
         item({ type: "separator" }),
         item({
           label: "OClaw 文档",
-          click: () => void shell.openExternal("https://github.com/kkutysllb/kk_OClaw"),
+          click: () => void shell.openExternal("https://github.com/kkutysllb/OClaw"),
         }),
         item({ type: "separator" }),
         item({
