@@ -44,6 +44,16 @@ from kkoclaw.tools.coding.symbol_tools import (
     find_symbols_tool,
     read_symbol_tool,
 )
+from kkoclaw.tools.coding.diagnostic_tools import (
+    get_diagnostics_tool,
+)
+from kkoclaw.tools.coding.lsp_tools import (
+    find_references_tool,
+    go_to_definition_tool,
+)
+from kkoclaw.tools.coding.session_shell import (
+    session_shell_tool,
+)
 from kkoclaw.tools.coding.test_tools import (
     run_linter_tool,
     run_tests_tool,
@@ -70,9 +80,11 @@ def get_coding_tools() -> list:
         read_file_lines_tool,
         search_code_tool,
         find_files_tool,
-        # Symbol-aware navigation
+        # Symbol-aware navigation + cross-file LSP-like tools
         find_symbols_tool,
         read_symbol_tool,
+        go_to_definition_tool,
+        find_references_tool,
         # File editing
         apply_diff_tool,
         insert_at_line_tool,
@@ -93,9 +105,12 @@ def get_coding_tools() -> list:
         git_push_tool,
         git_stash_tool,
         git_show_tool,
-        # Test / lint
+        # Test / lint / diagnostics
         run_tests_tool,
         run_linter_tool,
+        get_diagnostics_tool,
+        # Persistent shell session
+        session_shell_tool,
         # Worktree
         create_worktree_tool,
         remove_worktree_tool,

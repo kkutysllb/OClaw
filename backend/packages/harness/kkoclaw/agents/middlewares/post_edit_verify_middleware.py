@@ -22,12 +22,13 @@ Enabled by default. Advanced deployments may override
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, override
 
 from langchain.agents import AgentState
 from langchain.agents.middleware import AgentMiddleware
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.runtime import Runtime
 
 from kkoclaw.agents.middlewares.internal_messages import internal_human_message
@@ -56,6 +57,7 @@ _MUTATING_TOOL_NAMES = frozenset({
 _VERIFICATION_TOOL_NAMES = frozenset({
     "run_tests",
     "run_linter",
+    "get_diagnostics",  # single-file fast diagnostics
     "bash",  # covers make test, npm test, cargo test, etc.
 })
 
@@ -240,8 +242,24 @@ class PostEditVerifyMiddleware(AgentMiddleware[AgentState]):
             logger.info("PostEditVerifyMiddleware: injecting TDD-first reminder (mode=%s)", self._mode)
             return {"messages": [reminder]}
         if self._needs_reminder(messages):
-            reminder = self._build_reminder()
-            logger.info("PostEditVerifyMiddleware: injecting edit-verify reminder (mode=%s)", self._mode)
+            # Attempt auto-diagnosis: extract edited file paths from tool
+            # history, run linter on them, and feed actual errors back.
+            edited_files = _extract_recent_edited_files(messages)
+            diagnostics = await _try_auto_diagnose(runtime, edited_files)
+            if diagnostics is not None:
+                reminder = _build_diagnostic_reminder(diagnostics, edited_files)
+                logger.info(
+                    "PostEditVerifyMiddleware: injecting diagnostic reminder "
+                    "for %d file(s)",
+                    len(diagnostics),
+                )
+            else:
+                reminder = self._build_reminder()
+                logger.info(
+                    "PostEditVerifyMiddleware: injecting edit-verify reminder "
+                    "(mode=%s, no auto-diagnosis)",
+                    self._mode,
+                )
             return {"messages": [reminder]}
         return None
 
@@ -290,3 +308,156 @@ def _tool_message_mentions_test_file(tool_msg: ToolMessage) -> bool:
     content = tool_msg.content if isinstance(tool_msg.content, str) else str(tool_msg.content)
     lowered = content.lower().replace("\\", "/")
     return any(hint.replace("\\", "/") in lowered for hint in _TEST_PATH_HINTS)
+
+
+# ----------------------------------------------------------------------
+# Auto-diagnosis helpers
+# ----------------------------------------------------------------------
+
+# Parameter names that edit tools use to specify the target file.
+_FILE_PATH_ARGS = ("file_path", "path", "file")
+
+# Max files to auto-diagnose (keeps the middleware fast).
+_MAX_AUTO_DIAGNOSE_FILES = 3
+
+
+def _extract_recent_edited_files(messages: list[Any]) -> list[str]:
+    """Extract file paths from recent successful mutating tool calls.
+
+    Walks the message history in reverse to find mutating tool calls
+    that haven't been verified yet, then resolves their ``file_path``
+    argument from the corresponding AIMessage tool_calls.
+    """
+    # Build tool_call_id -> args mapping from AIMessages.
+    tool_call_args: dict[str, dict] = {}
+    for msg in messages:
+        tool_calls = getattr(msg, "tool_calls", None)
+        if tool_calls:
+            for tc in tool_calls:
+                tc_id = tc.get("id") or tc.get("tool_call_id")
+                if tc_id:
+                    tool_call_args[tc_id] = tc.get("args", {}) or {}
+
+    edited_files: list[str] = []
+    for msg in reversed(messages):
+        if isinstance(msg, ToolMessage):
+            name = str(msg.name or "")
+            if name in _VERIFICATION_TOOL_NAMES:
+                break  # verification happened after edit → no pending edits
+            if name in _MUTATING_TOOL_NAMES and not _is_error(msg):
+                tc_id = getattr(msg, "tool_call_id", None)
+                args = tool_call_args.get(tc_id, {}) if tc_id else {}
+                for key in _FILE_PATH_ARGS:
+                    fp = args.get(key)
+                    if fp and isinstance(fp, str) and fp not in edited_files:
+                        edited_files.append(fp)
+                        break
+        elif isinstance(msg, HumanMessage) and _is_verify_reminder(msg):
+            break
+        if len(edited_files) >= _MAX_AUTO_DIAGNOSE_FILES:
+            break
+
+    return edited_files
+
+
+async def _try_auto_diagnose(
+    runtime: Runtime | None,
+    file_paths: list[str],
+) -> list[dict] | None:
+    """Run diagnostics on edited files asynchronously.
+
+    Returns a list of result dicts (one per file), or ``None`` if
+    diagnostics could not be run (no runtime, no files, or all failed).
+    """
+    if runtime is None or not file_paths:
+        return None
+
+    try:
+        from kkoclaw.tools.coding.diagnostic_tools import run_file_diagnostics
+    except ImportError:
+        return None
+
+    results: list[dict] = []
+    for fp in file_paths[:_MAX_AUTO_DIAGNOSE_FILES]:
+        try:
+            result = await asyncio.to_thread(
+                run_file_diagnostics, runtime, fp, None
+            )
+            if result is not None:
+                results.append(result)
+        except Exception as exc:
+            logger.debug("Auto-diagnosis failed for %s: %s", fp, exc)
+
+    return results if results else None
+
+
+def _build_diagnostic_reminder(
+    diagnostics: list[dict],
+    file_paths: list[str],
+) -> HumanMessage:
+    """Build a system reminder containing actual diagnostic results.
+
+    Unlike :meth:`PostEditVerifyMiddleware._build_reminder` which only
+    *tells* the model to verify, this injects the verification output
+    directly so the model can act on concrete errors without an extra
+    round-trip.
+    """
+    parts: list[str] = [
+        "<system-reminder>\n",
+        "<post_edit_verify>\n",
+        "你刚刚修改了以下文件：\n",
+    ]
+
+    for fp in file_paths[:5]:
+        parts.append(f"  - {fp}\n")
+
+    parts.append("\n自动诊断结果：\n")
+
+    has_errors = False
+    for diag in diagnostics:
+        file_label = diag.get("file", "?")
+        linter_name = diag.get("linter", "?")
+        clean = diag.get("clean", True)
+        issues = diag.get("issues", [])
+
+        if clean:
+            parts.append(f"  ✅ {file_label} ({linter_name}): 无问题\n")
+        else:
+            has_errors = True
+            parts.append(
+                f"  ❌ {file_label} ({linter_name}): "
+                f"{len(issues)} 个问题\n"
+            )
+            for issue in issues[:5]:
+                line_no = issue.get("line", "?")
+                col = issue.get("column")
+                msg = str(issue.get("message", ""))[:200]
+                loc = f"L{line_no}" if not col else f"L{line_no}:C{col}"
+                parts.append(f"     {loc}: {msg}\n")
+
+    if has_errors:
+        parts.append(
+            "\n上述诊断发现了问题。请优先修复这些问题，然后重新验证。\n"
+            "修复后调用 `get_diagnostics` 或 `run_linter` 确认问题已解决。\n"
+        )
+    else:
+        parts.append(
+            "\n诊断未发现问题。建议进一步运行 `run_tests` 确认测试通过。\n"
+        )
+
+    parts.append(
+        "\n规则：\n"
+        "1. 严禁在没有验证证据的情况下声称“修复完成”或“已修复”。\n"
+        "2. 如果诊断发现问题，修复根因后重新验证，直到通过。\n"
+        "3. 报告完成时必须引用验证输出的关键行。\n"
+        "</post_edit_verify>\n"
+        "</system-reminder>"
+    )
+
+    return internal_human_message(
+        content="".join(parts),
+        marker=_REMINDER_MARKER,
+        additional_kwargs={
+            _REMINDER_MARKER: True,
+        },
+    )
