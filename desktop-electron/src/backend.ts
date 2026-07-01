@@ -364,8 +364,12 @@ export class BackendManager extends EventEmitter {
     if (this.logStream) return;
     try {
       mkdirSync(getLogsDir(), { recursive: true });
+      // ``flags: "w"`` truncates the file on each app start so the log
+      // always reflects the current session only. This avoids unbounded
+      // growth across restarts and makes it easier to find the most recent
+      // launch's output without scrolling through days of history.
       this.logStream = createWriteStream(getGatewayLogPath(), {
-        flags: "a",
+        flags: "w",
       });
     } catch (e) {
       console.error("[backend] failed to open log stream:", e);

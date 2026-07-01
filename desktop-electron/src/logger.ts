@@ -7,6 +7,14 @@
  * The renderer-process console is captured separately via
  * ``webContents.on('console-message')`` in ``main.ts`` and written to
  * ``renderer.log`` by ``appendRendererLog``.
+ *
+ * .. important::
+ *    All three log streams (``main.log``, ``renderer.log``, and the gateway
+ *    log in ``backend.ts``) open with ``flags: "w"`` so the file is
+ *    **truncated on every app launch**. This means each restart produces a
+ *    fresh log covering only the current session — there is no append
+ *    across launches. If historical logs are needed, the caller should
+ *    back up or rotate the file before starting the app.
  */
 
 import { createWriteStream, mkdirSync, type WriteStream } from "node:fs";
@@ -19,7 +27,7 @@ function ensureMainStream(): WriteStream {
   if (mainStream) return mainStream;
   try {
     mkdirSync(getLogsDir(), { recursive: true });
-    mainStream = createWriteStream(getMainLogPath(), { flags: "a" });
+    mainStream = createWriteStream(getMainLogPath(), { flags: "w" });
   } catch {
     // Fall back to console-only if the file cannot be opened.
   }
@@ -30,7 +38,7 @@ function ensureRendererStream(): WriteStream {
   if (rendererStream) return rendererStream;
   try {
     mkdirSync(getLogsDir(), { recursive: true });
-    rendererStream = createWriteStream(getRendererLogPath(), { flags: "a" });
+    rendererStream = createWriteStream(getRendererLogPath(), { flags: "w" });
   } catch {
     /* ignore */
   }

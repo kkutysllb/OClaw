@@ -263,7 +263,7 @@ export class BackendManager extends EventEmitter {
         try {
             mkdirSync(getLogsDir(), { recursive: true });
             this.logStream = createWriteStream(getGatewayLogPath(), {
-                flags: "a",
+                flags: "w",
             });
         }
         catch (e) {
