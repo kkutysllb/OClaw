@@ -9,7 +9,7 @@ function setDesktopBridge(bridge?: Partial<DesktopBridge>) {
   const unsubscribe = () => undefined;
   if (bridge) {
     w.oclawDesktop = {
-      gatewayPort: 19987,
+      gatewayPort: 29987,
       getGatewayConfig: vi.fn(),
       getBackendStatus: vi.fn(),
       startBackend: vi.fn(),

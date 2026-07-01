@@ -6,7 +6,7 @@ import { getDesktopAuthHeaders } from "@/core/auth/session";
 function setDesktopMode(enabled: boolean) {
   const w = window as unknown as Record<string, unknown>;
   if (enabled) {
-    w.oclawDesktop = { gatewayPort: 19987 };
+    w.oclawDesktop = { gatewayPort: 29987 };
   } else {
     delete w.oclawDesktop;
   }

@@ -1,4 +1,4 @@
-const DEV_SERVER_URL = "http://127.0.0.1:18659";
+const DEV_SERVER_URL = "http://127.0.0.1:28569";
 const APP_ORIGIN = "app://-";
 
 export function isAllowedExternalUrl(url: string): boolean {

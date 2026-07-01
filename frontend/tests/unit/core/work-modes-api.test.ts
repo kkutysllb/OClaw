@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("@/env", () => ({
   env: {
-    NEXT_PUBLIC_BACKEND_BASE_URL: "http://127.0.0.1:19987",
-    NEXT_PUBLIC_LANGGRAPH_BASE_URL: "http://127.0.0.1:19987/api",
+    NEXT_PUBLIC_BACKEND_BASE_URL: "http://127.0.0.1:29987",
+    NEXT_PUBLIC_LANGGRAPH_BASE_URL: "http://127.0.0.1:29987/api",
   },
 }));
 

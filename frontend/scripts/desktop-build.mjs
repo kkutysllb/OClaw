@@ -27,7 +27,7 @@ const BACKUP_DIR = join(ROOT, ".desktop-build-backup");
 
 // ── Resolve gateway port from the shared repo-root .env ───────────────────
 // The Electron static export talks to the embedded gateway owned by the
-// desktop shell. Falling back to 19987 preserves the default desktop port
+// desktop shell. Falling back to 29987 preserves the default desktop port
 // when .env is absent.
 function resolveGatewayPort() {
   const envFile = resolve(ROOT, "..", ".env");
@@ -47,7 +47,7 @@ function resolveGatewayPort() {
       if (Number.isFinite(port) && port > 0) return String(port);
     }
   }
-  return "19987";
+  return "29987";
 }
 const GATEWAY_PORT = resolveGatewayPort();
 console.log(`[desktop-build] using GATEWAY_PORT=${GATEWAY_PORT} (from shared .env or fallback)`);

@@ -21,7 +21,7 @@ import {
 function setDesktopBridge(present: boolean) {
   const w = window as unknown as Record<string, unknown>;
   if (present) {
-    w.oclawDesktop = { gatewayPort: 19987 };
+    w.oclawDesktop = { gatewayPort: 29987 };
   } else {
     delete w.oclawDesktop;
   }
@@ -62,7 +62,7 @@ describe("desktop runtime mode", () => {
 
   test("detects Electron dev mode only on the desktop dev server port", () => {
     setDesktopBridge(true);
-    stubLocationPort("18659");
+    stubLocationPort("28569");
     expect(isDesktopDevMode()).toBe(true);
     expect(isDesktopBackendManagedMode()).toBe(false);
   });
@@ -76,7 +76,7 @@ describe("desktop runtime mode", () => {
 
   test("does not mark regular web mode as desktop dev or desktop-managed", () => {
     setDesktopBridge(false);
-    stubLocationPort("18659");
+    stubLocationPort("28569");
     expect(isDesktopDevMode()).toBe(false);
     expect(isDesktopBackendManagedMode()).toBe(false);
   });
@@ -92,25 +92,25 @@ describe("getBackendBaseURL", () => {
     expect(getBackendBaseURL()).toBe("");
   });
 
-  test("returns empty string in desktop dev mode (port 18659)", () => {
+  test("returns empty string in desktop dev mode (port 28569)", () => {
     setDesktopBridge(true);
-    stubLocationPort("18659");
+    stubLocationPort("28569");
     expect(getBackendBaseURL()).toBe("");
   });
 
-  test("returns direct gateway URL in desktop production mode (non-18659 port)", () => {
+  test("returns direct gateway URL in desktop production mode (non-28569 port)", () => {
     setDesktopBridge(true);
     stubLocationPort("");
     const url = getBackendBaseURL();
     expect(url).toContain("127.0.0.1");
-    expect(url).toContain("19987");
+    expect(url).toContain("29987");
   });
 
   test("returns correct default gateway port in production mode", () => {
     setDesktopBridge(true);
     stubLocationPort("");
     const url = getBackendBaseURL();
-    expect(url).toBe("http://127.0.0.1:19987");
+    expect(url).toBe("http://127.0.0.1:29987");
   });
 });
 
@@ -125,9 +125,9 @@ describe("getLangGraphBaseURL", () => {
     expect(url).toContain("/api/langgraph");
   });
 
-  test("returns rewrite proxy URL in desktop dev mode (port 18659)", () => {
+  test("returns rewrite proxy URL in desktop dev mode (port 28569)", () => {
     setDesktopBridge(true);
-    stubLocationPort("18659", "http://localhost:18659");
+    stubLocationPort("28569", "http://localhost:28569");
     const url = getLangGraphBaseURL();
     expect(url).toContain("/api/langgraph");
   });

@@ -53,7 +53,7 @@ import { initSkillModelsEnv, parseEnvFile } from "./skill-models-env.js";
 // ── Constants ────────────────────────────────────────────────────────────
 
 /** Default gateway port (distinct from the web deployment's 9987). */
-export const DEFAULT_GATEWAY_PORT = 19987;
+export const DEFAULT_GATEWAY_PORT = 29987;
 /** Gateway host — always localhost, never exposed externally. */
 const GATEWAY_HOST = "127.0.0.1";
 /** Health-probe interval in milliseconds. */

@@ -3,7 +3,7 @@
  *
  * Boots three processes and wires them together:
  *   1. The Python gateway via `uv run uvicorn` (backend venv)
- *   2. The Next.js dev server on port 18659
+ *   2. The Next.js dev server on port 28569
  *   3. Electron, pointed at the dev server via OCLAW_DEV_SERVER=1
  *
  * Ctrl-C tears everything down cleanly.
@@ -26,8 +26,8 @@ const EMBEDDED_CONFIG = resolve(
   "config.embedded.yaml",
 );
 
-const GATEWAY_PORT = process.env.GATEWAY_PORT ?? "19987";
-const DEV_SERVER_PORT = "18659";
+const GATEWAY_PORT = process.env.GATEWAY_PORT ?? "29987";
+const DEV_SERVER_PORT = "28569";
 const DEV_SERVER_URL = `http://127.0.0.1:${DEV_SERVER_PORT}`;
 const FRONTEND_READY_TIMEOUT_MS = 60_000;
 const DESKTOP_DEV_ORIGINS = [
@@ -51,7 +51,7 @@ function start(cmd, args, opts = {}) {
     // POSIX: put each child in its own process group so teardown can kill the
     // entire group (including grandchildren spawned by pnpm exec / uv run)
     // with a single negative-PID signal. Without this, killing the direct
-    // child leaves grandchildren as orphans still bound to ports (e.g. 19987)
+    // child leaves grandchildren as orphans still bound to ports (e.g. 29987)
     // or holding .next/dev/lock. Windows has no process groups, so disabled.
     detached: process.platform !== "win32" && detached !== false,
     ...spawnOpts,
@@ -283,10 +283,10 @@ function startGateway() {
 // Static export is only used by `desktop-build.mjs` (which patches that layout).
 //
 // In dev we run the normal SSR dev server with rewrites proxying /api/* to the
-// desktop gateway on 19987. Desktop detection (`isDesktop()`) still works
+// desktop gateway on 29987. Desktop detection (`isDesktop()`) still works
 // because it checks `window.oclawDesktop` (injected by the preload), not the
 // DESKTOP_BUILD env var. Cookie-based auth flows through the Next.js proxy,
-// matching fetcher.ts's `port === "18659"` credentials branch.
+// matching fetcher.ts's `port === "28569"` credentials branch.
 let frontendReadyPromise = null;
 
 function startFrontend() {

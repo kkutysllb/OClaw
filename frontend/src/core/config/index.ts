@@ -14,12 +14,12 @@ import "@/core/desktop/types";
 const DESKTOP_BRIDGE_KEY = "oclawDesktop";
 // Historical Electron dev port; kept only as a final fallback for shells that
 // never set `frontendPort` on the bridge (e.g. older desktop-electron builds).
-const LEGACY_ELECTRON_DEV_PORT = "18659";
+const LEGACY_ELECTRON_DEV_PORT = "28569";
 
 let _desktopPort: number =
   typeof window !== "undefined" && window.oclawDesktop?.gatewayPort != null
     ? window.oclawDesktop.gatewayPort
-    : 19987;
+    : 29987;
 
 export async function initGatewayPort(): Promise<void> {
   if (!isDesktop()) return;
@@ -43,7 +43,7 @@ export function isDesktop(): boolean {
  * Priority:
  * 1. `window.oclawDesktop.frontendPort` — Electron shells can report the
  *    actual dev-server port so this stays port-independent.
- * 2. `18659` — default Electron dev port.
+ * 2. `28569` — default Electron dev port.
  *
  * Returns `null` for packaged shells that serve the renderer from a custom
  * scheme (e.g. `app://-`) and therefore have no TCP port at all.
@@ -91,7 +91,7 @@ function getBaseOrigin() {
 
 export function getBackendBaseURL(): string {
   if (isDesktop()) {
-    // In dev mode the frontend is served by Next.js on 18659 and proxies to
+    // In dev mode the frontend is served by Next.js on 28569 and proxies to
     // the gateway, so use a same-origin (empty) base. In the packaged static
     // export, talk to the embedded gateway directly.
     if (isDesktopDevMode()) {

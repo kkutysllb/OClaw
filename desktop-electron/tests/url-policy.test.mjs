@@ -9,7 +9,7 @@ import {
 test("allows only app and dev-server URLs inside the desktop window", () => {
   assert.equal(isAllowedAppNavigationUrl("app://-/workspace"), true);
   assert.equal(
-    isAllowedAppNavigationUrl("http://127.0.0.1:18659/workspace"),
+    isAllowedAppNavigationUrl("http://127.0.0.1:28569/workspace"),
     true,
   );
   assert.equal(isAllowedAppNavigationUrl("file:///tmp/dropped.html"), false);

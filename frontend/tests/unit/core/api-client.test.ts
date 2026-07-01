@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("@/env", () => ({
   env: {
-    NEXT_PUBLIC_BACKEND_BASE_URL: "http://127.0.0.1:19987",
-    NEXT_PUBLIC_LANGGRAPH_BASE_URL: "http://127.0.0.1:19987/api",
+    NEXT_PUBLIC_BACKEND_BASE_URL: "http://127.0.0.1:29987",
+    NEXT_PUBLIC_LANGGRAPH_BASE_URL: "http://127.0.0.1:29987/api",
   },
 }));
 
@@ -17,7 +17,7 @@ import { prepareLangGraphRequest } from "@/core/api/api-client";
 function setDesktopMode(enabled: boolean) {
   const w = window as unknown as Record<string, unknown>;
   if (enabled) {
-    w.oclawDesktop = { gatewayPort: 19987 };
+    w.oclawDesktop = { gatewayPort: 29987 };
   } else {
     delete w.oclawDesktop;
   }
@@ -25,7 +25,7 @@ function setDesktopMode(enabled: boolean) {
 
 function setDesktopModeWithFrontendPort(frontendPort: number) {
   const w = window as unknown as Record<string, unknown>;
-  w.oclawDesktop = { gatewayPort: 19987, frontendPort };
+  w.oclawDesktop = { gatewayPort: 29987, frontendPort };
 }
 
 function stubLocationPort(port: string) {
@@ -54,7 +54,7 @@ describe("LangGraph API client request hook", () => {
     stubLocationPort("");
 
     const init = prepareLangGraphRequest(
-      new URL("http://127.0.0.1:19987/api/threads/search"),
+      new URL("http://127.0.0.1:29987/api/threads/search"),
       { method: "POST" },
     );
 
