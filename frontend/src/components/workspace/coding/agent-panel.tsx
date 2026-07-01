@@ -135,6 +135,28 @@ function AgentPanelInner({ projectId, onThreadIdChange, onFocusFile }: AgentPane
     () => ({ ...settings.context, work_mode_id: "coding" as const }),
     [settings.context],
   );
+
+  // Auto-adapt workspace path to the open project in Coding mode.
+  //
+  // When the Coding Agent opens a project, the WorkspaceSelector should
+  // automatically point at the project's directory so the sandbox grants
+  // bash/read/write access to project files without manual selection.
+  // This mirrors how ``work_mode_id`` is force-pinned to ``"coding"`` in
+  // ``codingContext`` above, but does it through settings persistence so
+  // the value survives page reloads.
+  //
+  // ``project?.path`` may be undefined briefly during initial load; once
+  // it resolves, we sync it into ``settings.context.user_workspace_path``.
+  // The equality guard avoids an infinite write loop, and also preserves
+  // a user's manual workspace selection as long as the project does not
+  // change (e.g. switching to another project re-runs this effect and
+  // re-syncs to the new project's path).
+  useEffect(() => {
+    if (!project?.path) return;
+    if (settings.context.user_workspace_path === project.path) return;
+    setSettings("context", { user_workspace_path: project.path });
+  }, [project?.path, settings.context.user_workspace_path, setSettings]);
+
   const [showFollowups, setShowFollowups] = useState(false);
   const [agentStatus, setAgentStatus] = useState<CodingAgentStatus>("idle");
   const [lastToolLabel, setLastToolLabel] = useState<string | null>(null);
