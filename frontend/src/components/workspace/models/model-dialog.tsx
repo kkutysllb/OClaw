@@ -110,6 +110,8 @@ export function ModelDialog({
   const [originalApiKey, setOriginalApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [maxTokens, setMaxTokens] = useState("");
+  const [maxInputTokens, setMaxInputTokens] = useState("");
+  const [maxRetries, setMaxRetries] = useState("");
   const [temperature, setTemperature] = useState("");
   const [requestTimeout, setRequestTimeout] = useState("");
   const [description, setDescription] = useState("");
@@ -135,6 +137,10 @@ export function ModelDialog({
         setOriginalApiKey(model.api_key || "");
         setBaseUrl(model.base_url || "");
         setMaxTokens(model.max_tokens != null ? String(model.max_tokens) : "");
+        setMaxInputTokens(
+          model.max_input_tokens != null ? String(model.max_input_tokens) : "",
+        );
+        setMaxRetries(model.max_retries != null ? String(model.max_retries) : "");
         setTemperature(
           model.temperature != null ? String(model.temperature) : "",
         );
@@ -169,6 +175,8 @@ export function ModelDialog({
         setOriginalApiKey("");
         setBaseUrl("");
         setMaxTokens("");
+        setMaxInputTokens("");
+        setMaxRetries("");
         setTemperature("");
         setRequestTimeout("");
         setDescription("");
@@ -228,6 +236,8 @@ export function ModelDialog({
         }),
         base_url: baseUrl.trim() || null,
         max_tokens: maxTokens ? Number(maxTokens) : null,
+        max_input_tokens: maxInputTokens ? Number(maxInputTokens) : null,
+        max_retries: maxRetries ? Number(maxRetries) : null,
         temperature: temperature ? Number(temperature) : null,
         request_timeout: requestTimeout ? Number(requestTimeout) : null,
         description: description.trim() || null,
@@ -432,33 +442,62 @@ export function ModelDialog({
                   />
                 </div>
                 <div className="grid gap-2">
-                  <label htmlFor="md-temperature" className={labelCls}>
-                    {t.models.temperature}
+                  <label htmlFor="md-maxinputtokens" className={labelCls}>
+                    {t.models.maxInputTokens}
                   </label>
                   <Input
-                    id="md-temperature"
+                    id="md-maxinputtokens"
+                    type="number"
+                    value={maxInputTokens}
+                    onChange={(e) => setMaxInputTokens(e.target.value)}
+                    placeholder="1000000"
+                  />
+                  <p className={hintCls}>{t.models.maxInputTokensHint}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <label htmlFor="md-timeout" className={labelCls}>
+                    {t.models.requestTimeout}
+                  </label>
+                  <Input
+                    id="md-timeout"
                     type="number"
                     step="0.1"
+                    value={requestTimeout}
+                    onChange={(e) => setRequestTimeout(e.target.value)}
+                    placeholder="600"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label htmlFor="md-maxretries" className={labelCls}>
+                    {t.models.maxRetries}
+                  </label>
+                  <Input
+                    id="md-maxretries"
+                    type="number"
                     min="0"
-                    max="2"
-                    value={temperature}
-                    onChange={(e) => setTemperature(e.target.value)}
-                    placeholder="0.7"
+                    value={maxRetries}
+                    onChange={(e) => setMaxRetries(e.target.value)}
+                    placeholder="2"
                   />
                 </div>
               </div>
 
               <div className="grid gap-2">
-                <label htmlFor="md-timeout" className={labelCls}>
-                  {t.models.requestTimeout}
+                <label htmlFor="md-temperature" className={labelCls}>
+                  {t.models.temperature}
                 </label>
                 <Input
-                  id="md-timeout"
+                  id="md-temperature"
                   type="number"
                   step="0.1"
-                  value={requestTimeout}
-                  onChange={(e) => setRequestTimeout(e.target.value)}
-                  placeholder="600"
+                  min="0"
+                  max="2"
+                  value={temperature}
+                  onChange={(e) => setTemperature(e.target.value)}
+                  placeholder="0.7"
                 />
               </div>
 

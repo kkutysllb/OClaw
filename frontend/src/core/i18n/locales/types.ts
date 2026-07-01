@@ -434,6 +434,9 @@ export interface Translations {
     baseUrl: string;
     baseUrlHint: string;
     maxTokens: string;
+    maxInputTokens: string;
+    maxInputTokensHint: string;
+    maxRetries: string;
     temperature: string;
     requestTimeout: string;
     modelDescription: string;

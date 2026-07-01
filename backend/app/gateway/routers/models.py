@@ -64,6 +64,8 @@ class ModelRequest(BaseModel):
     api_key: str | None = Field(None, description="API key or $ENV_VAR reference")
     base_url: str | None = Field(None, description="Base URL for the provider API")
     max_tokens: int | None = Field(None, description="Maximum tokens for generation")
+    max_input_tokens: int | None = Field(None, description="Maximum input tokens (context window size). Used by SummarizationMiddleware and model profile injection.")
+    max_retries: int | None = Field(None, description="Maximum number of retries for failed API requests")
     temperature: float | None = Field(None, description="Sampling temperature (0-2)")
     request_timeout: float | None = Field(None, description="Request timeout in seconds")
     description: str | None = Field(None, description="Model description")
@@ -85,6 +87,8 @@ class ModelResponse(BaseModel):
     api_key: str | None = Field(None, description="API key reference")
     base_url: str | None = Field(None, description="Base URL for the provider API")
     max_tokens: int | None = Field(None, description="Maximum tokens for generation")
+    max_input_tokens: int | None = Field(None, description="Maximum input tokens (context window size)")
+    max_retries: int | None = Field(None, description="Maximum number of retries for failed API requests")
     temperature: float | None = Field(None, description="Sampling temperature")
     request_timeout: float | None = Field(None, description="Request timeout in seconds")
     description: str | None = Field(None, description="Model description")
@@ -126,6 +130,8 @@ def _model_config_to_response(model) -> ModelResponse:
         api_key=extra.get("api_key"),
         base_url=extra.get("base_url"),
         max_tokens=extra.get("max_tokens"),
+        max_input_tokens=extra.get("max_input_tokens"),
+        max_retries=extra.get("max_retries"),
         temperature=extra.get("temperature"),
         request_timeout=extra.get("request_timeout"),
         description=model.description,
@@ -155,6 +161,10 @@ def _request_to_config_dict(req: ModelRequest) -> dict:
         d["base_url"] = req.base_url
     if req.max_tokens is not None:
         d["max_tokens"] = req.max_tokens
+    if req.max_input_tokens is not None:
+        d["max_input_tokens"] = req.max_input_tokens
+    if req.max_retries is not None:
+        d["max_retries"] = req.max_retries
     if req.temperature is not None:
         d["temperature"] = req.temperature
     if req.request_timeout is not None:
