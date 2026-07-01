@@ -47,12 +47,22 @@ from kkoclaw.tools.coding.symbol_tools import (
 from kkoclaw.tools.coding.diagnostic_tools import (
     get_diagnostics_tool,
 )
+from kkoclaw.tools.coding.impact_analysis import (
+    analyze_impact_tool,
+)
 from kkoclaw.tools.coding.lsp_tools import (
     find_references_tool,
     go_to_definition_tool,
 )
 from kkoclaw.tools.coding.session_shell import (
     session_shell_tool,
+)
+from kkoclaw.tools.coding.semantic_search import (
+    search_semantic_tool,
+)
+from kkoclaw.tools.coding.skill_declaration import (
+    declare_skill_tool,
+    list_coding_skills_tool,
 )
 from kkoclaw.tools.coding.test_tools import (
     run_linter_tool,
@@ -120,6 +130,13 @@ def get_coding_tools() -> list:
         review_code_tool,
         # Delivery stage tracking
         suggest_delivery_stage_tool,
+        # Semantic search (P2)
+        search_semantic_tool,
+        # Skill management (P2)
+        list_coding_skills_tool,
+        declare_skill_tool,
+        # Impact analysis (P2)
+        analyze_impact_tool,
     ]
 
 

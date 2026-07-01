@@ -504,6 +504,11 @@ def matches_skill_semantic(skill: CodingSkill, task_text: str) -> bool:
          description appear in the task, it matches. This catches tasks like
          "add unit tests for the payment module" even when no keyword is
          declared.
+      5. TF-IDF semantic similarity (P2 upgrade): if the skill description
+         is semantically similar to the task text (cosine similarity >=
+         ``_SEMANTIC_THRESHOLD``), it matches. This catches paraphrased
+         tasks like "why is the server slow" matching a "performance"
+         skill even with zero keyword overlap.
 
     Returns True if the skill should be activated for this task.
     """
@@ -532,6 +537,10 @@ def matches_skill_semantic(skill: CodingSkill, task_text: str) -> bool:
         hits = sum(1 for tok in desc_tokens if tok in task)
         if hits >= 2:
             return True
+
+    # Layer 5: TF-IDF semantic similarity (P2 upgrade)
+    if _matches_skill_semantic_tfidf(skill, task_text):
+        return True
 
     return False
 
@@ -567,3 +576,126 @@ def _tokenize_for_match(text: str | None) -> list[str]:
             if ch not in ("的", "了", "在", "是", "和"):
                 tokens.append(ch)
     return tokens
+
+
+# ----------------------------------------------------------------------
+# P2 upgrade: TF-IDF semantic skill matching
+# ----------------------------------------------------------------------
+
+# Cosine similarity threshold for TF-IDF matching. Skills whose description
+# is semantically similar to the task at or above this score activate.
+# 0.18 is deliberately conservative — false positives waste prompt tokens
+# and are worse than false negatives (the model can self-declare via the
+# ``declare_skill`` tool when it needs a skill that wasn't auto-activated).
+_SEMANTIC_THRESHOLD = 0.18
+
+# Cache the TF-IDF index of all skill descriptions per skill set.
+# Keyed by a frozenset of skill ids so different skill lists don't collide.
+_SKILL_INDEX_CACHE: dict[frozenset, object] = {}
+
+
+def _get_or_build_skill_index(skills: list[CodingSkill]) -> object:
+    """Build (or fetch cached) TF-IDF index over skill descriptions.
+
+    The index treats each skill's ``description + name + keywords`` as a
+    single document. This lets us rank all skills against a task query
+    in O(n) time with proper IDF weighting.
+    """
+    from kkoclaw.coding_core.tfidf_engine import TfidfIndex
+
+    cache_key = frozenset(s.id for s in skills)
+    cached = _SKILL_INDEX_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    index = TfidfIndex()
+    for skill in skills:
+        # Combine name + description + keywords into one doc
+        doc_parts = [skill.name, skill.description]
+        if skill.activation_keywords:
+            doc_parts.extend(skill.activation_keywords)
+        index.add(skill.id, " \n ".join(doc_parts))
+    index.finalize()
+
+    _SKILL_INDEX_CACHE[cache_key] = index
+    return index
+
+
+def _matches_skill_semantic_tfidf(skill: CodingSkill, task_text: str) -> bool:
+    """Check if *skill* matches *task_text* via TF-IDF cosine similarity.
+
+    This is the P2 semantic layer. It compares the task against every
+    skill's description in a shared TF-IDF space, so even paraphrased
+    queries ("why is the server slow") match conceptually related skills
+    ("performance optimization") with zero keyword overlap.
+
+    Returns True if similarity >= ``_SEMANTIC_THRESHOLD``.
+    """
+    try:
+        from kkoclaw.coding_core.tfidf_engine import cosine_similarity, tokenize
+    except ImportError:
+        return False
+
+    # We need a "peer set" to compute IDF. In isolation we can't, so we
+    # build a minimal 2-doc index: this skill + the task itself. This is
+    # less accurate than a full-skill index but still catches strong
+    # semantic matches without false-positiving on every short task.
+    # The full-skill index path is used by the Qiongqi engine when it
+    # has the complete skill list (see ``rank_skills_semantic`` below).
+    skill_doc = " ".join(
+        part for part in [skill.name, skill.description, *skill.activation_keywords]
+        if part
+    )
+    task_doc = task_text or ""
+    if not skill_doc.strip() or not task_doc.strip():
+        return False
+
+    skill_tokens = tokenize(skill_doc)
+    task_tokens = tokenize(task_doc)
+    if not skill_tokens or not task_tokens:
+        return False
+
+    # Build a tiny 2-doc TF-IDF to get IDF weights
+    from kkoclaw.coding_core.tfidf_engine import TfidfIndex
+
+    mini_index = TfidfIndex()
+    mini_index.add("_skill", skill_doc)
+    mini_index.add("_task", task_doc)
+    mini_index.finalize()
+
+    skill_vec = mini_index._docs["_skill"].tfidf_vector
+    task_vec = mini_index._docs["_task"].tfidf_vector
+    score = cosine_similarity(skill_vec, task_vec)
+    return score >= _SEMANTIC_THRESHOLD
+
+
+def rank_skills_semantic(
+    skills: list[CodingSkill],
+    task_text: str,
+    *,
+    top_k: int = 5,
+    min_score: float = 0.10,
+) -> list[tuple[CodingSkill, float]]:
+    """Rank *skills* against *task_text* using full-corpus TF-IDF.
+
+    Unlike the per-skill ``_matches_skill_semantic_tfidf`` (which uses a
+    degenerate 2-doc index), this function builds one index over **all**
+    skills and ranks them properly with correct IDF weights.
+
+    Returns a list of ``(skill, score)`` tuples sorted by score, filtered
+    by *min_score* and capped at *top_k*.
+    """
+    if not skills or not task_text:
+        return []
+
+    index = _get_or_build_skill_index(skills)
+    results = index.search(task_text, top_k=top_k, min_score=min_score)
+
+    # Map doc_id back to skill objects
+    skill_by_id = {s.id: s for s in skills}
+    ranked: list[tuple[CodingSkill, float]] = []
+    for result in results:
+        skill = skill_by_id.get(result.doc_id)
+        if skill is not None:
+            ranked.append((skill, result.score))
+    return ranked

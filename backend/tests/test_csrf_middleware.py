@@ -6,7 +6,7 @@ from app.gateway.csrf_middleware import is_allowed_auth_origin
 class _Request:
     def __init__(self, headers: dict[str, str]) -> None:
         self.headers = Headers(headers)
-        self.url = URL("http://127.0.0.1:19987/api/v1/auth/login/local")
+        self.url = URL("http://127.0.0.1:29987/api/v1/auth/login/local")
 
 
 def test_desktop_app_origin_is_allowed_when_configured(monkeypatch):
@@ -15,7 +15,7 @@ def test_desktop_app_origin_is_allowed_when_configured(monkeypatch):
     request = _Request(
         {
             "origin": "app://-",
-            "host": "127.0.0.1:19987",
+            "host": "127.0.0.1:29987",
         },
     )
 
@@ -28,7 +28,7 @@ def test_tauri_origin_is_not_allowed_for_electron_desktop(monkeypatch):
     request = _Request(
         {
             "origin": "tauri://localhost",
-            "host": "127.0.0.1:19987",
+            "host": "127.0.0.1:29987",
         },
     )
 

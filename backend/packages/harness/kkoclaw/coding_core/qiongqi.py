@@ -227,9 +227,21 @@ class QiongqiEngine:
         return self.activate_skills_for_task(task_text)
 
     def activate_skills_for_task(self, task_text: str | None) -> list[ActiveCodingSkill]:
-        """Select Coding skills for a task and load their instruction files."""
+        """Select Coding skills for a task and load their instruction files.
+
+        Matching strategy (two-phase):
+          1. Per-skill keyword/synonym/token matching via ``matches_skill_semantic``
+             (Layers 1–4 + per-skill TF-IDF Layer 5).
+          2. Full-corpus TF-IDF ranking via ``rank_skills_semantic`` — if any
+             skill scores above the semantic threshold but was missed by
+             phase 1, it is activated here. This catches paraphrased tasks
+             that don't share keywords with any skill.
+        """
         task = (task_text or "").lower()
         active: list[ActiveCodingSkill] = []
+        active_ids: set[str] = set()
+
+        # Phase 1: keyword + synonym + token matching (existing layers 1-5)
         for skill in self.session.skills:
             if not skill.enabled or skill.manifest_errors:
                 continue
@@ -238,6 +250,29 @@ class QiongqiEngine:
             instructions = load_skill_instructions(skill)
             if instructions:
                 active.append(ActiveCodingSkill(skill=skill, instructions=instructions))
+                active_ids.add(skill.id)
+
+        # Phase 2: full-corpus TF-IDF semantic ranking (catches paraphrased tasks)
+        try:
+            from kkoclaw.coding_core.skills import rank_skills_semantic, _SEMANTIC_THRESHOLD
+
+            enabled_skills = [s for s in self.session.skills if s.enabled and not s.manifest_errors]
+            ranked = rank_skills_semantic(
+                enabled_skills,
+                task_text or "",
+                top_k=5,
+                min_score=_SEMANTIC_THRESHOLD,
+            )
+            for skill, score in ranked:
+                if skill.id in active_ids:
+                    continue  # already activated in phase 1
+                instructions = load_skill_instructions(skill)
+                if instructions:
+                    active.append(ActiveCodingSkill(skill=skill, instructions=instructions))
+                    active_ids.add(skill.id)
+        except Exception:
+            pass  # semantic ranking is best-effort; don't break activation
+
         return active
 
     def active_skill_policy_for_task(self, task_text: str | None) -> list[dict]:

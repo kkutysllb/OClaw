@@ -409,7 +409,7 @@ OClaw 提供了一个基于 **Electron 33+** 的跨平台桌面客户端（macOS
 
 **下载安装包**方式下，Python 后端（Gateway + 所有依赖）通过 PyInstaller 打包为独立可执行文件（`oclaw-gateway`），嵌入安装包作为 `extraResources` 资源；前端由 `next build --webpack` 静态导出为 `frontend/out/`，打包时一并嵌入。用户下载安装即可使用，Docker 仅在使用代码沙箱功能时可选安装。
 
-桌面客户端启动时会自动拉起嵌入式后端服务（Gateway，默认端口 `19987`），关闭窗口时自动最小化到系统托盘，点击托盘图标即可恢复。
+桌面客户端启动时会自动拉起嵌入式后端服务（Gateway，默认端口 `29987`），关闭窗口时自动最小化到系统托盘，点击托盘图标即可恢复。
 
 ### 桌面端开发环境搭建（源码编译）
 
@@ -460,8 +460,8 @@ pnpm run build:gateway
 
 开发模式（`pnpm run dev`）会按以下顺序拉起三个进程并通过 `desktop-electron/scripts/dev.mjs` 统一管理：
 
-1. **Python Gateway**：`uv run uvicorn`（`backend/` venv，默认端口 `19987`）
-2. **Next.js 开发服务器**：端口 `18659`
+1. **Python Gateway**：`uv run uvicorn`（`backend/` venv，默认端口 `29987`）
+2. **Next.js 开发服务器**：端口 `28569`
 3. **Electron 主进程**：通过 `OCLAW_DEV_SERVER=1` 连接开发服务器
 
 ### 桌面端特性

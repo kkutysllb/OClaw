@@ -409,7 +409,7 @@ OClaw provides a cross-platform desktop client based on **Electron 33+** (macOS 
 
 With the **download installer** option, the Python backend (Gateway + all dependencies) is packaged as a standalone executable (`oclaw-gateway`) via PyInstaller and embedded in the installer as `extraResources`; the frontend is statically exported via `next build --webpack` to `frontend/out/` and embedded during packaging. Users just download, install, and use it. Docker is only optionally installed when using the code sandbox feature.
 
-When the desktop client launches, it automatically starts the embedded backend service (Gateway, default port `19987`); closing the window minimizes it to the system tray, and clicking the tray icon restores it.
+When the desktop client launches, it automatically starts the embedded backend service (Gateway, default port `29987`); closing the window minimizes it to the system tray, and clicking the tray icon restores it.
 
 ### Desktop Development Setup (build from source)
 
@@ -460,8 +460,8 @@ pnpm run build:gateway
 
 Dev mode (`pnpm run dev`) launches three processes in the following order, managed uniformly via `desktop-electron/scripts/dev.mjs`:
 
-1. **Python Gateway**: `uv run uvicorn` (`backend/` venv, default port `19987`)
-2. **Next.js dev server**: port `18659`
+1. **Python Gateway**: `uv run uvicorn` (`backend/` venv, default port `29987`)
+2. **Next.js dev server**: port `28569`
 3. **Electron main process**: connects to the dev server via `OCLAW_DEV_SERVER=1`
 
 ### Desktop Features
