@@ -293,6 +293,55 @@ jobs:
         working-directory: desktop-electron
         run: pnpm run build
 
+      # ════════════════════════════════════════════════════════════════
+      # macOS signing sanity check + graceful fallback.
+      #
+      # electron-builder 25.x has a known issue: when CSC_LINK is set to
+      # an empty string (Secret missing) it falls back to treating the
+      # current working directory as the certificate path and aborts with
+      # a misleading "not a file" error. This step detects missing
+      # Secrets BEFORE invoking electron-builder and either:
+      #   (a) confirms all 5 Secrets are present → proceed with signing
+      #   (b) detects any Secret missing → set CSC_IDENTITY_AUTO_DISCOVERY=false
+      #       so electron-builder skips signing entirely, producing an
+      #       unsigned .dmg (Gatekeeper warns "unidentified developer",
+      #       users bypass with right-click → Open)
+      # This guarantees the Release is always published with artifacts,
+      # even if Apple credentials are not yet configured.
+      # ════════════════════════════════════════════════════════════════
+      - name: Verify macOS signing secrets (or fallback to unsigned)
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          APPLE_ID_VAL: ${{ secrets.APPLE_ID }}
+          APPLE_PASS_VAL: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_VAL: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          echo "=== macOS signing secrets diagnostic ==="
+          echo "  MACOS_CERT_P12_BASE64 length: ${#P12_BASE64}"
+          echo "  MACOS_CERT_PASSWORD   length: ${#P12_PASSWORD}"
+          echo "  APPLE_ID              length: ${#APPLE_ID_VAL}"
+          echo "  APPLE_APP_SPECIFIC_PASSWORD length: ${#APPLE_PASS_VAL}"
+          echo "  APPLE_TEAM_ID         length: ${#APPLE_TEAM_VAL}"
+
+          if [[ -z "$P12_BASE64" || -z "$P12_PASSWORD" || -z "$APPLE_ID_VAL" || -z "$APPLE_PASS_VAL" || -z "$APPLE_TEAM_VAL" ]]; then
+            echo ""
+            echo "⚠️  One or more macOS signing Secrets are MISSING."
+            echo "    Falling back to UNSIGNED build so the Release can still publish."
+            echo "    The .dmg will work but Gatekeeper will show 'unidentified developer'."
+            echo "    Users bypass with: right-click → Open, or xattr -dr com.apple.quarantine"
+            echo ""
+            echo "    To enable signing + notarization, configure these 5 Secrets at:"
+            echo "    https://github.com/${{ github.repository }}/settings/secrets/actions"
+            echo ""
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+          else
+            echo ""
+            echo "✓ All 5 macOS signing Secrets present. Proceeding with sign + notarize."
+          fi
+
       - name: Build Electron app
         working-directory: desktop-electron
         # MUST use bash on all three platforms: Windows runners default to
