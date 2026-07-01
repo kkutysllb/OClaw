@@ -303,9 +303,16 @@ datas += [
 ]
 
 # ── Default skills (bundled, copied to app data on first run) ──────────────
+# public/ 目录（legacy 布局，仅含 README.md）
 if SKILLS_DIR.joinpath("public").exists():
     datas += [
         (str(SKILLS_DIR / "public"), "skills/public"),
+    ]
+# builtin/ 目录（core/task/coding 三大类，83 个 SKILL.md）
+# 必须显式收集，否则桌面端技能管理页面为空、工作模式技能加载失效。
+if SKILLS_DIR.joinpath("builtin").exists():
+    datas += [
+        (str(SKILLS_DIR / "builtin"), "skills/builtin"),
     ]
 
 # ── Config template ────────────────────────────────────────────────────────

@@ -361,7 +361,16 @@ def _make_lead_agent(config: RunnableConfig, *, app_config: AppConfig):
     # agent's declared mode if any, then to the default ("task"). Forwarded
     # to ``apply_prompt_template`` so the skill prompt injection filters the
     # agent's skill set to the mode's effective preset.
-    work_mode_id = cfg.get("work_mode_id")
+    #
+    # IMPORTANT: the frontend sends ``work_mode_id=undefined`` for new chats
+    # (no explicit selection). Without this fallback, ``work_mode_id=None``
+    # causes ``_build_work_mode_context`` to return an empty string, so the
+    # ``<work_mode_context>`` block is never injected into the system prompt
+    # and the model has no awareness of the active mode — even though the
+    # skill resolution layer already falls back to "task" elsewhere. We
+    # normalise here at the entry point so all downstream consumers see a
+    # concrete mode id.
+    work_mode_id = cfg.get("work_mode_id") or "task"
 
     agent_config = load_agent_config(agent_name) if not is_bootstrap else None
     # Custom agent model from agent config (if any), or None to let _resolve_model_name pick the default
