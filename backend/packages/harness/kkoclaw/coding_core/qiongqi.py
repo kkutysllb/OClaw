@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -675,54 +676,354 @@ def _build_project_telemetry_section(project_root: str) -> str | None:
 
 
 def _detect_tech_stack(project_root: str) -> list[str]:
-    """Heuristic tech-stack detection from manifest files."""
+    """Deep tech-stack detection from manifest file contents.
+
+    Parses ``pyproject.toml``, ``package.json``, ``go.mod``, ``Cargo.toml``
+    to extract:
+      - Language version (Python requires-python, Node engines, Go version)
+      - Key frameworks (FastAPI, Django, React, Next.js, Vue, Express, ...)
+      - Test runner (pytest, jest, vitest, go test, cargo test)
+      - Linter/formatter (ruff, mypy, eslint, prettier, go vet, clippy)
+      - Build tools (vite, webpack, turbo, poetry, uv, hatch)
+    """
     from pathlib import Path
 
     root = Path(project_root)
     lines: list[str] = []
 
-    if (root / "pyproject.toml").is_file():
-        lines.append("  - 语言: Python (pyproject.toml)")
-        lines.append("  - 测试: pytest")
-        lines.append("  - Linter: ruff/mypy")
-    elif (root / "setup.py").is_file() or (root / "requirements.txt").is_file():
-        lines.append("  - 语言: Python (setup.py/requirements.txt)")
-    if (root / "package.json").is_file():
+    # ---- Python ----
+    py_info = _parse_python_manifest(root)
+    if py_info:
+        lines.extend(py_info)
+
+    # ---- Node.js / TypeScript ----
+    node_info = _parse_node_manifest(root)
+    if node_info:
+        lines.extend(node_info)
+
+    # ---- Go ----
+    go_info = _parse_go_manifest(root)
+    if go_info:
+        lines.extend(go_info)
+
+    # ---- Rust ----
+    rust_info = _parse_rust_manifest(root)
+    if rust_info:
+        lines.extend(rust_info)
+
+    # ---- Infrastructure (Docker/K8s) ----
+    infra_lines = _detect_infra(root)
+    if infra_lines:
+        lines.append(infra_lines)
+
+    return lines[:10]  # cap to keep context tight
+
+
+# ------------------------------------------------------------------ #
+# Python manifest parsing
+# ------------------------------------------------------------------ #
+
+# Known Python frameworks → display name
+_PY_FRAMEWORK_MAP = {
+    "fastapi": "FastAPI", "django": "Django", "flask": "Flask",
+    "starlette": "Starlette", "tornado": "Tornado", "aiohttp": "aiohttp",
+    "sanic": "Sanic", "pyramid": "Pyramid", "bottle": "Bottle",
+    "langchain": "LangChain", "langgraph": "LangGraph",
+    "celery": "Celery", "redis": "Redis", "sqlalchemy": "SQLAlchemy",
+    "torch": "PyTorch", "tensorflow": "TensorFlow", "transformers": "Transformers",
+    "pandas": "Pandas", "numpy": "NumPy", "scipy": "SciPy",
+    "pydantic": "Pydantic", "click": "Click", "typer": "Typer",
+}
+
+_PY_LINTER_MAP = {
+    "ruff": "ruff", "mypy": "mypy", "pylint": "pylint",
+    "flake8": "flake8", "pyright": "pyright",
+}
+
+_PY_BUILD_MAP = {
+    "poetry": "Poetry", "hatch": "Hatch", "uv": "uv", "setuptools": "setuptools",
+}
+
+
+def _parse_python_manifest(root: Path) -> list[str]:
+    """Parse pyproject.toml / setup.py / requirements.txt for Python stack info."""
+    deps: dict[str, str] = {}
+    py_version: str | None = None
+    build_tool: str | None = None
+
+    # Try pyproject.toml first (preferred)
+    toml_path = root / "pyproject.toml"
+    if toml_path.is_file():
         try:
-            import json as _json
+            import tomllib  # Python 3.11+
+            with open(toml_path, "rb") as f:
+                data = tomllib.load(f)
 
-            pkg = _json.loads((root / "package.json").read_text(encoding="utf-8"))
-            deps = {**(pkg.get("dependencies") or {}), **(pkg.get("devDependencies") or {})}
-            frameworks = []
-            if any(d.startswith("react") for d in deps):
-                frameworks.append("React")
-            if "vue" in deps:
-                frameworks.append("Vue")
-            if "next" in deps:
-                frameworks.append("Next.js")
-            if "express" in deps:
-                frameworks.append("Express")
-            if any(d.startswith("jest") for d in deps):
-                lines.append("  - 测试: jest")
-            if "vitest" in deps:
-                lines.append("  - 测试: vitest")
-            if "eslint" in deps:
-                lines.append("  - Linter: eslint")
-            if frameworks:
-                lines.append(f"  - 框架: {', '.join(frameworks)}")
-            lines.append("  - 语言: Node.js / TypeScript")
+            # Python version requirement
+            project = data.get("project", {})
+            requires = project.get("requires-python")
+            if requires:
+                py_version = requires
+
+            # Dependencies
+            for dep in project.get("dependencies", []) or []:
+                name = re.split(r"[<>=!~\[]", dep.strip(), 1)[0].strip().lower()
+                if name:
+                    deps[name] = dep.strip()
+            for group in (project.get("optional-dependencies") or {}).values():
+                for dep in group or []:
+                    name = re.split(r"[<>=!~\[]", dep.strip(), 1)[0].strip().lower()
+                    if name:
+                        deps[name] = dep.strip()
+
+            # PEP 735 dependency-groups (dev dependencies)
+            for group_deps in (data.get("dependency-groups") or {}).values():
+                for dep in group_deps or []:
+                    name = re.split(r"[<>=!~\[]", dep.strip(), 1)[0].strip().lower()
+                    if name:
+                        deps[name] = dep.strip()
+
+            # Build system
+            build_sys = data.get("build-system", {})
+            for req in build_sys.get("requires", []) or []:
+                for key in _PY_BUILD_MAP:
+                    if key in req.lower():
+                        build_tool = _PY_BUILD_MAP[key]
+                        break
+
+            # Tool configs (ruff, mypy, pytest)
+            tool = data.get("tool", {})
+            if "ruff" in tool and "ruff" not in deps:
+                deps["ruff"] = "ruff"
+            if "mypy" in tool and "mypy" not in deps:
+                deps["mypy"] = "mypy"
+            if "pytest" in tool.get("pytest", {}) or "pytest" in str(project.get("dependencies", [])):
+                deps.setdefault("pytest", "pytest")
+
         except Exception:
-            lines.append("  - 语言: Node.js")
-    if (root / "go.mod").is_file():
-        lines.append("  - 语言: Go (go.mod)")
-        lines.append("  - 测试: go test")
-        lines.append("  - Linter: go vet")
-    if (root / "Cargo.toml").is_file():
-        lines.append("  - 语言: Rust (Cargo.toml)")
-        lines.append("  - 测试: cargo test")
-        lines.append("  - Linter: cargo clippy")
+            pass
 
-    return lines[:6]  # cap to keep context tight
+    # Fallback: requirements.txt
+    elif (root / "requirements.txt").is_file():
+        try:
+            content = (root / "requirements.txt").read_text(encoding="utf-8")
+            for line in content.splitlines():
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    name = re.split(r"[<>=!~\[]", line, 1)[0].strip().lower()
+                    if name:
+                        deps[name] = line
+        except Exception:
+            pass
+    elif (root / "setup.py").is_file():
+        pass  # minimal detection
+    else:
+        return []  # No Python project
+
+    lines: list[str] = []
+    lang = "Python"
+    if py_version:
+        lang += f" (requires {py_version})"
+    if build_tool:
+        lang += f" [{build_tool}]"
+    lines.append(f"  - 语言: {lang}")
+
+    # Frameworks
+    frameworks = [_PY_FRAMEWORK_MAP[d] for d in deps if d in _PY_FRAMEWORK_MAP]
+    if frameworks:
+        lines.append(f"  - 框架: {', '.join(frameworks[:6])}")
+
+    # Test runner
+    if "pytest" in deps:
+        lines.append("  - 测试: pytest")
+
+    # Linter / formatter
+    linters = [_PY_LINTER_MAP[d] for d in deps if d in _PY_LINTER_MAP]
+    if linters:
+        lines.append(f"  - Linter: {', '.join(linters[:3])}")
+
+    return lines
+
+
+# ------------------------------------------------------------------ #
+# Node.js manifest parsing
+# ------------------------------------------------------------------ #
+
+_NODE_FRAMEWORK_MAP = {
+    "react": "React", "next": "Next.js", "vue": "Vue", "nuxt": "Nuxt",
+    "@angular/core": "Angular", "svelte": "Svelte", "astro": "Astro",
+    "express": "Express", "fastify": "Fastify", "koa": "Koa",
+    "nest": "NestJS", "@remix-run/react": "Remix",
+    "electron": "Electron",
+}
+
+_NODE_BUILD_MAP = {
+    "vite": "Vite", "webpack": "webpack", "turbo": "Turborepo",
+    "rollup": "Rollup", "esbuild": "esbuild", "@swc/core": "SWC",
+}
+
+
+def _parse_node_manifest(root: Path) -> list[str]:
+    """Parse package.json for Node.js/TypeScript stack info."""
+    pkg_path = root / "package.json"
+    if not pkg_path.is_file():
+        return []
+
+    try:
+        import json as _json
+        pkg = _json.loads(pkg_path.read_text(encoding="utf-8"))
+    except Exception:
+        return ["  - 语言: Node.js"]
+
+    deps = dict(pkg.get("dependencies") or {})
+    dev_deps = dict(pkg.get("devDependencies") or {})
+    all_deps = {**deps, **dev_deps}
+
+    lines: list[str] = []
+
+    # Language + version
+    node_version = None
+    engines = pkg.get("engines") or {}
+    if isinstance(engines, dict) and engines.get("node"):
+        node_version = engines["node"]
+    has_ts = "typescript" in all_deps
+    lang = "TypeScript" if has_ts else "Node.js"
+    if node_version:
+        lang += f" (node {node_version})"
+
+    # Package manager
+    pm = None
+    if pkg.get("packageManager"):
+        pm_str = pkg["packageManager"]
+        if "pnpm" in pm_str:
+            pm = "pnpm"
+        elif "yarn" in pm_str:
+            pm = "yarn"
+        elif "npm" in pm_str:
+            pm = "npm"
+    if not pm:
+        if (root / "pnpm-lock.yaml").exists():
+            pm = "pnpm"
+        elif (root / "yarn.lock").exists():
+            pm = "yarn"
+    if pm:
+        lang += f" [{pm}]"
+
+    lines.append(f"  - 语言: {lang}")
+
+    # Frameworks
+    frameworks = [_NODE_FRAMEWORK_MAP[d] for d in all_deps if d in _NODE_FRAMEWORK_MAP]
+    if frameworks:
+        lines.append(f"  - 框架: {', '.join(frameworks[:6])}")
+
+    # Build tools
+    build_tools = [_NODE_BUILD_MAP[d] for d in all_deps if d in _NODE_BUILD_MAP]
+    if build_tools:
+        lines.append(f"  - 构建: {', '.join(build_tools[:4])}")
+
+    # Test runner
+    test_runners = []
+    if any(d.startswith("jest") for d in all_deps):
+        test_runners.append("jest")
+    if "vitest" in all_deps:
+        test_runners.append("vitest")
+    if "playwright" in all_deps:
+        test_runners.append("Playwright")
+    if "@playwright/test" in all_deps:
+        test_runners.append("Playwright")
+    if "cypress" in all_deps:
+        test_runners.append("Cypress")
+    if test_runners:
+        lines.append(f"  - 测试: {', '.join(test_runners)}")
+
+    # Linter / formatter
+    linters = []
+    if "eslint" in all_deps:
+        linters.append("eslint")
+    if "prettier" in all_deps:
+        linters.append("prettier")
+    if "biome" in all_deps or "@biomejs/biome" in all_deps:
+        linters.append("biome")
+    if linters:
+        lines.append(f"  - Linter: {', '.join(linters)}")
+
+    return lines
+
+
+# ------------------------------------------------------------------ #
+# Go manifest parsing
+# ------------------------------------------------------------------ #
+
+def _parse_go_manifest(root: Path) -> list[str]:
+    """Parse go.mod for Go stack info."""
+    mod_path = root / "go.mod"
+    if not mod_path.is_file():
+        return []
+
+    lines: list[str] = []
+    go_version = None
+    try:
+        content = mod_path.read_text(encoding="utf-8")
+        # Find go version
+        m = re.search(r"^go\s+(\d+\.\d+(?:\.\d+)?)", content, re.MULTILINE)
+        if m:
+            go_version = m.group(1)
+    except Exception:
+        pass
+
+    lang = "Go"
+    if go_version:
+        lang += f" {go_version}"
+    lines.append(f"  - 语言: {lang}")
+    lines.append("  - 测试: go test")
+    lines.append("  - Linter: go vet")
+    return lines
+
+
+# ------------------------------------------------------------------ #
+# Rust manifest parsing
+# ------------------------------------------------------------------ #
+
+def _parse_rust_manifest(root: Path) -> list[str]:
+    """Parse Cargo.toml for Rust stack info."""
+    cargo_path = root / "Cargo.toml"
+    if not cargo_path.is_file():
+        return []
+
+    lines: list[str] = ["  - 语言: Rust", "  - 测试: cargo test", "  - Linter: cargo clippy"]
+
+    # Try to parse edition
+    try:
+        import tomllib
+        with open(cargo_path, "rb") as f:
+            data = tomllib.load(f)
+        edition = data.get("package", {}).get("edition")
+        if edition:
+            lines[0] = f"  - 语言: Rust (edition {edition})"
+    except Exception:
+        pass
+
+    return lines
+
+
+# ------------------------------------------------------------------ #
+# Infrastructure detection
+# ------------------------------------------------------------------ #
+
+def _detect_infra(root: Path) -> str | None:
+    """Detect Docker/K8s/CI presence."""
+    infra: list[str] = []
+    if (root / "Dockerfile").is_file() or (root / "docker-compose.yml").is_file() or (root / "docker-compose.yaml").is_file():
+        infra.append("Docker")
+    if (root / "k8s").is_dir() or any(root.glob("k8s/*.yaml")):
+        infra.append("Kubernetes")
+    if any((root / ".github" / "workflows").glob("*.yml")):
+        infra.append("GitHub Actions")
+    if (root / ".gitlab-ci.yml").is_file():
+        infra.append("GitLab CI")
+    if not infra:
+        return None
+    return f"  - 基础设施: {', '.join(infra)}"
 
 
 def _detect_git_status(project_root: str) -> list[str]:

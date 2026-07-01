@@ -57,6 +57,10 @@ from kkoclaw.tools.coding.lsp_tools import (
 from kkoclaw.tools.coding.session_shell import (
     session_shell_tool,
 )
+from kkoclaw.tools.coding.smart_test_selection import (
+    preview_affected_tests_tool,
+    run_affected_tests_tool,
+)
 from kkoclaw.tools.coding.semantic_search import (
     search_semantic_tool,
 )
@@ -117,6 +121,8 @@ def get_coding_tools() -> list:
         git_show_tool,
         # Test / lint / diagnostics
         run_tests_tool,
+        run_affected_tests_tool,
+        preview_affected_tests_tool,
         run_linter_tool,
         get_diagnostics_tool,
         # Persistent shell session
