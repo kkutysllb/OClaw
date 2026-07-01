@@ -172,3 +172,97 @@ def test_convert_chunk_to_generation_chunk_preserves_reasoning_deltas():
 
     assert combined.additional_kwargs["reasoning_content"] == "The user asks."
     assert combined.content == "最终答案"
+
+
+def test_streaming_reasoning_content_string_in_delta():
+    """MiniMax streaming sends reasoning_content as a **string** (not array).
+
+    This is the actual format MiniMax M2/M3 uses in streaming mode with
+    ``reasoning_split=true``.  The delta looks like::
+
+        {"content": "", "reasoning_content": "thinking text"}
+
+    The patch must capture this and inject it into ``additional_kwargs``
+    so the frontend can display it in the reasoning box.
+    """
+    model = _make_model()
+    first = model._convert_chunk_to_generation_chunk(
+        {
+            "choices": [
+                {
+                    "delta": {
+                        "role": "assistant",
+                        "content": "",
+                        "reasoning_content": "The user",
+                    }
+                }
+            ]
+        },
+        AIMessageChunk,
+        {},
+    )
+    second = model._convert_chunk_to_generation_chunk(
+        {
+            "choices": [
+                {
+                    "delta": {
+                        "content": "",
+                        "reasoning_content": " asks.",
+                    },
+                }
+            ]
+        },
+        AIMessageChunk,
+        {},
+    )
+    answer = model._convert_chunk_to_generation_chunk(
+        {
+            "choices": [
+                {
+                    "delta": {"content": "最终答案"},
+                    "finish_reason": "stop",
+                }
+            ],
+            "model": "MiniMax-M3",
+        },
+        AIMessageChunk,
+        {},
+    )
+
+    assert first is not None
+    assert second is not None
+    assert answer is not None
+
+    combined = first.message + second.message + answer.message
+
+    assert combined.additional_kwargs["reasoning_content"] == "The user asks."
+    assert combined.content == "最终答案"
+
+
+def test_non_streaming_reasoning_content_string_in_message():
+    """Non-streaming MiniMax responses may include reasoning_content as a string.
+
+    When ``reasoning_split=true`` is set but the response format uses
+    ``reasoning_content`` (string) instead of ``reasoning_details`` (array),
+    the patch must still capture it.
+    """
+    model = _make_model()
+    response = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "答案是42。",
+                    "reasoning_content": "首先分析问题，然后计算得出42。",
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "model": "MiniMax-M3",
+    }
+
+    result = model._create_chat_result(response)
+    message = result.generations[0].message
+
+    assert message.content == "答案是42。"
+    assert message.additional_kwargs["reasoning_content"] == "首先分析问题，然后计算得出42。"

@@ -261,6 +261,14 @@ models:
   #   temperature: 0.7
   #   supports_vision: true
   #   supports_thinking: true
+  #   when_thinking_enabled:
+  #     extra_body:
+  #       thinking:
+  #         type: adaptive
+  #   when_thinking_disabled:
+  #     extra_body:
+  #       thinking:
+  #         type: disabled
 
   # - name: minimax-m2.5-highspeed
   #   display_name: MiniMax M2.5 Highspeed

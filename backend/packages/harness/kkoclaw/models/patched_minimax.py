@@ -1,13 +1,29 @@
 """Patched ChatOpenAI adapter for MiniMax reasoning output.
 
-MiniMax's OpenAI-compatible chat completions API can return structured
-``reasoning_details`` when ``extra_body.reasoning_split=true`` is enabled.
-``langchain_openai.ChatOpenAI`` currently ignores that field, so KKOCLAW's
-frontend never receives reasoning content in the shape it expects.
+MiniMax's OpenAI-compatible chat completions API returns reasoning in two
+different shapes depending on the mode:
 
-This adapter preserves ``reasoning_split`` in the request payload and maps the
-provider-specific reasoning field into ``additional_kwargs.reasoning_content``,
-which KKOCLAW already understands.
+* **Non-streaming** with ``reasoning_split=true``: ``reasoning_details``
+  (an array of ``{type, text}`` dicts).
+* **Streaming** with ``reasoning_split=true``: ``reasoning_content``
+  (a plain string accumulated chunk-by-chunk).
+* **Without** ``reasoning_split``: reasoning is embedded inside
+  ``content`` using ``<think>…</think>`` tags.
+
+``langchain_openai.ChatOpenAI`` (1.2.x) ignores both ``reasoning_details``
+and ``reasoning_content``, so without this adapter the frontend never
+receives reasoning content in the shape it expects — thinking text either
+leaks into the main chat bubble (no ``reasoning_split``) or is silently
+dropped (``reasoning_split`` set but field ignored).
+
+This adapter:
+
+1. Injects ``reasoning_split=true`` when thinking is enabled.
+2. Captures ``reasoning_content`` (string) and ``reasoning_details``
+   (array) from **both** streaming deltas and non-streaming responses.
+3. Strips inline ``<think>`` tags from content as a fallback.
+4. Maps everything into ``additional_kwargs.reasoning_content``, which
+   the KKOCLAW frontend already understands.
 """
 
 from __future__ import annotations
@@ -47,6 +63,28 @@ def _extract_reasoning_text(
                 parts.append(normalized)
 
     return "\n\n".join(parts) if parts else None
+
+
+def _extract_streaming_reasoning(delta: Mapping[str, Any]) -> str | None:
+    """Extract reasoning text from a streaming delta.
+
+    MiniMax streaming sends reasoning as a ``reasoning_content`` **string**
+    field (e.g. ``delta.reasoning_content = "thinking…"``), while
+    non-streaming responses use ``reasoning_details`` (an array of dicts
+    with ``text`` keys).  langchain_openai's built-in
+    ``_convert_delta_to_message_chunk`` ignores both fields, so we must
+    capture them here and inject them into ``additional_kwargs``.
+
+    Returns the raw string (whitespace preserved) so that streaming chunks
+    can be concatenated correctly by the caller.
+    """
+    # 1. reasoning_content (string) — MiniMax M2/M3 streaming format
+    rc = delta.get("reasoning_content")
+    if isinstance(rc, str) and rc:
+        return rc
+
+    # 2. reasoning_details (array) — MiniMax non-streaming / some streaming formats
+    return _extract_reasoning_text(delta.get("reasoning_details"), strip_parts=False)
 
 
 def _strip_inline_think_tags(content: str) -> tuple[str, str | None]:
@@ -235,10 +273,7 @@ class PatchedChatMiniMax(ChatOpenAI):
         if logprobs:
             generation_info["logprobs"] = logprobs
 
-        reasoning = _extract_reasoning_text(
-            delta.get("reasoning_details"),
-            strip_parts=False,
-        )
+        reasoning = _extract_streaming_reasoning(delta)
         if isinstance(message_chunk, AIMessageChunk):
             if usage_metadata:
                 message_chunk.usage_metadata = usage_metadata
@@ -277,6 +312,11 @@ class PatchedChatMiniMax(ChatOpenAI):
 
                 choice_message = choice.get("message", {}) if isinstance(choice, Mapping) else {}
                 split_reasoning = _extract_reasoning_text(choice_message.get("reasoning_details"))
+                # Also check reasoning_content (string) — some MiniMax responses
+                # include it alongside or instead of reasoning_details.
+                rc_str = choice_message.get("reasoning_content")
+                if isinstance(rc_str, str) and rc_str.strip():
+                    split_reasoning = _merge_reasoning(split_reasoning, rc_str.strip())
                 merged_reasoning = _merge_reasoning(split_reasoning, inline_reasoning)
 
                 updated_message = message
