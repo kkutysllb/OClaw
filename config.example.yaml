@@ -37,7 +37,7 @@ token_usage:
 # ============================================================================
 # Configure available LLM models for the agent to use
 
-models:
+models: []
   # 示例：OpenAI 模型
 
   # Example: OpenAI model
