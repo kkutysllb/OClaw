@@ -579,12 +579,12 @@ Tools follow the same philosophy. OClaw ships with a set of core tools: web sear
 
 ```text
 # Paths inside the sandbox container
-/mnt/skills/public
-├── research/SKILL.md
-├── report-generation/SKILL.md
-├── slide-creation/SKILL.md
-├── web-page/SKILL.md
-└── image-generation/SKILL.md
+/mnt/skills/builtin
+├── core/bootstrap/SKILL.md
+├── task/deep-research/SKILL.md
+├── task/ppt-generation/SKILL.md
+├── coding/frontend-design/SKILL.md
+└── coding/web-design-guidelines/SKILL.md
 
 /mnt/skills/custom
 └── your-custom-skill/SKILL.md      ← your skill

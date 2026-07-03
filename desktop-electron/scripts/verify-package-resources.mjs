@@ -67,8 +67,20 @@ requirePath(
   "resources/gateway config.embedded.yaml",
 );
 requirePath(
-  join(GATEWAY_DIR, "_internal", "skills", "public"),
-  "resources/gateway skills/public",
+  join(GATEWAY_DIR, "_internal", "skills", "builtin"),
+  "resources/gateway skills/builtin",
+);
+requirePath(
+  join(GATEWAY_DIR, "_internal", "skills", "builtin", "core"),
+  "resources/gateway skills/builtin/core",
+);
+requirePath(
+  join(GATEWAY_DIR, "_internal", "skills", "builtin", "task"),
+  "resources/gateway skills/builtin/task",
+);
+requirePath(
+  join(GATEWAY_DIR, "_internal", "skills", "builtin", "coding"),
+  "resources/gateway skills/builtin/coding",
 );
 requireFileContains(
   join(GATEWAY_DIR, "_internal", "kkoclaw", "skills", "storage", "local_skill_storage.py"),

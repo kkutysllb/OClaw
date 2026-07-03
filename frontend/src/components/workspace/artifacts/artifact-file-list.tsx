@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { urlOfArtifact } from "@/core/artifacts/utils";
 import { useI18n } from "@/core/i18n/hooks";
-import { installSkill } from "@/core/skills/api";
+import { useInstallSkill } from "@/core/skills/hooks";
 import { downloadArtifactUrl } from "@/core/artifacts/authenticated-url";
 import {
   getFileExtensionDisplayName,
@@ -28,14 +28,17 @@ export function ArtifactFileList({
   files,
   onSelectFile,
   threadId,
+  workModeId,
 }: {
   className?: string;
   files: string[];
   onSelectFile?: (filepath: string) => void;
   threadId: string;
+  workModeId?: string;
 }) {
   const { t } = useI18n();
   const { select: selectArtifact, setOpen } = useArtifacts();
+  const installSkillMutation = useInstallSkill();
   const [installingFile, setInstallingFile] = useState<string | null>(null);
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
 
@@ -60,9 +63,10 @@ export function ArtifactFileList({
 
       setInstallingFile(filepath);
       try {
-        const result = await installSkill({
+        const result = await installSkillMutation.mutateAsync({
           thread_id: threadId,
           path: filepath,
+          work_modes: workModeId ? [workModeId] : undefined,
         });
         if (result.success) {
           toast.success(result.message);
@@ -76,7 +80,7 @@ export function ArtifactFileList({
         setInstallingFile(null);
       }
     },
-    [threadId, installingFile],
+    [threadId, workModeId, installingFile, installSkillMutation],
   );
 
   const handleDownload = useCallback(

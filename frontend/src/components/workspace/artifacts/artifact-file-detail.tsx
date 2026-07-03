@@ -37,7 +37,7 @@ import {
 import { useArtifactContent } from "@/core/artifacts/hooks";
 import { urlOfArtifact } from "@/core/artifacts/utils";
 import { useI18n } from "@/core/i18n/hooks";
-import { installSkill } from "@/core/skills/api";
+import { useInstallSkill } from "@/core/skills/hooks";
 import { streamdownPlugins } from "@/core/streamdown";
 import { checkCodeFile, getFileName } from "@/core/utils/files";
 import { env } from "@/env";
@@ -53,11 +53,13 @@ export function ArtifactFileDetail({
   className,
   filepath: filepathFromProps,
   threadId,
+  workModeId,
   isMock: isMockFromProps = false,
 }: {
   className?: string;
   filepath: string;
   threadId: string;
+  workModeId?: string;
   isMock?: boolean;
 }) {
   const { t } = useI18n();
@@ -109,6 +111,7 @@ export function ArtifactFileDetail({
 
   const [viewMode, setViewMode] = useState<"code" | "preview">("code");
   const [isInstalling, setIsInstalling] = useState(false);
+  const installSkillMutation = useInstallSkill();
   useEffect(() => {
     if (isSupportPreview) {
       setViewMode("preview");
@@ -122,9 +125,10 @@ export function ArtifactFileDetail({
 
     setIsInstalling(true);
     try {
-      const result = await installSkill({
+      const result = await installSkillMutation.mutateAsync({
         thread_id: threadId,
         path: filepath,
+        work_modes: workModeId ? [workModeId] : undefined,
       });
       if (result.success) {
         toast.success(result.message);
@@ -137,7 +141,7 @@ export function ArtifactFileDetail({
     } finally {
       setIsInstalling(false);
     }
-  }, [threadId, filepath, isInstalling]);
+  }, [threadId, filepath, workModeId, isInstalling, installSkillMutation]);
   return (
     <Artifact className={cn(className)}>
       <ArtifactHeader className="px-2">

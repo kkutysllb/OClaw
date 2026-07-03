@@ -6,6 +6,7 @@ export interface AgentThreadState extends Record<string, unknown> {
   title: string;
   messages: Message[];
   artifacts: string[];
+  context?: Partial<AgentThreadContext>;
   todos?: Todo[];
 }
 

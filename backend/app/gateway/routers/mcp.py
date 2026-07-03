@@ -6,7 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from kkoclaw.config.extensions_config import ExtensionsConfig, get_extensions_config, reload_extensions_config
+from kkoclaw.config.extensions_config import ExtensionsConfig, McpServerConfig, get_extensions_config, reload_extensions_config
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["mcp"])
@@ -264,14 +264,10 @@ async def update_mcp_configuration(request: McpConfigUpdateRequest) -> McpConfig
             current_config = get_extensions_config()
 
             raw_servers: dict[str, dict] = {}
-            raw_other_keys: dict = {}
             if config_path is not None and config_path.exists():
                 with open(config_path, encoding="utf-8") as f:
                     raw_data = json.load(f)
                 raw_servers = raw_data.get("mcpServers", {})
-                for key, value in raw_data.items():
-                    if key not in ("mcpServers", "skills"):
-                        raw_other_keys[key] = value
 
             merged_servers: dict[str, McpServerConfigResponse] = {}
             for name, incoming in request.mcp_servers.items():
@@ -284,12 +280,11 @@ async def update_mcp_configuration(request: McpConfigUpdateRequest) -> McpConfig
                 else:
                     merged_servers[name] = incoming
 
-            config_data = dict(raw_other_keys)
-            config_data["mcpServers"] = {name: server.model_dump(exclude={"is_system_default"}) for name, server in merged_servers.items()}
-            config_data["skills"] = {name: {"enabled": skill.enabled} for name, skill in current_config.skills.items()}
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config_data, f, indent=2)
+            current_config.mcp_servers = {
+                name: McpServerConfig.model_validate(server.model_dump(exclude={"is_system_default"}))
+                for name, server in merged_servers.items()
+            }
+            current_config.save(config_path)
 
             logger.info(f"MCP configuration updated and saved to: {config_path}")
             reloaded_config = reload_extensions_config()

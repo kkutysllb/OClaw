@@ -41,6 +41,7 @@ export function CodingResultsPanel({ threadId }: CodingResultsPanelProps) {
           filepath={selectedResultArtifact}
           isMock={false}
           threadId={threadId}
+          workModeId="coding"
         />
       </div>
     );
@@ -79,6 +80,7 @@ export function CodingResultsPanel({ threadId }: CodingResultsPanelProps) {
             files={safeArtifacts}
             onSelectFile={setSelectedResultArtifact}
             threadId={threadId}
+            workModeId="coding"
           />
         </ScrollArea>
       )}

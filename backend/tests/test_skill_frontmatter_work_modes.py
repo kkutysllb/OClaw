@@ -21,6 +21,7 @@ class TestInjectWorkModesFrontmatter:
     def test_inject_into_clean_frontmatter(self):
         result = inject_work_modes_frontmatter(_FRONTMATTER, ["task"])
         assert "work_modes: [task]" in result
+        assert "# Demo Skill" in result
 
     def test_inject_multiple_modes(self):
         result = inject_work_modes_frontmatter(_FRONTMATTER, ["task", "coding"])
@@ -50,6 +51,7 @@ class TestInjectWorkModesFrontmatter:
         )
         result = inject_work_modes_frontmatter(content, [])
         assert "work_modes:" not in result
+        assert "# Demo Skill" in result
 
 
 class TestHasWorkModesFrontmatter:

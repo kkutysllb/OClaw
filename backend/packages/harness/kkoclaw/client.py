@@ -37,7 +37,7 @@ from kkoclaw.agents.lead_agent.prompt import apply_prompt_template
 from kkoclaw.agents.thread_state import RuntimeContext, ThreadState
 from kkoclaw.config.agents_config import AGENT_NAME_PATTERN
 from kkoclaw.config.app_config import get_app_config, reload_app_config
-from kkoclaw.config.extensions_config import ExtensionsConfig, SkillStateConfig, get_extensions_config, reload_extensions_config
+from kkoclaw.config.extensions_config import ExtensionsConfig, McpServerConfig, SkillStateConfig, get_extensions_config, reload_extensions_config
 from kkoclaw.config.paths import get_paths
 from kkoclaw.models import create_chat_model
 from kkoclaw.runtime.user_context import get_effective_user_id
@@ -855,12 +855,8 @@ class KKOCLAWClient:
 
         current_config = get_extensions_config()
 
-        config_data = {
-            "mcpServers": mcp_servers,
-            "skills": {name: {"enabled": skill.enabled} for name, skill in current_config.skills.items()},
-        }
-
-        self._atomic_write_json(config_path, config_data)
+        current_config.mcp_servers = {name: McpServerConfig.model_validate(server) for name, server in mcp_servers.items()}
+        current_config.save(config_path)
 
         self._agent = None
         self._agent_config_key = None
@@ -921,12 +917,7 @@ class KKOCLAWClient:
         extensions_config = get_extensions_config()
         extensions_config.skills[name] = SkillStateConfig(enabled=enabled)
 
-        config_data = {
-            "mcpServers": {n: s.model_dump() for n, s in extensions_config.mcp_servers.items()},
-            "skills": {n: {"enabled": sc.enabled} for n, sc in extensions_config.skills.items()},
-        }
-
-        self._atomic_write_json(config_path, config_data)
+        extensions_config.save(config_path)
 
         self._agent = None
         self._agent_config_key = None

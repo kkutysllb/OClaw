@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { enableSkill, updateSkillWorkModes } from "./api";
+import { enableSkill, installSkill, updateSkillWorkModes } from "./api";
+import type { InstallSkillRequest } from "./api";
 
 import { loadSkills } from ".";
 
@@ -45,6 +46,21 @@ export function useUpdateSkillWorkModes() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["skills"] });
       void queryClient.invalidateQueries({ queryKey: ["work-modes"] });
+    },
+  });
+}
+
+export function useInstallSkill() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: InstallSkillRequest) => {
+      return await installSkill(request);
+    },
+    onSuccess: (result) => {
+      if (result.success) {
+        void queryClient.invalidateQueries({ queryKey: ["skills"] });
+        void queryClient.invalidateQueries({ queryKey: ["work-modes"] });
+      }
     },
   });
 }

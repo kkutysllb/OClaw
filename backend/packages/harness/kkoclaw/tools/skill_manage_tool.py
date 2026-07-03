@@ -72,23 +72,18 @@ def _history_record(*, action: str, file_path: str, prev_content: str | None, ne
 
 async def _scan_or_raise(content: str, *, executable: bool, location: str) -> dict[str, str]:
     result = await scan_skill_content(content, executable=executable, location=location)
-    # Advisory-only: log the scan decision but never block the write.
-    # The user is creating skills through their own conversation — the
-    # scanner is a helpful signal, not a gatekeeper. Over-blocking here
-    # makes skill creation permanently impossible (LLM false positives,
-    # transient model errors, etc.).
     if result.decision == "block":
-        logger.warning(
-            "Security scan flagged %s as 'block' (%s) — proceeding anyway (advisory-only)",
-            location,
-            result.reason,
-        )
-    elif result.decision == "warn":
+        raise ValueError(f"Security scan blocked {location}: {result.reason}")
+    if executable and result.decision != "allow":
+        raise ValueError(f"Security scan rejected executable {location}: {result.reason}")
+    if result.decision == "warn":
         logger.info(
             "Security scan flagged %s as 'warn' (%s)",
             location,
             result.reason,
         )
+    elif result.decision != "allow":
+        raise ValueError(f"Security scan failed for {location}: invalid scanner decision {result.decision!r}")
     return {"decision": result.decision, "reason": result.reason}
 
 

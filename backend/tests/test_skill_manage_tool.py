@@ -275,3 +275,66 @@ def test_skill_manage_rejects_support_path_traversal(monkeypatch, tmp_path):
             "malicious overwrite",
             "references/../SKILL.md",
         )
+
+
+def test_skill_manage_create_blocked_scan_does_not_write_file(monkeypatch, tmp_path):
+    skills_root = tmp_path / "skills"
+    config = SimpleNamespace(
+        skills=SimpleNamespace(get_skills_path=lambda: skills_root, container_path="/mnt/skills", use="kkoclaw.skills.storage.local_skill_storage:LocalSkillStorage"),
+        skill_evolution=SimpleNamespace(enabled=True, moderation_model_name=None),
+    )
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    monkeypatch.setattr("kkoclaw.skills.security_scanner.get_app_config", lambda: config)
+
+    async def _refresh():
+        raise AssertionError("blocked writes must not refresh prompt cache")
+
+    monkeypatch.setattr(skill_manage_module, "refresh_skills_system_prompt_cache_async", _refresh)
+    monkeypatch.setattr(skill_manage_module, "scan_skill_content", lambda *args, **kwargs: _async_result("block", "unsafe instructions"))
+
+    runtime = SimpleNamespace(context={"thread_id": "thread-1"}, config={"configurable": {"thread_id": "thread-1"}})
+
+    with pytest.raises(ValueError, match="Security scan blocked"):
+        anyio.run(
+            skill_manage_module.skill_manage_tool.coroutine,
+            runtime,
+            "create",
+            "blocked-skill",
+            _skill_content("blocked-skill"),
+        )
+
+    assert not (skills_root / "custom" / "blocked-skill" / "SKILL.md").exists()
+
+
+def test_skill_manage_write_file_blocked_scan_preserves_existing_file(monkeypatch, tmp_path):
+    skills_root = tmp_path / "skills"
+    config = SimpleNamespace(
+        skills=SimpleNamespace(get_skills_path=lambda: skills_root, container_path="/mnt/skills", use="kkoclaw.skills.storage.local_skill_storage:LocalSkillStorage"),
+        skill_evolution=SimpleNamespace(enabled=True, moderation_model_name=None),
+    )
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    monkeypatch.setattr("kkoclaw.skills.security_scanner.get_app_config", lambda: config)
+
+    async def _refresh():
+        return None
+
+    monkeypatch.setattr(skill_manage_module, "refresh_skills_system_prompt_cache_async", _refresh)
+    monkeypatch.setattr(skill_manage_module, "scan_skill_content", lambda *args, **kwargs: _async_result("allow", "ok"))
+
+    runtime = SimpleNamespace(context={"thread_id": "thread-1"}, config={"configurable": {"thread_id": "thread-1"}})
+    anyio.run(skill_manage_module.skill_manage_tool.coroutine, runtime, "create", "demo-skill", _skill_content("demo-skill"))
+    anyio.run(skill_manage_module.skill_manage_tool.coroutine, runtime, "write_file", "demo-skill", "safe", "references/note.md")
+
+    monkeypatch.setattr(skill_manage_module, "scan_skill_content", lambda *args, **kwargs: _async_result("block", "unsafe support file"))
+
+    with pytest.raises(ValueError, match="Security scan blocked"):
+        anyio.run(
+            skill_manage_module.skill_manage_tool.coroutine,
+            runtime,
+            "write_file",
+            "demo-skill",
+            "unsafe",
+            "references/note.md",
+        )
+
+    assert (skills_root / "custom" / "demo-skill" / "references" / "note.md").read_text(encoding="utf-8") == "safe"

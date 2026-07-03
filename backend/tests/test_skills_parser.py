@@ -86,6 +86,17 @@ def test_parse_license_field(tmp_path):
     assert skill.license == "MIT"
 
 
+def test_parse_allowed_tools_field(tmp_path):
+    """allowed-tools frontmatter must populate Skill.allowed_tools for runtime policy."""
+    skill_file = _write_skill(
+        tmp_path,
+        "name: my-skill\ndescription: Test\nallowed-tools:\n  - Read\n  - Bash",
+    )
+    skill = parse_skill_file(skill_file, category="custom")
+    assert skill is not None
+    assert skill.allowed_tools == ["Read", "Bash"]
+
+
 def test_parse_missing_name_returns_none(tmp_path):
     """Skills missing a name field are rejected."""
     skill_file = _write_skill(tmp_path, "description: A test skill")

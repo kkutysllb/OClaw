@@ -126,12 +126,23 @@ POST /api/skills/{skill_name}/disable
 ```
 
 #### Install Skill
-Install from `.skill` file.
+Install a `.skill` file from a thread artifact path. A `.skill` file is a ZIP archive; install validates `SKILL.md`, runs the security scanner, and injects requested `work_modes` when the archive does not declare them.
 ```http
 POST /api/skills/install
-Content-Type: multipart/form-data
+Content-Type: application/json
 ```
-**Request Body:** `file` — the `.skill` file to install
+**Request Body:**
+```json
+{
+  "thread_id": "thread_abc",
+  "path": "mnt/user-data/outputs/my-skill.skill",
+  "work_modes": ["coding"]
+}
+```
+
+- `thread_id`: thread containing the `.skill` artifact
+- `path`: virtual path to the artifact
+- `work_modes`: optional work-mode bindings; defaults to `task` when omitted and the archive has no `work_modes` frontmatter
 
 ### File Uploads
 

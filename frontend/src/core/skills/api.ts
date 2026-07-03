@@ -28,6 +28,7 @@ export async function enableSkill(skillName: string, enabled: boolean) {
 export interface InstallSkillRequest {
   thread_id: string;
   path: string;
+  work_modes?: string[];
 }
 
 export interface InstallSkillResponse {

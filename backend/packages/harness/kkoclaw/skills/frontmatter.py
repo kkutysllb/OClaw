@@ -40,6 +40,7 @@ def inject_work_modes_frontmatter(content: str, work_modes: list[str]) -> str:
     if not match:
         return content
     opener, body, closer = match.group(1), match.group(2), match.group(3)
+    rest = content[match.end():]
     # Strip any existing work_modes line so we don't duplicate the field.
     body_lines = [
         line for line in body.split("\n")
@@ -49,4 +50,4 @@ def inject_work_modes_frontmatter(content: str, work_modes: list[str]) -> str:
         modes_str = ", ".join(work_modes)
         body_lines.append(f"work_modes: [{modes_str}]")
     new_body = "\n".join(body_lines)
-    return opener + new_body + closer
+    return opener + new_body + closer + rest

@@ -451,6 +451,7 @@ function AgentPanelInner({ projectId, onThreadIdChange, onFocusFile }: AgentPane
               className="size-full"
               threadId={uiThreadId}
               thread={thread}
+              workModeId="coding"
               paddingBottom={messageListPaddingBottom}
               hasMoreHistory={hasMoreHistory}
               loadMoreHistory={loadMoreHistory}

@@ -307,16 +307,18 @@ extensions_config.json:
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                             技能系统                                      │
-│                       (packages/harness/kkoclaw/skills/loader.py)                             │
+│                 (packages/harness/kkoclaw/skills/storage + parser.py)     │
 └─────────────────────────────────────────────────────────────────────────┘
 
 目录结构：
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ skills/                                                                  │
-│ ├── public/                        # 公共技能（已提交至仓库）            │
-│ │   ├── pdf-processing/                                                 │
+│ ├── builtin/                       # 内置技能（已提交至仓库）            │
+│ │   ├── core/bootstrap/                                                 │
 │ │   │   └── SKILL.md                                                    │
-│ │   ├── frontend-design/                                                │
+│ │   ├── task/pdf-processing/                                            │
+│ │   │   └── SKILL.md                                                    │
+│ │   ├── coding/frontend-design/                                         │
 │ │   │   └── SKILL.md                                                    │
 │ │   └── ...                                                             │
 │ └── custom/                        # 自定义技能（在 gitignore 中）       │
@@ -329,6 +331,7 @@ SKILL.md 格式：
 │ ---                                                                      │
 │ name: PDF Processing                                                     │
 │ description: 高效处理 PDF 文档                                           │
+│ work_modes: [task]                                                      │
 │ license: MIT                                                            │
 │ allowed-tools:                                                          │
 │   - read_file                                                           │

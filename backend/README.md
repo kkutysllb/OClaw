@@ -126,7 +126,7 @@ FastAPI 应用，为前端集成提供 REST 端点：
 | `GET /api/models` | 列出可用 LLM 模型 |
 | `GET/PUT /api/mcp/config` | 管理 MCP 服务器配置 |
 | `GET/PUT /api/skills` | 列出和管理技能 |
-| `POST /api/skills/install` | 从 .skill 档案安装技能 |
+| `POST /api/skills/install` | 从线程产物路径安装 `.skill` 技能包，可绑定 `work_modes` |
 | `GET /api/memory` | 检索记忆数据 |
 | `POST /api/memory/reload` | 强制记忆重载 |
 | `POST /api/threads/{id}/uploads` | 上传文件 |

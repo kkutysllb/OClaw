@@ -26,12 +26,14 @@ const OPEN_MODE = { chat: 60, artifacts: 40 };
 interface ChatBoxProps {
   children: React.ReactNode;
   threadId: string;
+  workModeId?: string;
   artifactsMode?: "side-panel" | "disabled";
 }
 
 const ChatBox: React.FC<ChatBoxProps> = ({
   children,
   threadId,
+  workModeId,
   artifactsMode = "side-panel",
 }) => {
   const { thread } = useThread();
@@ -93,6 +95,8 @@ const ChatBox: React.FC<ChatBoxProps> = ({
     return artifactsOpen;
   }, [artifactsOpen, artifacts]);
 
+  const effectiveWorkModeId = workModeId ?? thread.values.context?.work_mode_id;
+
   const resizableIdBase = useMemo(() => {
     return pathname.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
   }, [pathname]);
@@ -146,6 +150,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
               className="size-full"
               filepath={selectedArtifact}
               threadId={threadId}
+              workModeId={effectiveWorkModeId as string | undefined}
             />
           ) : (
             <div className="relative flex size-full justify-center">
@@ -176,6 +181,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
                       className="max-w-(--container-width-sm) p-4 pt-12"
                       files={thread.values.artifacts ?? []}
                       threadId={threadId}
+                      workModeId={effectiveWorkModeId as string | undefined}
                     />
                   </main>
                 </div>

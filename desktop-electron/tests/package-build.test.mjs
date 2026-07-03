@@ -20,7 +20,11 @@ test("package resource verifier rejects stale or incomplete gateway bundles", ()
   assert.match(verifierSource, /frontend\/out/);
   assert.match(verifierSource, /KKOCLAW_PUBLIC_SKILLS_ONLY/);
   assert.match(verifierSource, /config\.embedded\.yaml/);
-  assert.match(verifierSource, /skills\/public/);
+  assert.match(verifierSource, /skills\/builtin/);
+  assert.match(verifierSource, /skills\/builtin\/core/);
+  assert.match(verifierSource, /skills\/builtin\/task/);
+  assert.match(verifierSource, /skills\/builtin\/coding/);
+  assert.doesNotMatch(verifierSource, /skills\/public/);
 });
 
 test("packaged app ships small tray icons separately from the app icon", () => {

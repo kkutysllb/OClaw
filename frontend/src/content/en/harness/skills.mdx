@@ -17,19 +17,25 @@ A skill is more than a prompt. It is a self-contained capability package that ca
 
 ## What a skill contains
 
-Each skill lives in its own subdirectory under `skills/public/` (or `skills/custom/` for user-created skills). The directory contains a `SKILL.md` file that defines the skill's metadata, instructions, and workflow.
+Each built-in skill lives in its own subdirectory under `skills/builtin/{core,task,coding}/`, while user-created skills live under `skills/custom/`. The directory contains a `SKILL.md` file that defines the skill's metadata, instructions, work-mode binding, and workflow.
 
 <FileTree>
   <FileTree.Folder name="skills/" defaultOpen>
-    <FileTree.Folder name="public/" defaultOpen>
-      <FileTree.Folder name="deep-research/" defaultOpen>
-        <FileTree.File name="SKILL.md" />
+    <FileTree.Folder name="builtin/" defaultOpen>
+      <FileTree.Folder name="core/" defaultOpen>
+        <FileTree.Folder name="bootstrap/">
+          <FileTree.File name="SKILL.md" />
+        </FileTree.Folder>
       </FileTree.Folder>
-      <FileTree.Folder name="data-analysis/">
-        <FileTree.File name="SKILL.md" />
+      <FileTree.Folder name="task/">
+        <FileTree.Folder name="deep-research/">
+          <FileTree.File name="SKILL.md" />
+        </FileTree.Folder>
       </FileTree.Folder>
-      <FileTree.Folder name="chart-visualization/">
-        <FileTree.File name="SKILL.md" />
+      <FileTree.Folder name="coding/">
+        <FileTree.Folder name="frontend-design/">
+          <FileTree.File name="SKILL.md" />
+        </FileTree.Folder>
       </FileTree.Folder>
     </FileTree.Folder>
     <FileTree.Folder name="custom/">
@@ -38,7 +44,7 @@ Each skill lives in its own subdirectory under `skills/public/` (or `skills/cust
   </FileTree.Folder>
 </FileTree>
 
-The `SKILL.md` file is the authoritative definition of the skill. It is parsed by `skills/parser.py` to extract the skill name, description, category, instructions, and any dependencies or tool requirements.
+The `SKILL.md` file is the authoritative definition of the skill. It is parsed by `skills/parser.py` to extract the skill name, description, work modes, `allowed-tools` restrictions, and supporting resource requirements.
 
 ## Built-in skills
 
@@ -68,19 +74,19 @@ KKOCLAW ships with the following public skills:
 
 ### Discovery and loading
 
-`load_skills()` in `skills/loader.py` scans both `public/` and `custom/` directories under the configured skills path. It re-reads `ExtensionsConfig.from_file()` on every call, which means enabling or disabling a skill through the Gateway API takes effect immediately in the running LangGraph server without a restart.
+`LocalSkillStorage.load_skills()` scans both `builtin/` and `custom/` directories under the configured skills path, with backward-compatible discovery of the legacy `public/` directory. It re-reads `ExtensionsConfig.from_file()` on every call, which means enabling or disabling a skill through the Gateway API takes effect immediately in the running LangGraph server without a restart.
 
 ### Parsing
 
-`parser.py` reads each `SKILL.md` file and extracts structured metadata: name, description, category, instructions, and any tool or resource requirements.
+`parser.py` reads each `SKILL.md` file and extracts structured metadata: name, description, `work_modes`, `allowed-tools`, and any tool or resource requirements.
 
 ### Security scanning
 
-`security_scanner.py` checks skill content for potentially dangerous patterns before it is loaded into the agent's context. This step runs during skill loading to prevent malicious skill content from being injected.
+`security_scanner.py` checks skill content for potentially dangerous patterns before writes, installs, or edits are accepted. If scanning is unavailable or returns a blocking decision, the write is rejected for manual review.
 
 ### Dependency installation
 
-`installer.py` handles any Python or system dependencies declared by the skill. Dependencies are installed into the runtime environment when the skill is first loaded.
+The `.skill` installer safely extracts the ZIP archive, validates `SKILL.md`, injects missing `work_modes` bindings, and scans `SKILL.md`, `references/`, `templates/`, and `scripts/` files that can enter prompts or execution.
 
 ### Context injection
 

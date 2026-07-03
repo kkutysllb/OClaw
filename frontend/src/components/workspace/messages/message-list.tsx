@@ -148,6 +148,7 @@ export function MessageList({
   className,
   threadId,
   thread,
+  workModeId,
   paddingBottom = MESSAGE_LIST_DEFAULT_PADDING_BOTTOM,
   hasMoreHistory,
   loadMoreHistory,
@@ -156,6 +157,7 @@ export function MessageList({
   className?: string;
   threadId: string;
   thread: BaseStream<AgentThreadState>;
+  workModeId?: string;
   paddingBottom?: number;
   hasMoreHistory?: boolean;
   loadMoreHistory?: () => void;
@@ -223,7 +225,11 @@ export function MessageList({
                     className="mb-4"
                   />
                 )}
-                <ArtifactFileList files={files} threadId={threadId} />
+                <ArtifactFileList
+                  files={files}
+                  threadId={threadId}
+                  workModeId={workModeId}
+                />
               </div>
             );
           } else if (group.type === "assistant:subagent") {

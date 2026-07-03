@@ -369,26 +369,32 @@ POST /api/skills/{skill_name}/disable
 
 #### 安装技能
 
-从 `.skill` 文件安装技能。
+从线程产物中的 `.skill` 文件安装技能。`.skill` 是 ZIP 格式包；安装时会验证 `SKILL.md`、执行安全扫描，并在包内未声明 `work_modes` 时写入请求里的绑定模式。
 
 ```http
 POST /api/skills/install
-Content-Type: multipart/form-data
+Content-Type: application/json
 ```
 
 **请求体：**
-- `file`：要安装的 `.skill` 文件
+```json
+{
+  "thread_id": "thread_abc",
+  "path": "mnt/user-data/outputs/my-skill.skill",
+  "work_modes": ["coding"]
+}
+```
+
+- `thread_id`：`.skill` 文件所在的线程 ID
+- `path`：线程文件系统中的虚拟路径
+- `work_modes`：可选；安装后绑定的工作模式。省略时若包内没有 `work_modes` frontmatter，则默认绑定到 `task`
 
 **响应：**
 ```json
 {
   "success": true,
-  "message": "技能 'my-skill' 安装成功",
-  "skill": {
-    "name": "my-skill",
-    "display_name": "我的技能",
-    "path": "custom/my-skill"
-  }
+  "skill_name": "my-skill",
+  "message": "Skill 'my-skill' installed successfully"
 }
 ```
 

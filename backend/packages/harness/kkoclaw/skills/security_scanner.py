@@ -96,11 +96,6 @@ async def scan_skill_content(content: str, *, executable: bool = False, location
         if parsed and parsed.get("decision") in {"allow", "warn", "block"}:
             return ScanResult(parsed["decision"], str(parsed.get("reason") or "No reason provided."))
     except Exception:
-        logger.warning("Skill security scan model call failed; allowing write (fail-open)", exc_info=True)
+        logger.warning("Skill security scan model call failed; blocking write until manual review", exc_info=True)
 
-    # Fail-open: when the scanner is unavailable (model error, network issue,
-    # misconfiguration, etc.) we must not block legitimate skill creation.
-    # The user is creating skills through their own conversation — blocking
-    # them permanently because of a transient backend issue is worse than
-    # allowing the write with a logged warning.
-    return ScanResult("allow", "Security scan unavailable; write allowed (fail-open).")
+    return ScanResult("block", "Security scan unavailable; manual review required.")

@@ -95,6 +95,8 @@ def parse_skill_file(
         if license_text is not None:
             license_text = str(license_text).strip() or None
 
+        allowed_tools = parse_allowed_tools(metadata.get("allowed-tools"), skill_file)
+
         # Parse work_modes from frontmatter (one-to-many binding).
         # Accepts a YAML list of strings, or a single string (coerced to a
         # one-element tuple).  Absent field → empty tuple (uncategorised).
@@ -123,6 +125,7 @@ def parse_skill_file(
             relative_path=relative_path or Path(skill_file.parent.name),
             category=category,
             enabled=True,  # Actual state comes from the extensions config file.
+            allowed_tools=allowed_tools,
             work_modes=work_modes,
         )
 

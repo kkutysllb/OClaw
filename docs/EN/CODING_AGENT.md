@@ -102,7 +102,7 @@ Coding Agent does not reuse normal OClaw task memory. The Qiongqi session store 
 
 ### Coding Skills
 
-Coding skills are separated from OClaw global skills, independently discovered and managed by `CodingSkillRegistry`. Discovery order: `{project_root}/.oclaw-coding/skills` → `~/.oclaw-coding/skills` → `skills/public/coding`. Currently 59 built-in Coding skills covering the full engineering pipeline.
+Coding skills are separated from OClaw global skills, independently discovered and managed by `CodingSkillRegistry`. Discovery order: `{project_root}/.oclaw-coding/skills` → `~/.oclaw-coding/skills` → `skills/builtin/coding`. The built-in Coding skills cover the full engineering pipeline.
 
 ### API Surface
 

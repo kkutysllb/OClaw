@@ -17,6 +17,7 @@ import {
   loadWorkModes,
   removeSkillFromWorkMode,
 } from "@/core/work-modes/api";
+import { installSkill } from "@/core/skills/api";
 
 const SAMPLE_WORK_MODES_RESPONSE = {
   default_mode_id: "task",
@@ -163,5 +164,35 @@ describe("work-modes api", () => {
     await expect(
       removeSkillFromWorkMode("task", "bootstrap"),
     ).rejects.toThrow();
+  });
+
+  test("installSkill sends requested work mode bindings", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          skill_name: "coding-helper",
+          message: "installed",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+
+    await installSkill({
+      thread_id: "thread-1",
+      path: "mnt/user-data/outputs/coding-helper.skill",
+      work_modes: ["coding"],
+    });
+
+    const [, init] = fetchSpy.mock.calls[0]!;
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      thread_id: "thread-1",
+      path: "mnt/user-data/outputs/coding-helper.skill",
+      work_modes: ["coding"],
+    });
   });
 });

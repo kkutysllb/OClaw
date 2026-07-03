@@ -16,16 +16,25 @@ import { Callout, Cards, FileTree, Steps } from "nextra/components";
 
 ## 技能包含什么
 
-每个技能位于 `skills/public/`（或用户创建技能的 `skills/custom/`）下自己的子目录中。目录包含一个 `SKILL.md` 文件，定义技能的元数据、指令和工作流。
+每个内置技能位于 `skills/builtin/{core,task,coding}/` 下自己的子目录中，用户创建的技能位于 `skills/custom/`。目录包含一个 `SKILL.md` 文件，定义技能的元数据、指令、工作模式绑定和工作流。
 
 <FileTree>
   <FileTree.Folder name="skills/" defaultOpen>
-    <FileTree.Folder name="public/" defaultOpen>
-      <FileTree.Folder name="deep-research/" defaultOpen>
-        <FileTree.File name="SKILL.md" />
+    <FileTree.Folder name="builtin/" defaultOpen>
+      <FileTree.Folder name="core/" defaultOpen>
+        <FileTree.Folder name="bootstrap/">
+          <FileTree.File name="SKILL.md" />
+        </FileTree.Folder>
       </FileTree.Folder>
-      <FileTree.Folder name="data-analysis/">
-        <FileTree.File name="SKILL.md" />
+      <FileTree.Folder name="task/">
+        <FileTree.Folder name="deep-research/">
+          <FileTree.File name="SKILL.md" />
+        </FileTree.Folder>
+      </FileTree.Folder>
+      <FileTree.Folder name="coding/">
+        <FileTree.Folder name="frontend-design/">
+          <FileTree.File name="SKILL.md" />
+        </FileTree.Folder>
       </FileTree.Folder>
     </FileTree.Folder>
     <FileTree.Folder name="custom/">
@@ -34,7 +43,7 @@ import { Callout, Cards, FileTree, Steps } from "nextra/components";
   </FileTree.Folder>
 </FileTree>
 
-`SKILL.md` 文件是技能的权威定义，由 `skills/parser.py` 解析以提取技能名称、描述、类别、指令以及任何依赖项或工具需求。
+`SKILL.md` 文件是技能的权威定义，由 `skills/parser.py` 解析以提取技能名称、描述、工作模式、`allowed-tools` 限制以及任何支撑资源需求。
 
 ## 内置技能
 
@@ -64,19 +73,19 @@ KKOCLAW 内置以下公共技能：
 
 ### 发现和加载
 
-`skills/loader.py` 中的 `load_skills()` 扫描配置技能路径下的 `public/` 和 `custom/` 目录。它每次调用都重新读取 `ExtensionsConfig.from_file()`，这意味着通过 Gateway API 启用或禁用技能会立即在运行中的 LangGraph 服务器中生效，无需重启。
+`LocalSkillStorage.load_skills()` 扫描配置技能路径下的 `builtin/` 和 `custom/` 目录，并兼容读取旧版 `public/` 目录。它每次调用都重新读取 `ExtensionsConfig.from_file()`，这意味着通过 Gateway API 启用或禁用技能会立即在运行中的 LangGraph 服务器中生效，无需重启。
 
 ### 解析
 
-`parser.py` 读取每个 `SKILL.md` 文件并提取结构化元数据：名称、描述、类别、指令以及任何工具或资源需求。
+`parser.py` 读取每个 `SKILL.md` 文件并提取结构化元数据：名称、描述、`work_modes`、`allowed-tools` 以及任何工具或资源需求。
 
 ### 安全扫描
 
-`security_scanner.py` 在技能内容加载到 Agent 上下文之前检查潜在危险模式，防止恶意技能内容被注入。
+`security_scanner.py` 在技能写入、安装或编辑前检查潜在危险模式。扫描不可用或返回阻断时，写入会被拒绝并需要人工处理。
 
 ### 依赖安装
 
-`installer.py` 处理技能声明的任何 Python 或系统依赖项，在技能首次加载时安装到运行时环境中。
+`.skill` 安装器会安全解压 ZIP 包、验证 `SKILL.md`、注入缺失的 `work_modes` 绑定，并扫描 `SKILL.md`、`references/`、`templates/` 和 `scripts/` 中会进入提示词或执行环境的文件。
 
 ### 上下文注入
 

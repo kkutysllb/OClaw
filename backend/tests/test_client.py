@@ -1114,9 +1114,10 @@ class TestMcpConfig:
         assert result["mcp_servers"]["github"]["enabled"] is True
 
     def test_update_mcp_config(self, client):
+        from kkoclaw.config.extensions_config import ExtensionsConfig
+
         # Set up current config with skills
-        current_config = MagicMock()
-        current_config.skills = {}
+        current_config = ExtensionsConfig()
 
         reloaded_server = MagicMock()
         reloaded_server.model_dump.return_value = {"enabled": True, "type": "sse"}
@@ -1148,6 +1149,38 @@ class TestMcpConfig:
             assert "mcpServers" in saved
         finally:
             tmp_path.unlink()
+
+    def test_update_mcp_config_preserves_work_mode_fields(self, client, tmp_path):
+        from kkoclaw.config.extensions_config import (
+            ExtensionsConfig,
+            McpServerConfig,
+            ModeSkillOverridesConfig,
+            SkillStateConfig,
+        )
+
+        config_file = tmp_path / "extensions_config.json"
+        ext_config = ExtensionsConfig(
+            mcp_servers={"old-server": McpServerConfig(enabled=True, type="stdio", command="echo")},
+            skills={"existing-skill": SkillStateConfig(enabled=False)},
+            locked_skill_ids=("bootstrap", "custom-lock"),
+            mode_skill_overrides={
+                "coding": ModeSkillOverridesConfig(added_skill_ids=("coding-helper",)),
+            },
+        )
+        ext_config.save(config_file)
+
+        with (
+            patch("kkoclaw.client.ExtensionsConfig.resolve_config_path", return_value=config_file),
+            patch("kkoclaw.client.get_extensions_config", return_value=ext_config),
+            patch("kkoclaw.client.reload_extensions_config", return_value=ext_config),
+        ):
+            client.update_mcp_config({"new-server": {"enabled": True, "type": "stdio", "command": "echo"}})
+
+        saved = json.loads(config_file.read_text(encoding="utf-8"))
+        assert saved["locked_skill_ids"] == ["bootstrap", "custom-lock"]
+        assert saved["mode_skill_overrides"]["coding"]["added_skill_ids"] == ["coding-helper"]
+        assert saved["work_modes"]["default_mode_id"] == "task"
+        assert saved["skills"]["existing-skill"]["enabled"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -1204,6 +1237,39 @@ class TestSkillsManagement:
             assert client._agent is None  # M2: agent invalidated
         finally:
             tmp_path.unlink()
+
+    def test_update_skill_preserves_work_mode_fields(self, client, tmp_path):
+        from kkoclaw.config.extensions_config import (
+            ExtensionsConfig,
+            ModeSkillOverridesConfig,
+            SkillStateConfig,
+        )
+
+        skill = self._make_skill(enabled=True)
+        updated_skill = self._make_skill(enabled=False)
+        config_file = tmp_path / "extensions_config.json"
+        ext_config = ExtensionsConfig(
+            skills={"test-skill": SkillStateConfig(enabled=True)},
+            locked_skill_ids=("bootstrap", "custom-lock"),
+            mode_skill_overrides={
+                "task": ModeSkillOverridesConfig(removed_skill_ids=("legacy-skill",)),
+            },
+        )
+        ext_config.save(config_file)
+
+        with (
+            patch("kkoclaw.skills.storage.local_skill_storage.LocalSkillStorage.load_skills", side_effect=[[skill], [updated_skill]]),
+            patch("kkoclaw.client.ExtensionsConfig.resolve_config_path", return_value=config_file),
+            patch("kkoclaw.client.get_extensions_config", return_value=ext_config),
+            patch("kkoclaw.client.reload_extensions_config", return_value=ext_config),
+        ):
+            client.update_skill("test-skill", enabled=False)
+
+        saved = json.loads(config_file.read_text(encoding="utf-8"))
+        assert saved["skills"]["test-skill"]["enabled"] is False
+        assert saved["locked_skill_ids"] == ["bootstrap", "custom-lock"]
+        assert saved["mode_skill_overrides"]["task"]["removed_skill_ids"] == ["legacy-skill"]
+        assert saved["work_modes"]["default_mode_id"] == "task"
 
     def test_update_skill_not_found(self, client):
         with patch("kkoclaw.skills.storage.local_skill_storage.LocalSkillStorage.load_skills", return_value=[]):

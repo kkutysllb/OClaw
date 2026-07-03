@@ -151,7 +151,10 @@ export default function ChatPage() {
   return (
     <ThreadContext.Provider value={{ thread, isMock }}>
       <FollowupsProvider>
-      <ChatBox threadId={threadId}>
+      <ChatBox
+        threadId={threadId}
+        workModeId={settings.context.work_mode_id as string | undefined}
+      >
         <div className="relative flex size-full min-h-0 justify-between">
           <header
             className={cn(
@@ -187,6 +190,7 @@ export default function ChatPage() {
                 className={cn("size-full", !isNewThread && "pt-10")}
                 threadId={threadId}
                 thread={thread}
+                workModeId={settings.context.work_mode_id as string | undefined}
                 paddingBottom={messageListPaddingBottom}
                 hasMoreHistory={hasMoreHistory}
                 loadMoreHistory={loadMoreHistory}
