@@ -168,8 +168,15 @@ async def _scan_skill_file_or_raise(skill_dir: Path, path: Path, skill_name: str
         if rel_path == "SKILL.md":
             raise SkillSecurityScanError(f"Security scan blocked skill '{skill_name}': {reason}")
         raise SkillSecurityScanError(f"Security scan blocked {location}: {reason}")
-    if executable and decision != "allow":
-        raise SkillSecurityScanError(f"Security scan rejected executable {location}: {reason}")
+    # scripts/ (executable) accept both "allow" and "warn". A "warn" verdict
+    # typically flags borderline-but-legitimate patterns like external API
+    # references (e.g. a script that calls a documented API with an env-var
+    # key), which is exactly what the user intends to install. Only "block"
+    # (clear malicious content: prompt injection, exfiltration, unsafe code)
+    # is rejected. The previous stricter policy (requiring explicit "allow"
+    # for executables) was inherited from the early Agent-autonomy threat
+    # model; for user-driven installs (wizard upload + marketplace packages)
+    # it is too strict and blocks legitimate skills.
     if decision not in {"allow", "warn"}:
         raise SkillSecurityScanError(f"Security scan failed for {location}: invalid scanner decision {decision!r}")
 

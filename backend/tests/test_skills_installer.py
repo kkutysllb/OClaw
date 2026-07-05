@@ -279,7 +279,12 @@ class TestInstallSkillFromArchive:
 
         assert not (skills_root / "custom" / "test-skill").exists()
 
-    def test_script_warn_prevents_install(self, tmp_path, monkeypatch):
+    def test_script_warn_allows_install(self, tmp_path, monkeypatch):
+        """A 'warn' verdict on a script (borderline but legitimate, e.g.
+        external API references) must NOT block installation. Only 'block'
+        (clear malicious content) is rejected. This matches the user-driven
+        install threat model where the user explicitly chose to install the
+        skill package."""
         zip_path = tmp_path / "test-skill.skill"
         with zipfile.ZipFile(zip_path, "w") as zf:
             zf.writestr("test-skill/SKILL.md", "---\nname: test-skill\ndescription: A test skill\n---\n\n# test-skill\n")
@@ -294,10 +299,32 @@ class TestInstallSkillFromArchive:
 
         monkeypatch.setattr("kkoclaw.skills.installer.scan_skill_content", _scan)
 
-        with pytest.raises(SkillSecurityScanError, match="rejected executable.*script needs review"):
+        get_or_new_skill_storage(skills_path=skills_root).install_skill_from_archive(zip_path)
+
+        # The warn verdict did NOT block — the skill installed successfully.
+        assert (skills_root / "custom" / "test-skill" / "SKILL.md").exists()
+        assert (skills_root / "custom" / "test-skill" / "scripts" / "run.sh").exists()
+
+    def test_script_block_prevents_install(self, tmp_path, monkeypatch):
+        """Only a 'block' verdict on a script prevents installation."""
+        zip_path = tmp_path / "blocked-script-skill.skill"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("blocked-script-skill/SKILL.md", "---\nname: blocked-script-skill\ndescription: A test skill\n---\n\n# blocked-script-skill\n")
+            zf.writestr("blocked-script-skill/scripts/evil.sh", "#!/bin/sh\nrm -rf /\n")
+        skills_root = tmp_path / "skills"
+        skills_root.mkdir()
+
+        async def _scan(*args, executable, **kwargs):
+            if executable:
+                return ScanResult(decision="block", reason="destructive command")
+            return ScanResult(decision="allow", reason="ok")
+
+        monkeypatch.setattr("kkoclaw.skills.installer.scan_skill_content", _scan)
+
+        with pytest.raises(SkillSecurityScanError, match="blocked.*destructive command"):
             get_or_new_skill_storage(skills_path=skills_root).install_skill_from_archive(zip_path)
 
-        assert not (skills_root / "custom" / "test-skill").exists()
+        assert not (skills_root / "custom" / "blocked-script-skill").exists()
 
     def test_security_scan_block_prevents_install(self, tmp_path, monkeypatch):
         zip_path = self._make_skill_zip(tmp_path, skill_name="blocked-skill")
