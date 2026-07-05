@@ -85,8 +85,7 @@ function SkillSettingsList({
 
   const handleCreateSkill = () => {
     onClose?.();
-    const workMode = activeTab === "builtin" ? "task" : activeTab;
-    router.push(`/workspace/chats/new?mode=skill&workMode=${workMode}`);
+    router.push("/workspace/skills?create=1");
   };
 
   const isStatic = env.NEXT_PUBLIC_STATIC_WEBSITE_ONLY === "true";

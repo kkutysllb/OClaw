@@ -1,7 +1,12 @@
 import { fetch } from "@/core/api/fetcher";
 import { getBackendBaseURL } from "@/core/config";
 
-import type { Skill } from "./type";
+import type {
+  CreateSkillRequest,
+  CustomSkillContent,
+  Skill,
+  SupportSubdir,
+} from "./type";
 
 export async function loadSkills() {
   const skills = await fetch(`${getBackendBaseURL()}/api/skills`);
@@ -87,6 +92,121 @@ export async function installSkill(
       skill_name: "",
       message: errorMessage,
     };
+  }
+
+  return response.json();
+}
+
+/**
+ * Create a custom skill from raw SKILL.md content via the wizard endpoint.
+ *
+ * Calls `POST /api/skills/custom`. The backend normalises the name, injects
+ * `work_modes` frontmatter, validates, runs a security scan, and writes
+ * atomically. This bypasses the Agent entirely — it is an explicit user
+ * action driven by the create-skill wizard UI, and is NOT gated by
+ * `skill_evolution.enabled`.
+ *
+ * @throws {Error} with `message` set to the backend `detail` string on 4xx/5xx
+ *   (e.g. duplicate name, frontmatter validation, security scan block).
+ */
+export async function createSkill(
+  request: CreateSkillRequest,
+): Promise<CustomSkillContent> {
+  const response = await fetch(`${getBackendBaseURL()}/api/skills/custom`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const errorMessage =
+      (errorData as { detail?: string }).detail ??
+      `HTTP ${response.status}: ${response.statusText}`;
+    throw new Error(errorMessage);
+  }
+
+  return response.json();
+}
+
+/**
+ * Install a skill from a `.skill` ZIP archive uploaded directly via multipart.
+ *
+ * Calls `POST /api/skills/install-upload` (wizard-driven flow). No thread
+ * context required. The backend unpacks, validates, scans, and atomically
+ * installs via `ainstall_skill_from_archive`.
+ *
+ * @throws {Error} with `message` set to the backend `detail` string on
+ *   non-2xx (e.g. duplicate name, bad frontmatter, security-scan block,
+ *   non-.skill extension, oversize).
+ */
+export async function installSkillFromUpload(
+  file: File,
+  workModes?: string[],
+): Promise<InstallSkillResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (workModes && workModes.length > 0) {
+    formData.append("work_modes", JSON.stringify(workModes));
+  }
+
+  const response = await fetch(`${getBackendBaseURL()}/api/skills/install-upload`, {
+    method: "POST",
+    body: formData,
+    // NOTE: do NOT set Content-Type — the browser sets it with the correct
+    // multipart boundary when body is a FormData.
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const errorMessage =
+      (errorData as { detail?: string }).detail ??
+      `HTTP ${response.status}: ${response.statusText}`;
+    throw new Error(errorMessage);
+  }
+
+  return response.json();
+}
+
+/**
+ * Upload one or more support files (scripts / references / templates /
+ * assets) into an existing custom skill's subdirectory.
+ *
+ * Calls `POST /api/skills/custom/{skillName}/support-files` (wizard
+ * "from scripts" flow). The target skill must already exist (created in
+ * a prior wizard step). Each file is scanned: `scripts/` requires an
+ * explicit 'allow' (warn is rejected), binary files skip the LLM scan.
+ *
+ * @throws {Error} with `message` set to the backend `detail` string on
+ *   non-2xx (e.g. skill not found, invalid subdir, scan block, traversal).
+ */
+export async function uploadSupportFiles(
+  skillName: string,
+  files: File[],
+  subdir: SupportSubdir,
+): Promise<CustomSkillContent> {
+  const formData = new FormData();
+  for (const f of files) {
+    formData.append("files", f);
+  }
+  formData.append("subdir", subdir);
+
+  const response = await fetch(
+    `${getBackendBaseURL()}/api/skills/custom/${encodeURIComponent(skillName)}/support-files`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const errorMessage =
+      (errorData as { detail?: string }).detail ??
+      `HTTP ${response.status}: ${response.statusText}`;
+    throw new Error(errorMessage);
   }
 
   return response.json();

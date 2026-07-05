@@ -38,12 +38,14 @@ describe("skills page mode-scoped tabs", () => {
     expect(source).toMatch(/ModeTabPill/);
   });
 
-  test("create skill carries the active work mode", () => {
+  test("create skill opens the wizard dialog", () => {
     const source = read(PAGE_PATH);
 
-    // The "Create Skill" button must pass the active work mode tab
-    // as a query param so the new chat pre-selects it.
-    expect(source).toMatch(/workMode=/);
+    // The "Create Skill" button now opens the in-page wizard (not a chat
+    // redirect). The wizard drives a direct REST POST to
+    // /api/skills/custom, so there is no workMode= query param anymore.
+    expect(source).toMatch(/createWizardOpen/);
+    expect(source).toMatch(/CreateSkillWizard/);
   });
 
   test("builtin tab shows only locked core skills", () => {

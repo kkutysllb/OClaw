@@ -359,3 +359,556 @@ def test_update_skill_refreshes_prompt_cache_before_return(monkeypatch, tmp_path
     assert response.json()["enabled"] is False
     assert refresh_calls == ["refresh"]
     assert json.loads(config_path.read_text(encoding="utf-8")) == {"mcpServers": {}, "skills": {"demo-skill": {"enabled": False}}}
+
+
+# ---------------------------------------------------------------------------
+# POST /api/skills/custom — wizard-driven skill creation
+# ---------------------------------------------------------------------------
+
+
+def _create_config(skills_root: Path) -> SimpleNamespace:
+    """Build a minimal config SimpleNamespace that the skills router accepts."""
+    return SimpleNamespace(
+        skills=SimpleNamespace(
+            get_skills_path=lambda: skills_root,
+            container_path="/mnt/skills",
+            use="kkoclaw.skills.storage.local_skill_storage:LocalSkillStorage",
+        ),
+        skill_evolution=SimpleNamespace(enabled=False, moderation_model_name=None),
+    )
+
+
+def _patch_create_dependencies(monkeypatch, *, scan_decision: str = "allow", scan_reason: str = "ok"):
+    """Patch scan + prompt-cache refresh for the create endpoint."""
+    from kkoclaw.skills.security_scanner import ScanResult
+
+    scan_calls: list[dict] = []
+    refresh_calls: list[str] = []
+
+    async def _scan(content, *, executable, location, app_config=None):
+        scan_calls.append({"content": content, "executable": executable, "location": location})
+        return ScanResult(decision=scan_decision, reason=scan_reason)
+
+    async def _refresh():
+        refresh_calls.append("refresh")
+
+    monkeypatch.setattr("app.gateway.routers.skills.scan_skill_content", _scan)
+    monkeypatch.setattr("app.gateway.routers.skills.refresh_skills_system_prompt_cache_async", _refresh)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: None)
+    return scan_calls, refresh_calls
+
+
+def test_create_custom_skill_succeeds(monkeypatch, tmp_path):
+    """POST /api/skills/custom creates the skill, injects work_modes, scans, and records history."""
+    skills_root = tmp_path / "skills"
+    (skills_root / "custom").mkdir(parents=True)
+    (skills_root / "public").mkdir(parents=True)
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+
+    scan_calls, refresh_calls = _patch_create_dependencies(monkeypatch)
+
+    app = _make_test_app(config)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom",
+            json={
+                "name": "my-wizard-skill",
+                "description": "Created via the wizard",
+                "content": "---\nname: my-wizard-skill\ndescription: Created via the wizard\n---\n# my-wizard-skill\nBody here.\n",
+                "work_modes": ["task", "coding"],
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["name"] == "my-wizard-skill"
+    assert body["description"] == "Created via the wizard"
+    assert body["category"] == "custom"
+
+    # File was written atomically.
+    skill_file = skills_root / "custom" / "my-wizard-skill" / "SKILL.md"
+    assert skill_file.exists()
+    written = skill_file.read_text(encoding="utf-8")
+    # work_modes frontmatter was injected.
+    assert "work_modes:" in written
+    # History was recorded.
+    history_file = skills_root / "custom" / ".history" / "my-wizard-skill.jsonl"
+    assert history_file.exists()
+    assert '"action": "create"' in history_file.read_text(encoding="utf-8")
+    # Security scan ran with the injected content.
+    assert len(scan_calls) == 1
+    assert scan_calls[0]["location"] == "my-wizard-skill/SKILL.md"
+    # Prompt cache was refreshed.
+    assert refresh_calls == ["refresh"]
+
+
+def test_create_custom_skill_defaults_work_modes_to_task(monkeypatch, tmp_path):
+    """Omitting work_modes defaults to ['task'] (mirrors skill_manage_tool)."""
+    skills_root = tmp_path / "skills"
+    (skills_root / "custom").mkdir(parents=True)
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_create_dependencies(monkeypatch)
+
+    app = _make_test_app(config)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom",
+            json={
+                "name": "task-default-skill",
+                "description": "Should bind to task",
+                "content": "---\nname: task-default-skill\ndescription: Should bind to task\n---\n# task-default-skill\n",
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    written = (skills_root / "custom" / "task-default-skill" / "SKILL.md").read_text(encoding="utf-8")
+    assert "work_modes:" in written
+    assert "task" in written
+
+
+def test_create_custom_skill_normalises_name(monkeypatch, tmp_path):
+    """Uppercase / underscores / spaces are normalised to hyphen-case."""
+    skills_root = tmp_path / "skills"
+    (skills_root / "custom").mkdir(parents=True)
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_create_dependencies(monkeypatch)
+
+    app = _make_test_app(config)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom",
+            json={
+                "name": "My_Cool Skill",
+                "description": "Normalisation test",
+                "content": "---\nname: my-cool-skill\ndescription: Normalisation test\n---\n# my-cool-skill\n",
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["name"] == "my-cool-skill"
+    assert (skills_root / "custom" / "my-cool-skill" / "SKILL.md").exists()
+
+
+def test_create_custom_skill_rejects_duplicate_custom(monkeypatch, tmp_path):
+    """409 when a custom skill with the same name already exists."""
+    skills_root = tmp_path / "skills"
+    custom_dir = skills_root / "custom" / "dup-skill"
+    custom_dir.mkdir(parents=True)
+    (custom_dir / "SKILL.md").write_text(_skill_content("dup-skill"), encoding="utf-8")
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_create_dependencies(monkeypatch)
+
+    app = _make_test_app(config)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom",
+            json={
+                "name": "dup-skill",
+                "description": "Duplicate",
+                "content": _skill_content("dup-skill"),
+            },
+        )
+
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"]
+
+
+def test_create_custom_skill_rejects_builtin_name(monkeypatch, tmp_path):
+    """409 when the name collides with a built-in (public) skill."""
+    skills_root = tmp_path / "skills"
+    (skills_root / "custom").mkdir(parents=True)
+    builtin_dir = skills_root / "public" / "planning"
+    builtin_dir.mkdir(parents=True)
+    (builtin_dir / "SKILL.md").write_text(_skill_content("planning"), encoding="utf-8")
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_create_dependencies(monkeypatch)
+
+    app = _make_test_app(config)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom",
+            json={
+                "name": "planning",
+                "description": "Shadowing a builtin",
+                "content": _skill_content("planning"),
+            },
+        )
+
+    assert response.status_code == 409
+    assert "built-in" in response.json()["detail"]
+
+
+def test_create_custom_skill_rejects_frontmatter_name_mismatch(monkeypatch, tmp_path):
+    """400 when the frontmatter `name` does not match the request name."""
+    skills_root = tmp_path / "skills"
+    (skills_root / "custom").mkdir(parents=True)
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_create_dependencies(monkeypatch)
+
+    app = _make_test_app(config)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom",
+            json={
+                "name": "outer-name",
+                "description": "Mismatched",
+                "content": "---\nname: different-name\ndescription: Mismatched\n---\n# different-name\n",
+            },
+        )
+
+    assert response.status_code == 400
+    assert not (skills_root / "custom" / "outer-name").exists()
+
+
+def test_create_custom_skill_blocked_by_scanner_returns_400(monkeypatch, tmp_path):
+    """400 when the security scan decision is 'block' — no file written."""
+    skills_root = tmp_path / "skills"
+    (skills_root / "custom").mkdir(parents=True)
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_create_dependencies(monkeypatch, scan_decision="block", scan_reason="prompt injection detected")
+
+    app = _make_test_app(config)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom",
+            json={
+                "name": "blocked-skill",
+                "description": "Should be blocked",
+                "content": "---\nname: blocked-skill\ndescription: Should be blocked\n---\n# blocked-skill\n",
+            },
+        )
+
+    assert response.status_code == 400
+    assert "prompt injection detected" in response.json()["detail"]
+    assert not (skills_root / "custom" / "blocked-skill").exists()
+
+
+def test_create_custom_skill_not_gated_by_skill_evolution(monkeypatch, tmp_path):
+    """The wizard endpoint works even with skill_evolution.enabled=False."""
+    skills_root = tmp_path / "skills"
+    (skills_root / "custom").mkdir(parents=True)
+    config = SimpleNamespace(
+        skills=SimpleNamespace(
+            get_skills_path=lambda: skills_root,
+            container_path="/mnt/skills",
+            use="kkoclaw.skills.storage.local_skill_storage:LocalSkillStorage",
+        ),
+        skill_evolution=SimpleNamespace(enabled=False, moderation_model_name=None),
+    )
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_create_dependencies(monkeypatch)
+
+    app = _make_test_app(config)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom",
+            json={
+                "name": "user-created",
+                "description": "Explicit user action",
+                "content": "---\nname: user-created\ndescription: Explicit user action\n---\n# user-created\n",
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    assert (skills_root / "custom" / "user-created" / "SKILL.md").exists()
+
+
+# ---------------------------------------------------------------------------
+# POST /api/skills/install-upload — wizard-driven package install (功能 A)
+# ---------------------------------------------------------------------------
+
+
+def _make_skill_zip_bytes(name: str, *, nested: bool = False, content: str | None = None) -> bytes:
+    """Build a .skill ZIP in memory. ``nested`` mirrors the "wrapped in a single
+    top-level dir" archive shape that the installer also accepts."""
+    import io
+
+    skill_md = content or _skill_content(name)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        if nested:
+            zf.writestr(f"{name}/SKILL.md", skill_md)
+        else:
+            zf.writestr("SKILL.md", skill_md)
+    return buf.getvalue()
+
+
+def _patch_install_upload_deps(monkeypatch, *, scan_decision: str = "allow"):
+    """Patch scanner + prompt-cache refresh for install-upload tests."""
+    from kkoclaw.skills.security_scanner import ScanResult
+
+    refresh_calls: list[str] = []
+
+    async def _scan(*args, **kwargs):
+        return ScanResult(decision=scan_decision, reason="ok" if scan_decision == "allow" else "flagged")
+
+    async def _refresh():
+        refresh_calls.append("refresh")
+
+    # The installer calls scan_skill_content via the module-level import.
+    monkeypatch.setattr("kkoclaw.skills.installer.scan_skill_content", _scan)
+    monkeypatch.setattr("app.gateway.routers.skills.refresh_skills_system_prompt_cache_async", _refresh)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: None)
+    return refresh_calls
+
+
+def test_install_upload_succeeds_flat_archive(monkeypatch, tmp_path):
+    """A flat .skill archive (SKILL.md at root) installs via multipart upload."""
+    skills_root = tmp_path / "skills"
+    (skills_root / "custom").mkdir(parents=True)
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    refresh_calls = _patch_install_upload_deps(monkeypatch)
+
+    app = _make_test_app(config)
+    archive = _make_skill_zip_bytes("upload-flat-skill")
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/install-upload",
+            files={"file": ("upload-flat-skill.skill", archive, "application/zip")},
+            data={"work_modes": '["task"]'},
+        )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["success"] is True
+    assert response.json()["skill_name"] == "upload-flat-skill"
+    assert (skills_root / "custom" / "upload-flat-skill" / "SKILL.md").exists()
+    assert refresh_calls == ["refresh"]
+
+
+def test_install_upload_succeeds_nested_archive(monkeypatch, tmp_path):
+    """An archive wrapping files under a single top-level dir also installs."""
+    skills_root = tmp_path / "skills"
+    (skills_root / "custom").mkdir(parents=True)
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_install_upload_deps(monkeypatch)
+
+    app = _make_test_app(config)
+    archive = _make_skill_zip_bytes("upload-nested-skill", nested=True)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/install-upload",
+            files={"file": ("upload-nested-skill.skill", archive, "application/zip")},
+        )
+
+    assert response.status_code == 200, response.text
+    assert (skills_root / "custom" / "upload-nested-skill" / "SKILL.md").exists()
+
+
+def test_install_upload_rejects_non_skill_extension(monkeypatch, tmp_path):
+    skills_root = tmp_path / "skills"
+    (skills_root / "custom").mkdir(parents=True)
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+
+    app = _make_test_app(config)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/install-upload",
+            files={"file": ("not-a-skill.zip", b"pk\x03\x04", "application/zip")},
+        )
+
+    assert response.status_code == 400
+    assert ".skill" in response.json()["detail"]
+
+
+def test_install_upload_rejects_duplicate(monkeypatch, tmp_path):
+    skills_root = tmp_path / "skills"
+    custom_dir = skills_root / "custom" / "dup-upload"
+    custom_dir.mkdir(parents=True)
+    (custom_dir / "SKILL.md").write_text(_skill_content("dup-upload"), encoding="utf-8")
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_install_upload_deps(monkeypatch)
+
+    app = _make_test_app(config)
+    archive = _make_skill_zip_bytes("dup-upload")
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/install-upload",
+            files={"file": ("dup-upload.skill", archive, "application/zip")},
+        )
+
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"]
+
+
+def test_install_upload_rejects_bad_frontmatter(monkeypatch, tmp_path):
+    """An archive whose SKILL.md lacks required frontmatter is rejected with 400."""
+    skills_root = tmp_path / "skills"
+    (skills_root / "custom").mkdir(parents=True)
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_install_upload_deps(monkeypatch)
+
+    app = _make_test_app(config)
+    # No frontmatter at all → validator rejects.
+    archive = _make_skill_zip_bytes("bad-skill", content="# bad-skill\nno frontmatter here\n")
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/install-upload",
+            files={"file": ("bad-skill.skill", archive, "application/zip")},
+        )
+
+    assert response.status_code == 400
+    assert not (skills_root / "custom" / "bad-skill").exists()
+
+
+# ---------------------------------------------------------------------------
+# POST /api/skills/custom/{name}/support-files — wizard scripts upload (功能 B)
+# ---------------------------------------------------------------------------
+
+
+def _prepare_existing_skill(skills_root: Path, name: str) -> None:
+    custom_dir = skills_root / "custom" / name
+    custom_dir.mkdir(parents=True, exist_ok=True)
+    (custom_dir / "SKILL.md").write_text(_skill_content(name), encoding="utf-8")
+
+
+def test_support_files_upload_script_succeeds(monkeypatch, tmp_path):
+    skills_root = tmp_path / "skills"
+    _prepare_existing_skill(skills_root, "scripted-skill")
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_create_dependencies(monkeypatch, scan_decision="allow")
+
+    app = _make_test_app(config)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom/scripted-skill/support-files",
+            files={"files": ("run.sh", b"#!/bin/sh\necho ok\n", "text/x-shellscript")},
+            data={"subdir": "scripts"},
+        )
+
+    assert response.status_code == 200, response.text
+    script_file = skills_root / "custom" / "scripted-skill" / "scripts" / "run.sh"
+    assert script_file.exists()
+    assert script_file.read_text(encoding="utf-8") == "#!/bin/sh\necho ok\n"
+    history_file = skills_root / "custom" / ".history" / "scripted-skill.jsonl"
+    assert '"action": "upload_file"' in history_file.read_text(encoding="utf-8")
+
+
+def test_support_files_upload_asset_binary_skips_scan(monkeypatch, tmp_path):
+    """Binary files (non-UTF-8) under assets/ are written without LLM scan."""
+    skills_root = tmp_path / "skills"
+    _prepare_existing_skill(skills_root, "asset-skill")
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    scan_calls = _patch_create_dependencies(monkeypatch)[0]
+
+    app = _make_test_app(config)
+    # PNG header + garbage → not valid UTF-8.
+    png_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0cIHDR"
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom/asset-skill/support-files",
+            files={"files": ("logo.png", png_bytes, "image/png")},
+            data={"subdir": "assets"},
+        )
+
+    assert response.status_code == 200, response.text
+    assert (skills_root / "custom" / "asset-skill" / "assets" / "logo.png").exists()
+    # Binary files must NOT trigger the LLM scan.
+    assert scan_calls == []
+
+
+def test_support_files_rejects_unknown_skill(monkeypatch, tmp_path):
+    skills_root = tmp_path / "skills"
+    (skills_root / "custom").mkdir(parents=True)
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_create_dependencies(monkeypatch)
+
+    app = _make_test_app(config)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom/no-such-skill/support-files",
+            files={"files": ("run.sh", b"echo", "text/plain")},
+            data={"subdir": "scripts"},
+        )
+
+    assert response.status_code == 400
+    assert "Use action='create'" in response.json()["detail"] or "does not exist" in response.json()["detail"]
+
+
+def test_support_files_rejects_invalid_subdir(monkeypatch, tmp_path):
+    skills_root = tmp_path / "skills"
+    _prepare_existing_skill(skills_root, "subdir-skill")
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_create_dependencies(monkeypatch)
+
+    app = _make_test_app(config)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom/subdir-skill/support-files",
+            files={"files": ("run.sh", b"echo", "text/plain")},
+            data={"subdir": "executables"},
+        )
+
+    assert response.status_code == 400
+    assert "Invalid subdir" in response.json()["detail"]
+
+
+def test_support_files_scripts_warn_rejected(monkeypatch, tmp_path):
+    """scripts/ files require an explicit 'allow'; 'warn' is rejected."""
+    skills_root = tmp_path / "skills"
+    _prepare_existing_skill(skills_root, "warn-skill")
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_create_dependencies(monkeypatch, scan_decision="warn")
+
+    app = _make_test_app(config)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom/warn-skill/support-files",
+            files={"files": ("run.sh", b"#!/bin/sh\necho hi\n", "text/plain")},
+            data={"subdir": "scripts"},
+        )
+
+    assert response.status_code == 400
+    assert "explicitly allow" in response.json()["detail"] or "Security scan" in response.json()["detail"]
+    assert not (skills_root / "custom" / "warn-skill" / "scripts" / "run.sh").exists()
+
+
+def test_support_files_strips_path_components(monkeypatch, tmp_path):
+    """Client-supplied filenames with path components are stripped to basename."""
+    skills_root = tmp_path / "skills"
+    _prepare_existing_skill(skills_root, "strip-skill")
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_create_dependencies(monkeypatch)
+
+    app = _make_test_app(config)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom/strip-skill/support-files",
+            files={"files": ("../../../etc/passwd", b"root:x:0:0\n", "text/plain")},
+            data={"subdir": "references"},
+        )
+
+    # basename is "passwd" → must land inside references/, NOT escape the skill dir.
+    assert response.status_code == 200, response.text
+    assert (skills_root / "custom" / "strip-skill" / "references" / "passwd").exists()
+    assert not (skills_root / "custom" / "strip-skill" / "etc").exists()

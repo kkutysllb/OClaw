@@ -24,8 +24,8 @@ import {
   VideoIcon,
   WandIcon,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +44,7 @@ import type { Skill } from "@/core/skills/type";
 import { useWorkModes } from "@/core/work-modes/hooks";
 import { env } from "@/env";
 import { cn } from "@/lib/utils";
+import { CreateSkillWizard } from "./create-skill-wizard";
 
 // ── Chinese descriptions for all skills ──────────────────────────────────────
 const CHINESE_DESCRIPTIONS: Record<string, string> = {
@@ -480,6 +481,18 @@ export function SkillsPage() {
   const { data: workModesData } = useWorkModes();
   const [activeTab, setActiveTab] = useState<string>("builtin");
   const [search, setSearch] = useState("");
+  const [createWizardOpen, setCreateWizardOpen] = useState(false);
+
+  // Allow other surfaces (e.g. the settings skill panel) to deep-link into
+  // the wizard via ?create=1. We read once on mount rather than reactively
+  // to avoid reopening the dialog on every render after it is closed.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("create") === "1") {
+      setCreateWizardOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Work mode tabs from the API (task / coding / …).
   const modeTabs = workModesData.modes;
@@ -512,8 +525,7 @@ export function SkillsPage() {
   }, [skills, activeTab, search]);
 
   const handleCreateSkill = () => {
-    const workMode = activeTab === "builtin" ? "task" : activeTab;
-    router.push(`/workspace/chats/new?mode=skill&workMode=${workMode}`);
+    setCreateWizardOpen(true);
   };
 
   const activeCount = useMemo(
@@ -653,6 +665,7 @@ export function SkillsPage() {
           </>
         )}
       </div>
+      <CreateSkillWizard open={createWizardOpen} onOpenChange={setCreateWizardOpen} />
     </div>
   );
 }

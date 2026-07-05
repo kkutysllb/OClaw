@@ -620,6 +620,76 @@ export interface Translations {
       emptyDescription: string;
       emptyButton: string;
     };
+    createSkillWizard: {
+      title: string;
+      stepBasics: string;
+      stepTemplate: string;
+      stepEdit: string;
+      stepPreview: string;
+      stepOf: string;
+      // Step 1: basics
+      nameLabel: string;
+      namePlaceholder: string;
+      nameHint: string;
+      descriptionLabel: string;
+      descriptionPlaceholder: string;
+      descriptionCount: string;
+      workModesLabel: string;
+      // Step 2: template
+      templateLabel: string;
+      templateBlank: string;
+      templateTask: string;
+      templateCoding: string;
+      templateCopy: string;
+      templateCopyHint: string;
+      // Step 3: edit
+      editLabel: string;
+      editHint: string;
+      // Step 4: preview
+      previewLabel: string;
+      previewHint: string;
+      willCreateAt: string;
+      // Footer
+      cancel: string;
+      back: string;
+      next: string;
+      create: string;
+      creating: string;
+      // Validation
+      nameRequired: string;
+      descriptionRequired: string;
+      // States
+      success: string;
+      enhanceInChat: string;
+      // Home (mode picker)
+      homeTitle: string;
+      homeDescription: string;
+      modeTemplate: string;
+      modeTemplateDesc: string;
+      modeUpload: string;
+      modeUploadDesc: string;
+      modeScripts: string;
+      modeScriptsDesc: string;
+      backToHome: string;
+      // Upload (.skill package) flow
+      uploadDropHere: string;
+      uploadButton: string;
+      uploadSelected: string;
+      uploadSize: string;
+      uploadReplace: string;
+      // Scripts flow
+      scriptsSubdir: string;
+      scriptsSubdirScripts: string;
+      scriptsSubdirReferences: string;
+      scriptsSubdirTemplates: string;
+      scriptsSubdirAssets: string;
+      scriptsAddMore: string;
+      scriptsRemove: string;
+      scriptsUploadHint: string;
+      scriptsPartialFailure: string;
+      scriptsCreateAndUpload: string;
+      scriptsCreateAndUploading: string;
+    };
     notification: {
       title: string;
       description: string;

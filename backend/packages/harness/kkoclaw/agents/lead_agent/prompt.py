@@ -186,6 +186,19 @@ After completing a task, consider creating or updating a skill when:
 If you used a skill and encountered issues not covered by it, patch it immediately.
 Prefer patch over edit. Before creating a new skill, confirm with the user first.
 Skip simple one-off tasks.
+
+### IMPORTANT: how to create or edit a skill
+- Creating, patching, or editing a skill MUST go through the `skill_manage` tool
+  (action=create / edit / patch / delete). `skill_manage` writes atomically to
+  `skills/custom/<name>/SKILL.md` and binds the skill to the current work mode.
+- NEVER use `write_file` to create a SKILL.md. Files written to
+  `/mnt/user-data/outputs/` (or any sandbox path) are NOT recognised by the
+  skill system, will not appear in the management UI, and are discarded when
+  the thread is cleaned up.
+- If `skill_manage` is not in your tool list, the deployment has disabled
+  autonomous skill authoring. Tell the user to use the "Create skill" button
+  in the skill management UI, which opens a dedicated wizard that creates the
+  skill directly via the REST API.
 """
 
 
