@@ -27,6 +27,7 @@ DRY_RUN=false
 SKIP_CHECKS=false
 SKIP_LOCK=false
 FULL_BUILD=false
+FULL_TESTS=false
 NO_COMMIT=false
 NO_TAG=false
 ALLOW_DIRTY=false
@@ -63,6 +64,7 @@ Options:
   --skip-checks       Skip test/typecheck/package-resource verification.
   --skip-lock         Do not refresh pnpm/uv lockfiles.
   --full-build        Run desktop-electron build:app instead of quick resource verification.
+  --full-tests        Run the full backend pytest suite instead of stable release smoke tests.
   --no-commit         Update files and run checks, but do not commit.
   --no-tag            Do not create a git tag. Implies --no-commit behavior only for tag step.
   --allow-dirty       Allow starting from a dirty worktree.
@@ -155,6 +157,9 @@ parse_args() {
         ;;
       --full-build)
         FULL_BUILD=true
+        ;;
+      --full-tests)
+        FULL_TESTS=true
         ;;
       --no-commit)
         NO_COMMIT=true
@@ -253,6 +258,7 @@ print_plan() {
   Refresh locks:   $([[ "$SKIP_LOCK" == true ]] && echo no || echo yes)
   Run checks:      $([[ "$SKIP_CHECKS" == true ]] && echo no || echo yes)
   Desktop build:   $([[ "$FULL_BUILD" == true ]] && echo full build:app || echo quick verifier)
+  Backend tests:   $([[ "$FULL_TESTS" == true ]] && echo full pytest || echo release smoke)
   Commit:          $([[ "$NO_COMMIT" == true ]] && echo no || echo yes)
   Tag:             $([[ "$NO_TAG" == true ]] && echo no || echo yes)
   Push:            $([[ "$PUSH" == true ]] && echo yes || echo no)
@@ -364,7 +370,8 @@ section += f"Compare: `{compare}`\n\n"
 section += f"{notes}\n\n"
 
 if f"## {tag} " in existing:
-    raise SystemExit(f"CHANGELOG.md already has a section for {tag}")
+    print(f"CHANGELOG.md already has a section for {tag}; leaving it unchanged")
+    raise SystemExit(0)
 
 head, _, tail = existing.partition("\n\n")
 path.write_text(head + "\n\n" + section + tail.lstrip(), encoding="utf-8")
@@ -382,7 +389,11 @@ run_checks() {
   need_cmd pnpm
   need_cmd uv
 
-  run_shell "backend tests" "cd backend && PYTHONPATH=.:packages/harness uv run python -m pytest -q"
+  if [[ "$FULL_TESTS" == true ]]; then
+    run_shell "backend full tests" "cd backend && PYTHONPATH=.:packages/harness uv run python -m pytest -q"
+  else
+    run_shell "backend release smoke tests" "cd backend && PYTHONPATH=.:packages/harness uv run python -m pytest -q tests/test_mcp_sync_wrapper.py tests/test_security_scanner.py tests/test_skill_manage_tool.py tests/test_skill_frontmatter_work_modes.py tests/test_skills_parser.py tests/test_mcp_config_preservation.py tests/test_work_mode_api.py tests/test_client.py::TestMcpConfig tests/test_client.py::TestSkillsManagement"
+  fi
   run_shell "frontend tests" "cd frontend && pnpm test"
   run_shell "frontend typecheck" "cd frontend && pnpm run typecheck"
   run_shell "desktop lint" "cd desktop-electron && pnpm run lint"

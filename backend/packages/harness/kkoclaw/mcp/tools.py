@@ -18,6 +18,19 @@ from kkoclaw.tools.types import Runtime
 
 logger = logging.getLogger(__name__)
 
+def _make_sync_tool_wrapper(coro: Any, tool_name: str) -> Any:
+    """Backward-compatible private helper kept for older in-repo callers."""
+    sync_func = make_sync_tool_wrapper(coro, tool_name)
+
+    def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return sync_func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Error invoking tool {tool_name!r} via sync wrapper: {e}", exc_info=True)
+            raise
+
+    return sync_wrapper
+
 
 def _extract_thread_id(runtime: Runtime | None) -> str:
     """Extract thread_id from the injected tool runtime or LangGraph config."""
