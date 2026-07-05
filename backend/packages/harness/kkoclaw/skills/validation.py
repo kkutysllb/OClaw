@@ -24,6 +24,8 @@ _BUILTIN_MODE_IDS = {"core", "task", "coding"}
 #   - capabilities / inputs / permissions / requires / tags: Claude Code skills
 #   - category: skill-marketplace categorisation (e.g. "coding", "productivity")
 #   - package: packaging-tool provenance metadata
+#   - keywords: search/discovery tags used by skill marketplaces
+#   - dependencies: declares runtime dependencies on other skills/packages
 _COMPAT_FRONTMATTER_KEYS = {
     "capabilities",
     "inputs",
@@ -32,6 +34,8 @@ _COMPAT_FRONTMATTER_KEYS = {
     "tags",
     "category",
     "package",
+    "keywords",
+    "dependencies",
 }
 
 

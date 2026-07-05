@@ -258,7 +258,7 @@ class TestNormaliseSkillFrontmatter:
         assert "custom-field" in result
 
     def test_all_compat_keys_normalised(self):
-        """All compat keys (including category/package) should be moved."""
+        """All compat keys (including category/package/keywords/dependencies) should be moved."""
         fm = {
             "name": "my-skill",
             "description": "test",
@@ -269,6 +269,8 @@ class TestNormaliseSkillFrontmatter:
             "tags": ["a"],
             "category": "coding",
             "package": "anthropic/skill-marketplace",
+            "keywords": ["stock", "finance"],
+            "dependencies": ["common-helpers"],
         }
         result = _normalise_skill_frontmatter(fm)
         for key in _COMPAT_FRONTMATTER_KEYS:
@@ -281,6 +283,8 @@ class TestNormaliseSkillFrontmatter:
         assert compat["tags"] == ["a"]
         assert compat["category"] == "coding"
         assert compat["package"] == "anthropic/skill-marketplace"
+        assert compat["keywords"] == ["stock", "finance"]
+        assert compat["dependencies"] == ["common-helpers"]
 
 
 class TestValidateFrontmatterWithCompatNormalisation:
