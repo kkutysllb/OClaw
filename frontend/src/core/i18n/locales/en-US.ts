@@ -840,4 +840,43 @@ export const enUS: Translations = {
       deletedSuccess: "Work mode '{name}' deleted",
     },
   },
+
+  // Queued messages
+  queue: {
+    title: "Queued",
+    sendAll: "Send all",
+    sendAllAllTitle: "Send all",
+    sendAllStreamingTitle: "Task running; messages will auto-send after it ends",
+    status: {
+      pending: "Queued",
+      injecting: "Injecting",
+      injected: "Injected",
+      sending: "Sending",
+      error: "Failed",
+    },
+    action: {
+      inject: "Inject now",
+      injectActiveTitle: "Inject into the running task",
+      injectInactiveTitle: "Task not running; send directly",
+      edit: "Edit",
+      delete: "Delete",
+      deleteInjectedTitle: "Delete (injected; removes from queue only)",
+      retry: "Retry",
+      moveUp: "Move up",
+    },
+    toast: {
+      injected: "Injected into the running task",
+      runNotActive: "Task ended; message will auto-send",
+      limitExceeded: "Queue full (max 20)",
+      queued: "Added to send queue",
+    },
+    sendButtonStreaming: "Add to send queue (task running)",
+  },
+
+  // Todo panel
+  todoPanel: {
+    title: "Task List",
+    empty: "No tasks yet",
+    close: "Close",
+  },
 };

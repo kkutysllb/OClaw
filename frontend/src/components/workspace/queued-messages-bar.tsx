@@ -19,19 +19,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useI18n } from "@/core/i18n/hooks";
 import type {
   QueuedMessage,
   QueuedMessageStatus,
 } from "@/core/threads/queue-store";
 import { cn } from "@/lib/utils";
-
-const STATUS_LABEL: Record<QueuedMessageStatus, string> = {
-  pending: "排队中",
-  injecting: "注入中",
-  injected: "已注入",
-  sending: "发送中",
-  error: "失败",
-};
 
 const STATUS_CLASS: Record<QueuedMessageStatus, string> = {
   pending: "bg-muted text-muted-foreground",
@@ -72,10 +65,19 @@ export function QueuedMessagesBar({
   onReorder,
   onSendAll,
 }: Props) {
+  const { t } = useI18n();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
   if (messages.length === 0) return null;
+
+  const statusLabel: Record<QueuedMessageStatus, string> = {
+    pending: t.queue.status.pending,
+    injecting: t.queue.status.injecting,
+    injected: t.queue.status.injected,
+    sending: t.queue.status.sending,
+    error: t.queue.status.error,
+  };
 
   const pendingCount = messages.filter((m) => m.status === "pending").length;
 
@@ -92,12 +94,12 @@ export function QueuedMessagesBar({
     <TooltipProvider delayDuration={300}>
       <div
         role="list"
-        aria-label="待发送消息队列"
+        aria-label={t.queue.title}
         className="flex flex-col gap-2 border-t bg-background px-3 py-2"
       >
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">
-            待发送 ({pendingCount})
+            {t.queue.title} ({pendingCount})
           </span>
           <Button
             variant="ghost"
@@ -106,11 +108,13 @@ export function QueuedMessagesBar({
             disabled={pendingCount === 0 || isStreaming}
             onClick={onSendAll}
             title={
-              isStreaming ? "任务执行中，将在结束后自动发送" : "全部发送"
+              isStreaming
+                ? t.queue.sendAllStreamingTitle
+                : t.queue.sendAllAllTitle
             }
           >
             <SendHorizonalIcon className="size-3" />
-            全部发送
+            {t.queue.sendAll}
           </Button>
         </div>
 
@@ -140,7 +144,7 @@ export function QueuedMessagesBar({
                       msg.status === "sending") && (
                       <Loader2Icon className="mr-1 size-2.5 animate-spin" />
                     )}
-                    {STATUS_LABEL[msg.status]}
+                    {statusLabel[msg.status]}
                   </Badge>
                   {msg.status === "error" && msg.error && (
                     <Tooltip>
@@ -181,24 +185,30 @@ export function QueuedMessagesBar({
                 <div className="mt-1.5 flex items-center gap-0.5">
                   {msg.status === "pending" && (
                     <>
-                      <IconBtn label="编辑" onClick={() => startEdit(msg)}>
+                      <IconBtn
+                        label={t.queue.action.edit}
+                        onClick={() => startEdit(msg)}
+                      >
                         <PencilIcon className="size-3" />
                       </IconBtn>
                       <IconBtn
-                        label="上移"
+                        label={t.queue.action.moveUp}
                         onClick={() => onReorder(msg.id, "up")}
                         disabled={!canMoveUp}
                       >
                         <ChevronUpIcon className="size-3" />
                       </IconBtn>
-                      <IconBtn label="删除" onClick={() => onRemove(msg.id)}>
+                      <IconBtn
+                        label={t.queue.action.delete}
+                        onClick={() => onRemove(msg.id)}
+                      >
                         <Trash2Icon className="size-3" />
                       </IconBtn>
                       <IconBtn
                         label={
                           isStreaming
-                            ? "立即注入到运行中的任务"
-                            : "任务未运行，请直接发送"
+                            ? t.queue.action.injectActiveTitle
+                            : t.queue.action.injectInactiveTitle
                         }
                         disabled={!isStreaming}
                         onClick={() => onInject(msg)}
@@ -212,7 +222,7 @@ export function QueuedMessagesBar({
                   )}
                   {msg.status === "injected" && (
                     <IconBtn
-                      label="删除（已注入，仅从队列移除）"
+                      label={t.queue.action.deleteInjectedTitle}
                       onClick={() => onRemove(msg.id)}
                     >
                       <Trash2Icon className="size-3" />
@@ -220,10 +230,16 @@ export function QueuedMessagesBar({
                   )}
                   {msg.status === "error" && (
                     <>
-                      <IconBtn label="重试" onClick={() => onRetry(msg)}>
+                      <IconBtn
+                        label={t.queue.action.retry}
+                        onClick={() => onRetry(msg)}
+                      >
                         <RotateCwIcon className="size-3" />
                       </IconBtn>
-                      <IconBtn label="删除" onClick={() => onRemove(msg.id)}>
+                      <IconBtn
+                        label={t.queue.action.delete}
+                        onClick={() => onRemove(msg.id)}
+                      >
                         <Trash2Icon className="size-3" />
                       </IconBtn>
                     </>

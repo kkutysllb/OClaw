@@ -816,4 +816,43 @@ export const zhCN: Translations = {
       deletedSuccess: "工作模式「{name}」已删除",
     },
   },
+
+  // Queued messages
+  queue: {
+    title: "待发送",
+    sendAll: "全部发送",
+    sendAllAllTitle: "全部发送",
+    sendAllStreamingTitle: "任务执行中，将在结束后自动发送",
+    status: {
+      pending: "排队中",
+      injecting: "注入中",
+      injected: "已注入",
+      sending: "发送中",
+      error: "失败",
+    },
+    action: {
+      inject: "立即注入",
+      injectActiveTitle: "立即注入到运行中的任务",
+      injectInactiveTitle: "任务未运行，请直接发送",
+      edit: "编辑",
+      delete: "删除",
+      deleteInjectedTitle: "删除（已注入，仅从队列移除）",
+      retry: "重试",
+      moveUp: "上移",
+    },
+    toast: {
+      injected: "已注入到运行中的任务",
+      runNotActive: "任务已结束，消息将自动发送",
+      limitExceeded: "队列已满（最多 20 条）",
+      queued: "已加入待发送队列",
+    },
+    sendButtonStreaming: "加入待发送队列（任务执行中）",
+  },
+
+  // Todo panel
+  todoPanel: {
+    title: "任务清单",
+    empty: "暂无任务清单",
+    close: "关闭",
+  },
 };

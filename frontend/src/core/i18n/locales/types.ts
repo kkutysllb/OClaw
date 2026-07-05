@@ -757,4 +757,43 @@ export interface Translations {
       deletedSuccess: string;
     };
   };
+
+  // Queued messages
+  queue: {
+    title: string;
+    sendAll: string;
+    sendAllAllTitle: string;
+    sendAllStreamingTitle: string;
+    status: {
+      pending: string;
+      injecting: string;
+      injected: string;
+      sending: string;
+      error: string;
+    };
+    action: {
+      inject: string;
+      injectActiveTitle: string;
+      injectInactiveTitle: string;
+      edit: string;
+      delete: string;
+      deleteInjectedTitle: string;
+      retry: string;
+      moveUp: string;
+    };
+    toast: {
+      injected: string;
+      runNotActive: string;
+      limitExceeded: string;
+      queued: string;
+    };
+    sendButtonStreaming: string;
+  };
+
+  // Todo panel
+  todoPanel: {
+    title: string;
+    empty: string;
+    close: string;
+  };
 }
