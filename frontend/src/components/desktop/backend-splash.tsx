@@ -14,12 +14,8 @@ export function shouldShowBackendSplash(
   status: BackendStatus | null,
   desktop: boolean,
 ): boolean {
-  // In managed mode the desktop shell owns the gateway lifecycle, so the
-  // splash should remain visible until the backend reports "running".
-  // This covers null (not yet polled), "stopped", "starting", and "error" —
-  // all states where the user should see the startup panel.
   if (!desktop) return false;
-  return status?.status !== "running";
+  return status?.status === "starting";
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -108,11 +104,8 @@ export function BackendSplashScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  const isManaged = isDesktopBackendManagedMode();
-
-  // The component only renders in desktop managed mode. Once hidden, stay
-  // hidden until the component is re-mounted by a route change.
-  if (!isManaged || phase === "hidden") return null;
+  if (!shouldShowBackendSplash(status, isDesktopBackendManagedMode())) return null;
+  if (phase === "hidden") return null;
 
   // Fading-out overlay: a blank background that animates to transparent.
   if (phase === "fading") {

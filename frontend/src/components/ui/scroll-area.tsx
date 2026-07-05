@@ -12,7 +12,10 @@ function ScrollArea({
   return (
     <div
       data-slot="scroll-area"
-      className={cn("relative size-full overflow-auto [&>div]:w-full [&>div]:min-w-0", className)}
+      className={cn(
+        "relative size-full overflow-auto [&>div]:!block [&>div]:!min-w-0 [&>div]:!w-full",
+        className,
+      )}
       {...props}
     >
       {children}
