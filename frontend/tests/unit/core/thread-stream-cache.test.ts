@@ -20,6 +20,7 @@ const {
   streamState: {
     messages: [] as Message[],
     isLoading: false,
+    messageMetadata: {} as Record<string, unknown>,
   },
   submitMock: vi.fn(),
   stopMock: vi.fn(async () => undefined),
@@ -51,6 +52,10 @@ vi.mock("@langchain/langgraph-sdk/react", () => ({
       submit: submitMock,
       stop: stopMock,
       joinStream: vi.fn(),
+      getMessagesMetadata: vi.fn((message: Message, index?: number) => {
+        const key = message.id ?? String(index ?? "");
+        return streamState.messageMetadata[key];
+      }),
     };
   }),
 }));
@@ -108,12 +113,12 @@ vi.mock("@/core/uploads", () => ({
 }));
 
 import { useThreadStream } from "@/core/threads/hooks";
-import { setCachedThreadState } from "@/core/threads/thread-state-store";
-import type { AgentThreadState } from "@/core/threads/types";
 import {
   clearThreadRuntimeSnapshot,
   useThreadRuntimeSnapshot,
 } from "@/core/threads/runtime-store";
+import { setCachedThreadState } from "@/core/threads/thread-state-store";
+import type { AgentThreadState } from "@/core/threads/types";
 
 function makeState(messages: Message[] = []): AgentThreadState {
   return {
@@ -264,6 +269,7 @@ describe("useThreadStream cache bridge", () => {
     container = undefined;
     streamState.messages = [];
     streamState.isLoading = false;
+    streamState.messageMetadata = {};
     queryState.data = [];
     fetchMock.mockReset();
     submitMock.mockReset();
@@ -465,5 +471,43 @@ describe("useThreadStream cache bridge", () => {
     });
 
     expect(container.textContent).toContain("runtime bridge");
+  });
+
+  test("filters streamed middleware messages using SDK stream metadata", () => {
+    streamState.messages = [
+      {
+        type: "ai",
+        id: "mw-summary",
+        content: "middleware summary draft",
+      },
+      {
+        type: "ai",
+        id: "lead-response",
+        content: "visible assistant response",
+      },
+    ];
+    streamState.messageMetadata = {
+      "mw-summary": {
+        streamMetadata: {
+          tags: ["middleware:summarize"],
+        },
+      },
+      "lead-response": {
+        streamMetadata: {
+          tags: ["lead_agent"],
+        },
+      },
+    };
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    act(() => {
+      root!.render(React.createElement(Harness, { threadId: "thread-a" }));
+    });
+
+    expect(container.textContent).not.toContain("middleware summary draft");
+    expect(container.textContent).toContain("visible assistant response");
   });
 });

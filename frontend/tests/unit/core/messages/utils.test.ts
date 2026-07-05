@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 
 import {
   extractContentFromMessage,
+  extractReasoningContentFromMessage,
   isHiddenFromUIMessage,
   stripInternalContent,
 } from "@/core/messages/utils";
@@ -107,4 +108,34 @@ test("extractContentFromMessage strips internal planning blocks from ai array co
   };
 
   expect(extractContentFromMessage(message as never)).toBe("");
+});
+
+test("isHiddenFromUIMessage hides streamed middleware messages from SDK metadata", () => {
+  const message = {
+    type: "ai",
+    id: "mw-summary",
+    content: "This summary is for middleware only.",
+    additional_kwargs: {},
+  };
+
+  expect(
+    isHiddenFromUIMessage(message as never, {
+      streamMetadata: {
+        tags: ["middleware:summarize"],
+      },
+    }),
+  ).toBe(true);
+});
+
+test("extractContentFromMessage hides unclosed inline think blocks while streaming", () => {
+  const message = {
+    type: "ai",
+    content: "<think>private reasoning still streaming",
+    additional_kwargs: {},
+  };
+
+  expect(extractContentFromMessage(message as never)).toBe("");
+  expect(extractReasoningContentFromMessage(message as never)).toBe(
+    "private reasoning still streaming",
+  );
 });

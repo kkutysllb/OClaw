@@ -16,12 +16,12 @@ import type { LocalSettings } from "../settings";
 import { useUpdateSubtask } from "../tasks/context";
 import type { UploadedFileInfo } from "../uploads";
 import { promptInputFilePartToFile, uploadFiles } from "../uploads";
+
 import {
   getThreadRuntimeSnapshot,
   publishThreadRuntimeSnapshot,
   useThreadRuntimeSnapshot,
 } from "./runtime-store";
-
 import { handleStreamEvent } from "./stream-event-handler";
 import {
   getCachedThreadState,
@@ -876,8 +876,14 @@ export function useThreadStream({
     messagesRef.current = thread.messages;
   }
 
+  const getThreadMessageMetadata = (
+    thread as typeof thread & {
+      getMessagesMetadata?: (message: Message, index?: number) => unknown;
+    }
+  ).getMessagesMetadata;
   const filteredThreadMessages = thread.messages.filter(
-    (msg) => !isHiddenFromUIMessage(msg),
+    (msg, index) =>
+      !isHiddenFromUIMessage(msg, getThreadMessageMetadata?.(msg, index)),
   );
 
   // Always merge all three sources.  When the outer `threadId` prop is still
@@ -1001,7 +1007,7 @@ export function useThreadHistory(
         return res.json();
       });
       const _messages = result.data
-        .filter((m) => !isHiddenFromUIMessage(m.content))
+        .filter((m) => !isHiddenFromUIMessage(m.content, m.metadata))
         .map((m) => m.content);
       setMessages((prev) => [..._messages, ...prev]);
       indexRef.current -= 1;

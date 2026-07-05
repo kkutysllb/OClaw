@@ -152,19 +152,40 @@ export function extractTextFromMessage(message: Message) {
   return "";
 }
 
-const THINK_TAG_RE = /<think>\s*([\s\S]*?)\s*<\/think>/g;
+const THINK_OPEN_TAG = "<think>";
+const THINK_CLOSE_TAG = "</think>";
 
 function splitInlineReasoning(content: string) {
   const reasoningParts: string[] = [];
-  const cleaned = content
-    .replace(THINK_TAG_RE, (_, reasoning: string) => {
-      const normalized = reasoning.trim();
-      if (normalized) {
-        reasoningParts.push(normalized);
-      }
-      return "";
-    })
-    .trim();
+  const visibleParts: string[] = [];
+  const lowerContent = content.toLowerCase();
+  let cursor = 0;
+
+  while (cursor < content.length) {
+    const openIndex = lowerContent.indexOf(THINK_OPEN_TAG, cursor);
+    if (openIndex === -1) {
+      visibleParts.push(content.slice(cursor));
+      break;
+    }
+
+    visibleParts.push(content.slice(cursor, openIndex));
+
+    const reasoningStart = openIndex + THINK_OPEN_TAG.length;
+    const closeIndex = lowerContent.indexOf(THINK_CLOSE_TAG, reasoningStart);
+    const reasoningEnd = closeIndex === -1 ? content.length : closeIndex;
+    const normalized = content.slice(reasoningStart, reasoningEnd).trim();
+    if (normalized) {
+      reasoningParts.push(normalized);
+    }
+
+    if (closeIndex === -1) {
+      cursor = content.length;
+    } else {
+      cursor = closeIndex + THINK_CLOSE_TAG.length;
+    }
+  }
+
+  const cleaned = visibleParts.join("").trim();
 
   return {
     content: cleaned,
@@ -356,7 +377,56 @@ const KNOWN_INTERNAL_REMINDER_NAMES = new Set([
 ]);
 const SYSTEM_REMINDER_RE = /^\s*<system[-_]reminder>[\s\S]*<\/system[-_]reminder>\s*$/i;
 
-export function isHiddenFromUIMessage(message: Message) {
+type MessageMetadataLike = Record<string, unknown> | null | undefined;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getMetadataCandidates(
+  message: Message,
+  metadata?: unknown,
+): Record<string, unknown>[] {
+  const candidates: Record<string, unknown>[] = [];
+  const messageMetadata = (message as Record<string, unknown>).metadata;
+  if (isRecord(messageMetadata)) {
+    candidates.push(messageMetadata);
+  }
+  if (isRecord(metadata)) {
+    candidates.push(metadata);
+    const streamMetadata = metadata.streamMetadata;
+    if (isRecord(streamMetadata)) {
+      candidates.push(streamMetadata);
+    }
+    const nestedMetadata = metadata.metadata;
+    if (isRecord(nestedMetadata)) {
+      candidates.push(nestedMetadata);
+    }
+  }
+  return candidates;
+}
+
+function hasMiddlewareMetadata(metadata: Record<string, unknown>) {
+  const caller = metadata.caller;
+  if (typeof caller === "string" && caller.startsWith("middleware:")) {
+    return true;
+  }
+
+  const tags = metadata.tags;
+  if (
+    Array.isArray(tags) &&
+    tags.some((tag) => typeof tag === "string" && tag.startsWith("middleware:"))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isHiddenFromUIMessage(
+  message: Message,
+  metadata?: MessageMetadataLike,
+) {
   if (
     message.additional_kwargs?.hide_from_ui === true ||
     typeof message.additional_kwargs?.internal_middleware_message === "string" ||
@@ -365,8 +435,11 @@ export function isHiddenFromUIMessage(message: Message) {
     return true;
   }
   // Filter out middleware messages from real-time stream
-  const meta = (message as Record<string, unknown>)?.metadata as Record<string, unknown> | undefined;
-  if (typeof meta?.caller === "string" && meta.caller.startsWith("middleware:")) {
+  if (
+    getMetadataCandidates(message, metadata).some((candidate) =>
+      hasMiddlewareMetadata(candidate),
+    )
+  ) {
     return true;
   }
   // Check for internal artifact headers (SESSION INTENT / SUMMARY / ARTIFACTS).
