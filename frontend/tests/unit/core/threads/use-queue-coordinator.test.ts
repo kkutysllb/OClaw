@@ -198,4 +198,71 @@ describe("useQueueCoordinator", () => {
     expect(sendMessage).toHaveBeenCalledTimes(2); // a succeeded, b failed, c not attempted
     expect(result.current.messages).toHaveLength(2); // b (error) + c (pending)
   });
+
+  it("autoSendNext retry eventually sends after injecting downgrades to pending", async () => {
+    vi.useFakeTimers();
+    const sendMessage = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() =>
+      useQueueCoordinator(THREAD_ID, { sendMessage }, "run1"),
+    );
+    // 入队一条，标记为 injecting（模拟 inject 正在进行）
+    act(() => {
+      result.current.enqueue("will-inject");
+    });
+    const msg = result.current.messages[0]!;
+    act(() => queueStore.updateStatus(THREAD_ID, msg.id, "injecting"));
+
+    // 第一次 autoSendNext：sendable 空（injecting 不算），调度重试
+    await act(async () => {
+      await result.current.autoSendNext();
+    });
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    // 模拟 inject 失败降级回 pending（竞态场景：run 已结束）
+    act(() => queueStore.updateStatus(THREAD_ID, msg.id, "pending"));
+
+    // 推进时间触发重试，并等待 promise 解析
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+    // act 可能未等待宏任务内的 promise，补一次微任务刷新
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledWith("will-inject", undefined);
+    vi.useRealTimers();
+  });
+
+  it("autoSendNext concurrent calls are guarded (second call no-ops)", async () => {
+    // 用可控 promise：让第一个 sendMessage 挂起，直到我们手动 resolve。
+    let resolveFirst!: () => void;
+    const hangingPromise = new Promise<void>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const sendMessage = vi.fn().mockImplementation(() => hangingPromise);
+    const { result } = renderHook(() =>
+      useQueueCoordinator(THREAD_ID, { sendMessage }, "run1"),
+    );
+    act(() => result.current.enqueue("x"));
+
+    // 第一个调用（挂起，因为 sendMessage 不 resolve）
+    let p1!: Promise<void>;
+    act(() => {
+      p1 = result.current.autoSendNext();
+    });
+    // 第二个调用：第一个仍在飞（flag=true），应被 guard 拦截立即返回。
+    await act(async () => {
+      await result.current.autoSendNext();
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1); // 只被调一次
+
+    // 清理：resolve 挂起的 promise，避免泄漏。
+    await act(async () => {
+      resolveFirst();
+      await p1;
+    });
+  });
 });

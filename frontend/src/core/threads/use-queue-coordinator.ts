@@ -47,6 +47,10 @@ export function useQueueCoordinator(
   });
   // 持有挂起的 setTimeout 句柄，组件卸载时清理，避免卸载后重试回调触发。
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 标记 autoSendNext 是否正在执行，防止 onFinish 重入导致重叠的重试链。
+  // setTimeout 调度的重试是“未来”调用：当前调用先 return（释放标志），定时器
+  // 才会触发，因此重试可以正常进行；但并发的同步重入会被拦截。
+  const autoSendInFlightRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -87,31 +91,41 @@ export function useQueueCoordinator(
   );
 
   const autoSendNext = useCallback(async () => {
-    const sendable = getSendable(threadId);
-    if (sendable.length === 0) {
-      // 有正在注入的项？延迟重试，等它降级回 pending（竞态 1）。
-      const injecting = getInjecting(threadId);
-      if (injecting.length > 0 && retryCountRef.current < AUTOSEND_RETRY_MAX) {
-        retryCountRef.current += 1;
-        retryTimerRef.current = setTimeout(() => {
-          retryTimerRef.current = null;
-          void autoSendNextRef.current();
-        }, AUTOSEND_RETRY_DELAY_MS);
+    // 已有进行中的发送循环，跳过（防止 onFinish 重入导致重叠重试链）。
+    if (autoSendInFlightRef.current) return;
+    autoSendInFlightRef.current = true;
+    try {
+      const sendable = getSendable(threadId);
+      if (sendable.length === 0) {
+        // 有正在注入的项？延迟重试，等它降级回 pending（竞态 1）。
+        const injecting = getInjecting(threadId);
+        if (
+          injecting.length > 0 &&
+          retryCountRef.current < AUTOSEND_RETRY_MAX
+        ) {
+          retryCountRef.current += 1;
+          retryTimerRef.current = setTimeout(() => {
+            retryTimerRef.current = null;
+            void autoSendNextRef.current();
+          }, AUTOSEND_RETRY_DELAY_MS);
+          return;
+        }
+        retryCountRef.current = 0;
+        storeClearConsumed(threadId);
         return;
       }
       retryCountRef.current = 0;
-      storeClearConsumed(threadId);
-      return;
-    }
-    retryCountRef.current = 0;
-    const next = sendable[0]!;
-    storeUpdateStatus(threadId, next.id, "sending");
-    try {
-      await threadStream.sendMessage(next.content, next.attachments);
-      storeRemove(threadId, next.id);
-    } catch (e) {
-      const errMsg = e instanceof Error ? e.message : String(e);
-      storeUpdateStatus(threadId, next.id, "error", errMsg);
+      const next = sendable[0]!;
+      storeUpdateStatus(threadId, next.id, "sending");
+      try {
+        await threadStream.sendMessage(next.content, next.attachments);
+        storeRemove(threadId, next.id);
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        storeUpdateStatus(threadId, next.id, "error", errMsg);
+      }
+    } finally {
+      autoSendInFlightRef.current = false;
     }
   }, [threadId, threadStream]);
 
