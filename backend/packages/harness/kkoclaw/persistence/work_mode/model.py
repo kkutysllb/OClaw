@@ -57,6 +57,12 @@ class UserWorkModeRow(Base):
     focus_areas_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     # JSON-encoded list of focus area tags (e.g. ["research", "papers"]).
 
+    icon: Mapped[str] = mapped_column(String(64), nullable=False, default="Bot")
+    # Lucide icon name (e.g. "Bot", "Briefcase") or emoji used by the
+    # frontend sidebar to render this mode's entry. Defaults to "Bot".
+    # Built-in modes do not read this column — their icons are resolved
+    # from a hard-coded map in the router.
+
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Soft-disable toggle (reserved for future use; disabled modes are
     # hidden from the selector).

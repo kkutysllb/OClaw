@@ -204,6 +204,7 @@ export const zhCN: Translations = {
     crons: "定时任务",
     tokenUsage: "Token 用量",
     coding: "Coding",
+    customModes: "自定义模式",
   },
 
   // Work Modes
@@ -793,6 +794,7 @@ export const zhCN: Translations = {
       modeIdHint: "只能包含小写字母、数字、连字符和下划线",
       modeName: "显示名称",
       modeNamePlaceholder: "例如: 研究、代码审查",
+      modeIcon: "图标",
       modeDescription: "描述（给人看）",
       modeDescriptionPlaceholder: "简短描述该模式的用途",
       orchestrationHint: "编排提示（给模型看）",

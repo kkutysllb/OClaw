@@ -151,6 +151,7 @@ export interface Translations {
     crons: string;
     tokenUsage: string;
     coding: string;
+    customModes: string;
   };
 
   // Work Modes
@@ -734,6 +735,7 @@ export interface Translations {
       modeIdHint: string;
       modeName: string;
       modeNamePlaceholder: string;
+      modeIcon: string;
       modeDescription: string;
       modeDescriptionPlaceholder: string;
       orchestrationHint: string;

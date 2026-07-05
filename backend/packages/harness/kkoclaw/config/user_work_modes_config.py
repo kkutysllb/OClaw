@@ -94,6 +94,7 @@ def _row_to_mode_config(row: dict[str, Any]) -> WorkModeConfig:
         lead_agent_name="",  # custom modes use the default lead agent
         orchestration_hint=row.get("orchestration_hint", ""),
         focus_areas=tuple(row.get("focus_areas", []) or []),
+        icon=row.get("icon") or "Bot",
     )
 
 

@@ -111,6 +111,10 @@ class WorkModeConfig(BaseModel):
         default_factory=tuple,
         description="该模式的关注领域标签（注入到 prompt + 前端展示）",
     )
+    icon: str = Field(
+        default="Bot",
+        description="Lucide 图标名或 emoji,前端侧边栏渲染用。内置模式有硬编码默认值。",
+    )
 
 
 class WorkModesConfig(BaseModel):
@@ -167,6 +171,7 @@ def _default_builtin_work_modes() -> WorkModesConfig:
                     "and cite sources when available."
                 ),
                 focus_areas=("research", "documents", "analysis", "automation"),
+                icon="CheckSquare",
             ),
             "coding": WorkModeConfig(
                 id="coding",
@@ -188,6 +193,7 @@ def _default_builtin_work_modes() -> WorkModesConfig:
                     "sequenced to avoid merge conflicts."
                 ),
                 focus_areas=("code", "debug", "refactor", "testing"),
+                icon="Code2",
             ),
         },
     )

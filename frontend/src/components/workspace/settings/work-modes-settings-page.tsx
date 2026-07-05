@@ -1,13 +1,25 @@
 "use client";
 
 import {
+  BotIcon,
   BriefcaseIcon,
+  CalculatorIcon,
+  CameraIcon,
+  ChartBarIcon,
   Code2Icon,
+  FlaskConicalIcon,
+  GlobeIcon,
+  GraduationCapIcon,
   LayersIcon,
+  MusicIcon,
+  PaletteIcon,
   PencilIcon,
+  PenLineIcon,
   PlusIcon,
+  SearchIcon,
   SparklesIcon,
   Trash2Icon,
+  type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -38,10 +50,31 @@ import { SettingsSection } from "./settings-section";
 // ---------------------------------------------------------------------------
 // Mode icon mapping
 // ---------------------------------------------------------------------------
-const MODE_ICONS: Record<string, typeof BriefcaseIcon> = {
+const MODE_ICONS: Record<string, LucideIcon> = {
   task: BriefcaseIcon,
   coding: Code2Icon,
 };
+
+/**
+ * Preset icon palette offered in the create/edit dialog. Each entry maps a
+ * Lucide icon name (the value stored on the backend) to its component. The
+ * sidebar uses the same name to resolve the icon at render time, so adding
+ * a new option here also requires adding it to the sidebar's ICON_MAP.
+ */
+const ICON_PRESETS: { name: string; Icon: LucideIcon }[] = [
+  { name: "Bot", Icon: BotIcon },
+  { name: "Briefcase", Icon: BriefcaseIcon },
+  { name: "Search", Icon: SearchIcon },
+  { name: "PenLine", Icon: PenLineIcon },
+  { name: "ChartBar", Icon: ChartBarIcon },
+  { name: "FlaskConical", Icon: FlaskConicalIcon },
+  { name: "GraduationCap", Icon: GraduationCapIcon },
+  { name: "Palette", Icon: PaletteIcon },
+  { name: "Music", Icon: MusicIcon },
+  { name: "Camera", Icon: CameraIcon },
+  { name: "Calculator", Icon: CalculatorIcon },
+  { name: "Globe", Icon: GlobeIcon },
+];
 
 // ---------------------------------------------------------------------------
 // Form state
@@ -52,6 +85,7 @@ interface FormState {
   description: string;
   orchestration_hint: string;
   focus_areas: string;
+  icon: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -60,6 +94,7 @@ const EMPTY_FORM: FormState = {
   description: "",
   orchestration_hint: "",
   focus_areas: "",
+  icon: "Bot",
 };
 
 // ---------------------------------------------------------------------------
@@ -95,6 +130,7 @@ export function WorkModesSettingsPage() {
       description: mode.description ?? "",
       orchestration_hint: mode.orchestration_hint ?? "",
       focus_areas: (mode.focus_areas ?? []).join(", "),
+      icon: mode.icon ?? "Bot",
     });
     setEditingId(mode.id);
     setDialogOpen(true);
@@ -114,6 +150,7 @@ export function WorkModesSettingsPage() {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
+      icon: form.icon || "Bot",
     };
 
     try {
@@ -275,6 +312,33 @@ export function WorkModesSettingsPage() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder={t.settings.workModes.modeNamePlaceholder}
               />
+            </div>
+
+            {/* Icon picker */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">
+                {t.settings.workModes.modeIcon}
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {ICON_PRESETS.map(({ name, Icon }) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setForm({ ...form, icon: name })}
+                    className={
+                      "flex size-9 items-center justify-center rounded-md border transition-colors " +
+                      (form.icon === name
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:bg-accent hover:text-foreground")
+                    }
+                    title={name}
+                    aria-label={name}
+                    aria-pressed={form.icon === name}
+                  >
+                    <Icon className="size-4" />
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Description */}

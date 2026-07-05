@@ -97,6 +97,14 @@ export interface WorkModeDetail {
   focus_areas?: string[];
   /** Total number of effective skills in this mode. */
   skill_count?: number;
+  /**
+   * Lucide icon name (e.g. "Bot", "Briefcase", "Search") or emoji used by
+   * the frontend sidebar entry. Built-in modes resolve from a hard-coded
+   * map on the backend (task→"CheckSquare", coding→"Code2"); custom modes
+   * carry the value chosen at creation time. Always present — defaults to
+   * "Bot" when the backend omits it.
+   */
+  icon?: string;
 }
 
 /** Top-level response shape of ``GET /api/work-modes``. */
@@ -121,6 +129,8 @@ export interface CustomWorkModeCreateRequest {
   orchestration_hint?: string;
   /** Focus-area tags for the mode. */
   focus_areas?: string[];
+  /** Lucide icon name or emoji for the sidebar entry. Defaults to "Bot". */
+  icon?: string;
 }
 
 /** Request body for ``PUT /api/work-modes/{modeId}`` (update a custom work mode). */
@@ -130,4 +140,5 @@ export interface CustomWorkModeUpdateRequest {
   orchestration_hint?: string;
   focus_areas?: string[];
   enabled?: boolean;
+  icon?: string;
 }

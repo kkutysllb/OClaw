@@ -43,6 +43,7 @@ def _row_to_dict(row: UserWorkModeRow) -> dict[str, Any]:
         "description": row.description or "",
         "orchestration_hint": row.orchestration_hint or "",
         "focus_areas": focus_areas,
+        "icon": getattr(row, "icon", None) or "Bot",
         "enabled": row.enabled,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
@@ -101,6 +102,7 @@ class UserWorkModeRepository:
         description: str = "",
         orchestration_hint: str = "",
         focus_areas: list[str] | None = None,
+        icon: str = "Bot",
         enabled: bool = True,
         user_id: str | None | _AutoSentinel = AUTO,
     ) -> dict[str, Any]:
@@ -116,6 +118,8 @@ class UserWorkModeRepository:
         resolved = resolve_user_id(user_id, method_name="UserWorkModeRepository.upsert")
         focus_areas = focus_areas or []
         focus_areas_json = json.dumps(focus_areas, ensure_ascii=False)
+        # Normalise icon: empty / None falls back to the default "Bot".
+        icon_value = (icon or "Bot").strip() or "Bot"
         now = datetime.now(UTC)
 
         async with self._sf() as session:
@@ -131,6 +135,11 @@ class UserWorkModeRepository:
                 row.description = description
                 row.orchestration_hint = orchestration_hint
                 row.focus_areas_json = focus_areas_json
+                # Only update icon if the column exists (it was added in a
+                # later migration); getattr guard keeps this robust against
+                # in-memory test doubles that lack the attribute.
+                if hasattr(row, "icon"):
+                    row.icon = icon_value
                 row.enabled = enabled
                 row.updated_at = now
             else:
@@ -142,6 +151,7 @@ class UserWorkModeRepository:
                     description=description,
                     orchestration_hint=orchestration_hint,
                     focus_areas_json=focus_areas_json,
+                    icon=icon_value,
                     enabled=enabled,
                     created_at=now,
                     updated_at=now,

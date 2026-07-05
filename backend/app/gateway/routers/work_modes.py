@@ -78,6 +78,7 @@ class WorkModeDetailResponse(BaseModel):
     orchestration_hint: str = Field(default="", description="Mode-specific task orchestration guidance")
     focus_areas: list[str] = Field(default_factory=list, description="Focus area tags for this mode")
     skill_count: int = Field(default=0, description="Total number of effective skills in this mode")
+    icon: str = Field(default="Bot", description="Lucide icon name (e.g. 'Bot', 'Briefcase') or emoji for the frontend sidebar entry. Built-in modes resolve from a hard-coded map.")
 
 
 class WorkModesListResponse(BaseModel):
@@ -118,6 +119,11 @@ class CustomWorkModeCreateRequest(BaseModel):
         default_factory=list,
         description="Focus area tags (e.g. ['research', 'papers'])",
     )
+    icon: str = Field(
+        default="Bot",
+        max_length=64,
+        description="Lucide icon name (e.g. 'Briefcase', 'Search') or emoji shown in the sidebar entry for this mode. Defaults to 'Bot'.",
+    )
 
 
 class CustomWorkModeUpdateRequest(BaseModel):
@@ -132,6 +138,7 @@ class CustomWorkModeUpdateRequest(BaseModel):
     description: str | None = Field(default=None, max_length=200)
     orchestration_hint: str | None = Field(default=None, max_length=4000)
     focus_areas: list[str] | None = Field(default=None)
+    icon: str | None = Field(default=None, max_length=64, description="Lucide icon name or emoji.")
 
 
 class CustomWorkModeActionResponse(BaseModel):
@@ -198,6 +205,7 @@ def _build_mode_detail(
         orchestration_hint=mode_cfg.orchestration_hint,
         focus_areas=list(mode_cfg.focus_areas),
         skill_count=len(effective),
+        icon=mode_cfg.icon,
     )
 
 
@@ -296,6 +304,7 @@ async def create_custom_work_mode(
             description=request.description.strip(),
             orchestration_hint=request.orchestration_hint,
             focus_areas=request.focus_areas,
+            icon=request.icon,
             enabled=True,
             user_id=user_id,
         )
@@ -356,6 +365,7 @@ async def update_custom_work_mode(
     new_description = request.description if request.description is not None else existing["description"]
     new_hint = request.orchestration_hint if request.orchestration_hint is not None else existing["orchestration_hint"]
     new_focus = request.focus_areas if request.focus_areas is not None else existing["focus_areas"]
+    new_icon = request.icon if request.icon is not None else existing.get("icon", "Bot")
 
     try:
         await repo.upsert(
@@ -364,6 +374,7 @@ async def update_custom_work_mode(
             description=new_description,
             orchestration_hint=new_hint,
             focus_areas=new_focus,
+            icon=new_icon,
             enabled=existing.get("enabled", True),
             user_id=user_id,
         )

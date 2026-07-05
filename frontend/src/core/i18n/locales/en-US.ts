@@ -210,6 +210,7 @@ export const enUS: Translations = {
     crons: "Cron Jobs",
     tokenUsage: "Token Usage",
     coding: "Coding",
+    customModes: "Custom modes",
   },
 
   // Work Modes
@@ -817,6 +818,7 @@ export const enUS: Translations = {
       modeIdHint: "Lowercase letters, numbers, hyphens and underscores only",
       modeName: "Display Name",
       modeNamePlaceholder: "e.g. Research, Code Review",
+      modeIcon: "Icon",
       modeDescription: "Description (for humans)",
       modeDescriptionPlaceholder: "Briefly describe the mode's purpose",
       orchestrationHint: "Orchestration Hint (for the model)",
