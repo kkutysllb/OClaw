@@ -72,9 +72,16 @@ def merge_pending_messages(left: list[dict] | None, right: list[dict] | None) ->
         return left
     if not right:
         return []  # 显式传空 list = 清空
-    # 追加，按 id 去重
-    existing_ids = {m.get("id") for m in left if m.get("id")}
-    appended = [m for m in right if not (m.get("id") and m.get("id") in existing_ids)]
+    # 追加，按 id 去重（同时跳过与 left 重复和 right 内部重复）
+    seen_ids = {m.get("id") for m in left if m.get("id")}
+    appended: list[dict] = []
+    for m in right:
+        mid = m.get("id")
+        if mid and mid in seen_ids:
+            continue
+        if mid:
+            seen_ids.add(mid)
+        appended.append(m)
     return [*left, *appended]
 
 

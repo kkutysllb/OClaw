@@ -39,3 +39,21 @@ class TestMergePendingMessages:
         """无 id 的消息无法去重，总是追加。"""
         result = merge_pending_messages([], [{"content": "no-id"}])
         assert len(result) == 1
+
+    def test_right_none_keeps_left(self):
+        """right=None → 保持 left（superstep 无写入时 reducer 仍可能被调用）。"""
+        existing = [{"id": "m1", "content": "first"}]
+        result = merge_pending_messages(existing, None)
+        assert result == existing
+
+    def test_append_when_left_none(self):
+        """首 superstep：left=None 视为空并追加。"""
+        msg = {"id": "m1", "content": "hello"}
+        result = merge_pending_messages(None, [msg])
+        assert result == [msg]
+
+    def test_dedup_within_right_batch(self):
+        """right 内部含重复 id 时只保留第一个。"""
+        result = merge_pending_messages([], [{"id": "m1", "content": "a"}, {"id": "m1", "content": "b"}])
+        assert len(result) == 1
+        assert result[0]["content"] == "a"
