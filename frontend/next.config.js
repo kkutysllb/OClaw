@@ -102,6 +102,15 @@ const config = {
         },
       }),
   devIndicators: false,
+  // The skill install/upload endpoints run an LLM-based security scan that
+  // can take 20-60s on remote providers (MiniMax, etc.) before responding.
+  // The default dev proxy timeout (30s) resets the socket mid-scan and the
+  // user sees "socket hang up" / ECONNRESET. 120s gives the scan (now also
+  // capped at 45s per call in security_scanner.py) comfortable headroom for
+  // multi-file archives.
+  experimental: {
+    proxyTimeout: 120_000,
+  },
 };
 
 export default withNextra(config);

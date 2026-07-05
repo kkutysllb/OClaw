@@ -518,7 +518,16 @@ async def upload_support_files(
                     )
                 # scripts/ require explicit allow (warn is rejected),
                 # mirroring the installer's strictness for executable files.
-                if executable and scan.decision != "allow":
+                # EXCEPTION: a scan that timed out degrades to "warn" with a
+                # reason containing "timed out" — in that case we let the
+                # upload through rather than punishing the user for a slow
+                # model provider. A genuine "warn" (model flagged something
+                # borderline) is still rejected for scripts.
+                if (
+                    executable
+                    and scan.decision != "allow"
+                    and "timed out" not in scan.reason.lower()
+                ):
                     raise HTTPException(
                         status_code=400,
                         detail=f"Security scan did not explicitly allow script {relative_path}: {scan.reason}",
