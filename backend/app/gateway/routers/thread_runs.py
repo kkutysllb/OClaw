@@ -15,14 +15,14 @@ import asyncio
 import logging
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.gateway.authz import require_permission
 from app.gateway.deps import get_checkpointer, get_current_user, get_feedback_repo, get_run_event_store, get_run_manager, get_run_store, get_stream_bridge
 from app.gateway.services import format_sse, sse_consumer, start_run, wait_for_run_completion
-from kkoclaw.runtime import RunManager, RunRecord, RunStatus, serialize_channel_values
+from kkoclaw.runtime import RunRecord, RunStatus, serialize_channel_values
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/threads", tags=["runs"])
@@ -312,7 +312,6 @@ async def inject_message(
     run_id: str,
     body: InjectRequest,
     request: Request,
-    run_mgr: RunManager = Depends(get_run_manager),
 ) -> Response:
     """Inject a supplement-context message into a running agent WITHOUT interrupting it.
 
@@ -328,6 +327,7 @@ async def inject_message(
     ``aupdate_state`` only writes a new checkpoint — it never executes the
     graph — so this is safe to call against a running worker.
     """
+    run_mgr = get_run_manager(request)
     # ① 校验 run 存在且属于该 thread（与 cancel_run 同款 404 语义）
     record = await run_mgr.get(run_id)
     if record is None or record.thread_id != thread_id:

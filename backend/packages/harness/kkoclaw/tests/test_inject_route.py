@@ -94,18 +94,18 @@ async def test_inject_run_not_found():
     request = _make_request()
     run_mgr = _make_run_mgr(None)
 
-    with patch("app.gateway.routers.thread_runs.get_checkpointer") as gc:
-        gc.return_value = MagicMock()
-        with patch("kkoclaw.agents.lead_agent.agent.make_lead_agent") as mk:
-            mk.return_value = _make_agent()
-            with pytest.raises(HTTPException) as exc:
-                await inject_message(
-                    "t1",
-                    "r1",
-                    _make_body(),
-                    request=request,
-                    run_mgr=run_mgr,
-                )
+    with patch("app.gateway.routers.thread_runs.get_run_manager", return_value=run_mgr):
+        with patch("app.gateway.routers.thread_runs.get_checkpointer") as gc:
+            gc.return_value = MagicMock()
+            with patch("kkoclaw.agents.lead_agent.agent.make_lead_agent") as mk:
+                mk.return_value = _make_agent()
+                with pytest.raises(HTTPException) as exc:
+                    await inject_message(
+                        "t1",
+                        "r1",
+                        _make_body(),
+                        request=request,
+                    )
     assert exc.value.status_code == 404
 
 
@@ -118,12 +118,13 @@ async def test_inject_run_already_ended():
         request = _make_request()
         run_mgr = _make_run_mgr(_make_record(status=status))
 
-        with patch("app.gateway.routers.thread_runs.get_checkpointer") as gc:
-            gc.return_value = MagicMock()
-            with patch("kkoclaw.agents.lead_agent.agent.make_lead_agent") as mk:
-                mk.return_value = _make_agent()
-                with pytest.raises(HTTPException) as exc:
-                    await inject_message("t1", "r1", _make_body(), request=request, run_mgr=run_mgr)
+        with patch("app.gateway.routers.thread_runs.get_run_manager", return_value=run_mgr):
+            with patch("app.gateway.routers.thread_runs.get_checkpointer") as gc:
+                gc.return_value = MagicMock()
+                with patch("kkoclaw.agents.lead_agent.agent.make_lead_agent") as mk:
+                    mk.return_value = _make_agent()
+                    with pytest.raises(HTTPException) as exc:
+                        await inject_message("t1", "r1", _make_body(), request=request)
 
         assert exc.value.status_code == 409, f"status={status}"
         detail = exc.value.detail
@@ -139,18 +140,18 @@ async def test_inject_empty_content():
     request = _make_request()
     run_mgr = _make_run_mgr(_make_record())
 
-    with patch("app.gateway.routers.thread_runs.get_checkpointer") as gc:
-        gc.return_value = MagicMock()
-        with patch("kkoclaw.agents.lead_agent.agent.make_lead_agent") as mk:
-            mk.return_value = _make_agent()
-            with pytest.raises(HTTPException) as exc:
-                await inject_message(
-                    "t1",
-                    "r1",
-                    _make_body(content="   "),
-                    request=request,
-                    run_mgr=run_mgr,
-                )
+    with patch("app.gateway.routers.thread_runs.get_run_manager", return_value=run_mgr):
+        with patch("app.gateway.routers.thread_runs.get_checkpointer") as gc:
+            gc.return_value = MagicMock()
+            with patch("kkoclaw.agents.lead_agent.agent.make_lead_agent") as mk:
+                mk.return_value = _make_agent()
+                with pytest.raises(HTTPException) as exc:
+                    await inject_message(
+                        "t1",
+                        "r1",
+                        _make_body(content="   "),
+                        request=request,
+                    )
     assert exc.value.status_code == 422
 
 
@@ -163,12 +164,13 @@ async def test_inject_thread_mismatch():
     # record belongs to a different thread
     run_mgr = _make_run_mgr(_make_record(thread_id="other-thread"))
 
-    with patch("app.gateway.routers.thread_runs.get_checkpointer") as gc:
-        gc.return_value = MagicMock()
-        with patch("kkoclaw.agents.lead_agent.agent.make_lead_agent") as mk:
-            mk.return_value = _make_agent()
-            with pytest.raises(HTTPException) as exc:
-                await inject_message("t1", "r1", _make_body(), request=request, run_mgr=run_mgr)
+    with patch("app.gateway.routers.thread_runs.get_run_manager", return_value=run_mgr):
+        with patch("app.gateway.routers.thread_runs.get_checkpointer") as gc:
+            gc.return_value = MagicMock()
+            with patch("kkoclaw.agents.lead_agent.agent.make_lead_agent") as mk:
+                mk.return_value = _make_agent()
+                with pytest.raises(HTTPException) as exc:
+                    await inject_message("t1", "r1", _make_body(), request=request)
     assert exc.value.status_code == 404
 
 
@@ -181,19 +183,19 @@ async def test_inject_success():
     run_mgr = _make_run_mgr(_make_record(status=RunStatus.running))
     fake_agent = _make_agent()
 
-    with patch("app.gateway.routers.thread_runs.get_checkpointer") as gc:
-        shared_saver = MagicMock(name="shared-saver")
-        gc.return_value = shared_saver
-        with patch("kkoclaw.agents.lead_agent.agent.make_lead_agent") as mk:
-            mk.return_value = fake_agent
+    with patch("app.gateway.routers.thread_runs.get_run_manager", return_value=run_mgr):
+        with patch("app.gateway.routers.thread_runs.get_checkpointer") as gc:
+            shared_saver = MagicMock(name="shared-saver")
+            gc.return_value = shared_saver
+            with patch("kkoclaw.agents.lead_agent.agent.make_lead_agent") as mk:
+                mk.return_value = fake_agent
 
-            resp = await inject_message(
-                "t1",
-                "r1",
-                _make_body(content="帮我加个导出", message_id="m-xyz", queued_at=99),
-                request=request,
-                run_mgr=run_mgr,
-            )
+                resp = await inject_message(
+                    "t1",
+                    "r1",
+                    _make_body(content="帮我加个导出", message_id="m-xyz", queued_at=99),
+                    request=request,
+                )
 
     # ① Response shape
     assert isinstance(resp, JSONResponse)
@@ -231,11 +233,36 @@ async def test_inject_pending_status_allowed():
     run_mgr = _make_run_mgr(_make_record(status=RunStatus.pending))
     fake_agent = _make_agent()
 
-    with patch("app.gateway.routers.thread_runs.get_checkpointer") as gc:
-        gc.return_value = MagicMock()
-        with patch("kkoclaw.agents.lead_agent.agent.make_lead_agent") as mk:
-            mk.return_value = fake_agent
-            resp = await inject_message("t1", "r1", _make_body(), request=request, run_mgr=run_mgr)
+    with patch("app.gateway.routers.thread_runs.get_run_manager", return_value=run_mgr):
+        with patch("app.gateway.routers.thread_runs.get_checkpointer") as gc:
+            gc.return_value = MagicMock()
+            with patch("kkoclaw.agents.lead_agent.agent.make_lead_agent") as mk:
+                mk.return_value = fake_agent
+                resp = await inject_message("t1", "r1", _make_body(), request=request)
 
     assert isinstance(resp, JSONResponse)
     assert resp.status_code == 202
+
+
+@pytest.mark.asyncio
+async def test_inject_aupdate_state_failure_returns_500():
+    """aupdate_state 抛错 → 500。"""
+    from fastapi import HTTPException
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    record = MagicMock()
+    record.status = RunStatus.running
+    record.thread_id = "t1"
+    record.run_id = "r1"
+    mock_run_mgr = MagicMock()
+    mock_run_mgr.get = AsyncMock(return_value=record)
+    mock_agent = MagicMock()
+    mock_agent.aupdate_state = AsyncMock(side_effect=RuntimeError("checkpoint write failed"))
+    body = InjectRequest(content="hello", message_id="m1", queued_at=1)
+    mock_request = _make_request()
+    with patch("app.gateway.routers.thread_runs.get_run_manager", return_value=mock_run_mgr), \
+         patch("app.gateway.routers.thread_runs.get_checkpointer", return_value=MagicMock()), \
+         patch("kkoclaw.agents.lead_agent.agent.make_lead_agent", return_value=mock_agent):
+        with pytest.raises(HTTPException) as exc:
+            await inject_message("t1", "r1", body, request=mock_request)
+    assert exc.value.status_code == 500
