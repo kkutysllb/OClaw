@@ -8,6 +8,7 @@ from kkoclaw.agents.lead_agent.prompt import apply_prompt_template
 from kkoclaw.agents.memory.summarization_hook import memory_flush_hook
 from kkoclaw.agents.middlewares.clarification_middleware import ClarificationMiddleware
 from kkoclaw.agents.middlewares.dynamic_context_middleware import DynamicContextMiddleware
+from kkoclaw.agents.middlewares.inject_middleware import InjectMiddleware
 from kkoclaw.agents.middlewares.internal_content_middleware import InternalContentMiddleware
 from kkoclaw.agents.middlewares.memory_middleware import MemoryMiddleware
 from kkoclaw.agents.middlewares.safety_finish_reason_middleware import SafetyFinishReasonMiddleware
@@ -317,6 +318,10 @@ def _build_middlewares(
 
     # InternalContentMiddleware — strip SESSION INTENT/SUMMARY/ARTIFACTS from AI messages
     middlewares.append(InternalContentMiddleware())
+
+    # InjectMiddleware — inject pending_messages (user supplement context added mid-run
+    # via the /inject route) before each model call. Must come before ClarificationMiddleware.
+    middlewares.append(InjectMiddleware())
 
     # Inject custom middlewares before ClarificationMiddleware
     if custom_middlewares:
