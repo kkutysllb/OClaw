@@ -2,7 +2,8 @@
 
 import { BotIcon, PlusSquare } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { BackendStatusIndicator } from "@/components/desktop";
@@ -30,6 +31,8 @@ import { useModels } from "@/core/models/hooks";
 import { useNotification } from "@/core/notification/hooks";
 import { useThreadSettings } from "@/core/settings";
 import { useThreadStream } from "@/core/threads/hooks";
+import type { QueuedMessage } from "@/core/threads/queue-store";
+import { useQueueCoordinator } from "@/core/threads/use-queue-coordinator";
 import { textOfMessage } from "@/core/threads/utils";
 import { env } from "@/env";
 import { cn } from "@/lib/utils";
@@ -70,6 +73,8 @@ export default function AgentChatPage() {
     isHistoryLoading,
     hasMoreHistory,
     loadMoreHistory,
+    currentRunId,
+    registerAutoSendTrigger,
   } = useThreadStream({
     threadId: isNewThread ? undefined : threadId,
     context: { ...settings.context, agent_name: agent_name },
@@ -108,6 +113,52 @@ export default function AgentChatPage() {
   const handleStop = useCallback(async () => {
     await thread.stop();
   }, [thread]);
+
+  // ── 队列协调器（Task 16） ──────────────────────────────────────────
+  // sendMessage 签名适配：ThreadStreamLike 期望 (content, attachments)，
+  // 而真实 sendMessage 是 (threadId, PromptInputMessage[, extraContext])。
+  // 这里把 agent_name 作为 extraContext 一并传入，保持与 handleSubmit 一致。
+  const coordinator = useQueueCoordinator(
+    threadId,
+    {
+      sendMessage: (content, attachments) =>
+        sendMessage(
+          threadId,
+          {
+            text: content,
+            files: (attachments ?? []) as PromptInputMessage["files"],
+          },
+          { agent_name },
+        ),
+    },
+    currentRunId,
+  );
+
+  // 把协调器的 autoSendNext 注册到 useThreadStream 的 onFinish 链路，
+  // 这样每次任务正常结束（非手动停止）就会自动发送队列里的下一条。
+  useEffect(() => {
+    registerAutoSendTrigger(coordinator.autoSendNext);
+    return () => registerAutoSendTrigger(null);
+  }, [coordinator.autoSendNext, registerAutoSendTrigger]);
+
+  const handleEnqueue = useCallback(
+    (message: PromptInputMessage) => {
+      coordinator.enqueue(message.text, message.files ?? []);
+      toast.info(t.queue.toast.queued);
+    },
+    [coordinator, t.queue.toast.queued],
+  );
+
+  // 重试处于 error 态的队列消息：先降级回 pending，再触发 autoSendNext。
+  // 若当前无运行任务（currentRunId 为空），injectNow 会 no-op，所以用
+  // "降级 + autoSendNext" 让消息在不依赖活动 run 的情况下也能发出。
+  const handleRetryQueued = useCallback(
+    (msg: QueuedMessage) => {
+      coordinator.updateStatus(msg.id, "pending");
+      void coordinator.autoSendNext();
+    },
+    [coordinator],
+  );
 
   const messageListPaddingBottom = showFollowups
     ? MESSAGE_LIST_DEFAULT_PADDING_BOTTOM +
@@ -209,6 +260,14 @@ export default function AgentChatPage() {
                   onFollowupsVisibilityChange={setShowFollowups}
                   onSubmit={handleSubmit}
                   onStop={handleStop}
+                  onEnqueue={handleEnqueue}
+                  queuedMessages={coordinator.messages}
+                  onInjectFromQueue={coordinator.injectNow}
+                  onRemoveFromQueue={coordinator.remove}
+                  onEditQueued={coordinator.editContent}
+                  onRetryQueued={handleRetryQueued}
+                  onReorderQueued={coordinator.reorder}
+                  onSendAllQueued={coordinator.manualSendAll}
                 />
                 {env.NEXT_PUBLIC_STATIC_WEBSITE_ONLY === "true" && (
                   <div className="text-muted-foreground/67 w-full translate-y-12 text-center text-xs">

@@ -258,6 +258,16 @@ export function useThreadStream({
   // and to allow access to the current thread id in onUpdateEvent
   const threadIdRef = useRef<string | null>(threadId ?? null);
   const startedRef = useRef(false);
+  // ── Queue auto-send integration (Task 16) ─────────────────────────
+  // stopFlagRef: set true by stopThread() so onFinish knows the run was
+  //   manually stopped (skip queue auto-send). Reset after each finish.
+  // currentRunIdRef: the active run_id, captured from onCreated meta so the
+  //   queue coordinator can inject messages into the live run.
+  // autoSendTriggerRef: callback registered by the page; invoked from
+  //   onFinish when the run completes normally (not stopped).
+  const stopFlagRef = useRef(false);
+  const currentRunIdRef = useRef<string | null>(null);
+  const autoSendTriggerRef = useRef<(() => Promise<void>) | null>(null);
   const listeners = useRef({
     onSend,
     onStart,
@@ -295,6 +305,12 @@ export function useThreadStream({
 
   const handleStreamStart = useCallback((_threadId: string, _runId: string) => {
     threadIdRef.current = _threadId;
+    // Track the active run_id for queue injection + reset the stop flag so a
+    // fresh run is treated as "not manually stopped" until stopThread() fires.
+    if (_runId) {
+      currentRunIdRef.current = _runId;
+    }
+    stopFlagRef.current = false;
     if (!startedRef.current) {
       listeners.current.onStart?.(_threadId, _runId);
       startedRef.current = true;
@@ -462,6 +478,17 @@ export function useThreadStream({
           return false;
         },
       });
+
+      // Run finished — clear the active run_id regardless of stop reason.
+      currentRunIdRef.current = null;
+
+      // 仅"正常结束"（非手动停止）才触发队列自动发送。手动停止时
+      // stopFlagRef 已被 stopThread() 置为 true，跳过本次自动发送。
+      if (!stopFlagRef.current) {
+        void autoSendTriggerRef.current?.();
+      }
+      // 重置停止标志，为下一次运行做准备。
+      stopFlagRef.current = false;
     },
   });
 
@@ -511,6 +538,8 @@ export function useThreadStream({
   threadStopRef.current = (thread as StoppableThread<typeof thread>).stop;
 
   const stopThread = useCallback(async () => {
+    // 标记手动停止，让随后的 onFinish 跳过队列自动发送。
+    stopFlagRef.current = true;
     const currentThreadId = threadIdRef.current ?? onStreamThreadId ?? undefined;
     let localStopError: unknown;
     try {
@@ -970,6 +999,15 @@ export function useThreadStream({
     stop: stopThread,
   } as typeof thread;
 
+  // 注册队列自动发送触发器；由页面在挂载 useQueueCoordinator 后调用，
+  // 把协调器的 autoSendNext 注册到 onFinish 链路。
+  const registerAutoSendTrigger = useCallback(
+    (fn: (() => Promise<void>) | null) => {
+      autoSendTriggerRef.current = fn;
+    },
+    [],
+  );
+
   return {
     thread: mergedThread,
     sendMessage,
@@ -982,6 +1020,10 @@ export function useThreadStream({
     // the live thread ID (e.g. coding-workbench panels querying session/event/
     // roi APIs) don't have to rely solely on the onStart callback chain.
     streamThreadId: onStreamThreadId ?? undefined,
+    // 当前活动 run_id（运行中时非空），供队列协调器做消息注入。
+    currentRunId: currentRunIdRef.current,
+    // 注册 autoSend 触发器：onFinish 正常结束时会调用它来发送队列下一条。
+    registerAutoSendTrigger,
   } as const;
 }
 

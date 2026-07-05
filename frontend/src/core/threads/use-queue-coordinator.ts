@@ -7,6 +7,7 @@ import { injectMessage, InjectError } from "@/core/api/inject";
 import {
   useThreadQueue,
   enqueue as storeEnqueue,
+  editContent as storeEditContent,
   getSendable,
   getInjecting,
   remove as storeRemove,
@@ -61,6 +62,13 @@ export function useQueueCoordinator(
   const enqueueCb = useCallback(
     (content: string, attachments?: unknown[]) => {
       storeEnqueue(threadId, content, attachments);
+    },
+    [threadId],
+  );
+
+  const editContentCb = useCallback(
+    (messageId: string, content: string) => {
+      storeEditContent(threadId, messageId, content);
     },
     [threadId],
   );
@@ -152,6 +160,7 @@ export function useQueueCoordinator(
   return {
     messages,
     enqueue: enqueueCb,
+    editContent: editContentCb,
     injectNow,
     autoSendNext,
     manualSendAll,

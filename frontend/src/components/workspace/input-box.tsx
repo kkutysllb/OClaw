@@ -63,7 +63,8 @@ import { fetch } from "@/core/api/fetcher";
 import { getBackendBaseURL } from "@/core/config";
 import { useI18n } from "@/core/i18n/hooks";
 import { useModels } from "@/core/models/hooks";
-import type { AgentThreadContext } from "@/core/threads";
+import type { AgentThreadContext, PermissionScope } from "@/core/threads";
+import type { QueuedMessage } from "@/core/threads/queue-store";
 import { textOfMessage } from "@/core/threads/utils";
 import { cn } from "@/lib/utils";
 
@@ -86,10 +87,10 @@ import {
 import { useFollowupsContext } from "./followups-context";
 import { useThread } from "./messages/context";
 import { ModeHoverGuide } from "./mode-hover-guide";
-import { Tooltip } from "./tooltip";
 import { PermissionScopeSelector } from "./permission-scope-selector";
+import { QueuedMessagesBar } from "./queued-messages-bar";
+import { Tooltip } from "./tooltip";
 import { WorkspaceSelector } from "./workspace-selector";
-import type { PermissionScope } from "@/core/threads";
 
 type InputMode = "flash" | "thinking" | "pro" | "ultra";
 
@@ -120,6 +121,13 @@ export function InputBox({
   onSubmit,
   onStop,
   onEnqueue,
+  queuedMessages,
+  onInjectFromQueue,
+  onRemoveFromQueue,
+  onEditQueued,
+  onRetryQueued,
+  onReorderQueued,
+  onSendAllQueued,
   ...props
 }: Omit<ComponentProps<typeof PromptInput>, "onSubmit"> & {
   assistantId?: string | null;
@@ -148,6 +156,14 @@ export function InputBox({
   onSubmit?: (message: PromptInputMessage) => void;
   onStop?: () => void;
   onEnqueue?: (message: PromptInputMessage) => void;
+  // ── 队列 props（Task 16） ──────────────────────────────────────────
+  queuedMessages?: QueuedMessage[];
+  onInjectFromQueue?: (msg: QueuedMessage) => void;
+  onRemoveFromQueue?: (id: string) => void;
+  onEditQueued?: (id: string, content: string) => void;
+  onRetryQueued?: (msg: QueuedMessage) => void;
+  onReorderQueued?: (id: string, direction: "up" | "down") => void;
+  onSendAllQueued?: () => void;
 }) {
   const { t } = useI18n();
   const searchParams = useSearchParams();
@@ -477,6 +493,20 @@ export function InputBox({
 
   return (
     <div ref={promptRootRef} className="relative flex flex-col gap-4">
+      {queuedMessages && queuedMessages.length > 0 && (
+        <QueuedMessagesBar
+          messages={queuedMessages}
+          isStreaming={status === "streaming"}
+          // 回调缺省值用表达式体（() => undefined），避免触发
+          // no-empty-function；实际渲染时页面总会传入真实回调。
+          onInject={onInjectFromQueue ?? (() => undefined)}
+          onRemove={onRemoveFromQueue ?? (() => undefined)}
+          onEdit={onEditQueued ?? (() => undefined)}
+          onRetry={onRetryQueued ?? (() => undefined)}
+          onReorder={onReorderQueued ?? (() => undefined)}
+          onSendAll={onSendAllQueued ?? (() => undefined)}
+        />
+      )}
       <PromptInput
         className={cn(
           "bg-background/85 rounded-2xl backdrop-blur-sm transition-all duration-300 ease-out *:data-[slot='input-group']:rounded-2xl",
