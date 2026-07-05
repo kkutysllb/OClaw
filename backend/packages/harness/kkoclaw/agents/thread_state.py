@@ -12,6 +12,16 @@ class ThreadDataState(TypedDict):
     uploads_path: NotRequired[str | None]
     outputs_path: NotRequired[str | None]
     project_root: NotRequired[str | None]
+    # Per-thread user-selected workspace directory (set via the
+    # WorkspaceSelector UI). Forwarded from run context by
+    # ThreadDataMiddleware and read by the sandbox path validators to scope
+    # bash/read/write access to a user-chosen directory.
+    user_workspace_path: NotRequired[str | None]
+    # Per-thread permission scope controlling how wide the sandbox path
+    # validators cast their net. One of: "read-only", "read-write"
+    # (default), "unrestricted". When absent the SandboxConfig default is
+    # used, falling back to "read-write".
+    permission_scope: NotRequired[str | None]
 
 
 class ViewedImageData(TypedDict):

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -78,6 +80,19 @@ class SandboxConfig(BaseModel):
         default=20000,
         ge=0,
         description="Maximum characters to keep from ls tool output. Output exceeding this limit is head-truncated. Set to 0 to disable truncation.",
+    )
+
+    permission_scope: Literal["read-only", "read-write", "unrestricted"] = Field(
+        default="read-write",
+        description=(
+            "Default sandbox permission scope used when a thread does not "
+            "explicitly select one. 'read-write' (default) keeps the existing "
+            "behaviour: tools may read/write the user workspace and sandbox "
+            "internal paths, but external absolute paths are rejected. "
+            "'read-only' blocks all write operations. 'unrestricted' trusts "
+            "the whole host (only path-traversal is rejected). The per-thread "
+            "PermissionScopeSelector overrides this default."
+        ),
     )
 
     model_config = ConfigDict(extra="allow")

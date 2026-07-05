@@ -135,6 +135,16 @@ export const enUS: Translations = {
     workspaceRecent: "Recent",
     workspaceClear: "Clear recent",
     workspaceClearConfirm: "Clear all recent workspace paths?",
+    // Permission scope selector (per-thread sandbox authorization level)
+    permissionScope: "Permission",
+    permissionScopeReadOnly: "Read-only",
+    permissionScopeReadWrite: "Read-write",
+    permissionScopeUnrestricted: "Unrestricted",
+    permissionScopeReadWriteDescription: "Read & write the workspace directory (default)",
+    permissionScopeReadOnlyDescription: "Reads only — all writes blocked",
+    permissionScopeUnrestrictedDescription: "Allow access to any host path (highest risk)",
+    permissionScopeUnrestrictedConfirm:
+      "Switching to 'Unrestricted' will let the Agent access any path on the host (only path-traversal is blocked). Make sure you trust the Agent's actions in this thread.",
     suggestions: [
       {
         suggestion: "Write",

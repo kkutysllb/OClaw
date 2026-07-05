@@ -30,6 +30,16 @@ _UNRECOVERABLE_ERROR_PATTERNS: list[re.Pattern] = [
     re.compile(r"Security scan blocked"),
     re.compile(r"Supporting files must live under one of"),
     re.compile(r"Supporting file path must"),
+    # Permission / scope errors: retrying with the same path or a slightly
+    # different one wastes tokens and turns — the model cannot fix a missing
+    # user authorization on its own. Mark these as unrecoverable so the model
+    # stops and reports the problem to the user instead of looping.
+    re.compile(r"Write access blocked by permission_scope"),
+    re.compile(r"Unsafe absolute paths in command"),
+    re.compile(r"Only paths under /mnt/"),
+    re.compile(r"outside the project root"),
+    re.compile(r"Write access to .* is not allowed"),
+    re.compile(r"Path requires user authorization"),
 ]
 
 
@@ -59,7 +69,9 @@ class ToolErrorHandlingMiddleware(AgentMiddleware[AgentState]):
             content = (
                 f"错误：工具「{tool_name}」执行失败，"
                 f"异常类型 {exc.__class__.__name__}：{detail}。"
-                f"请基于已有上下文继续，或选择其他替代工具。"
+                f"请检查参数后重试，或使用工作区内的路径。"
+                f"若涉及工作区外的路径，请向用户说明所需访问的目录，"
+                f"由用户在权限选择器中授权后再继续。"
             )
 
         return ToolMessage(

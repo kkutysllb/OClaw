@@ -2,6 +2,28 @@ import type { Message, Thread } from "@langchain/langgraph-sdk";
 
 import type { Todo } from "../todos";
 
+/**
+ * Per-thread sandbox permission scope.
+ *
+ * - `read-only`     — block all write operations (file writes, bash
+ *                      redirection, cp/mv/rm/touch/mkdir, ...).
+ * - `read-write`    — DEFAULT. Read/write the user workspace + sandbox
+ *                      internal paths; external paths rejected unless granted.
+ * - `unrestricted`  — trust the whole host (only path traversal rejected).
+ *
+ * Mirrors the backend `_VALID_SCOPES` in `sandbox/tools.py`. Forwarded to
+ * the agent runtime via the gateway's `_CONTEXT_CONFIGURABLE_KEYS`
+ * whitelist and resolved by `_resolve_effective_scope` in the sandbox
+ * path validators.
+ */
+export type PermissionScope = "read-only" | "read-write" | "unrestricted";
+
+export const PERMISSION_SCOPES: readonly PermissionScope[] = [
+  "read-only",
+  "read-write",
+  "unrestricted",
+] as const;
+
 export interface AgentThreadState extends Record<string, unknown> {
   title: string;
   messages: Message[];
@@ -38,6 +60,14 @@ export interface AgentThreadContext extends Record<string, unknown> {
    * default user data root (~/.kkoclaw) when absent.
    */
   user_workspace_path?: string;
+  /**
+   * Per-thread sandbox permission scope. Controls how wide the backend's
+   * path validators cast their allow-list. Forwarded via the gateway's
+   * ``_CONTEXT_CONFIGURABLE_KEYS`` whitelist (same channel as
+   * ``user_workspace_path``) and injected into ``thread_data`` by
+   * ``ThreadDataMiddleware``. Falls back to ``"read-write"`` when absent.
+   */
+  permission_scope?: PermissionScope;
 }
 
 export interface AgentThread extends Thread<AgentThreadState> {

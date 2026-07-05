@@ -37,8 +37,10 @@ import {
   saveThreadAgentName,
   saveThreadWorkModeId,
   saveThreadWorkspacePath,
+  saveThreadPermissionScope,
 } from "@/core/settings";
 import { useThreadStream } from "@/core/threads/hooks";
+import type { PermissionScope } from "@/core/threads";
 import { textOfMessage } from "@/core/threads/utils";
 import { useWorkModes } from "@/core/work-modes/hooks";
 import { env } from "@/env";
@@ -113,6 +115,12 @@ export default function ChatPage() {
       saveThreadWorkspacePath(
         createdThreadId,
         settings.context.user_workspace_path as string | undefined,
+      );
+      // Lock the user-selected permission scope so reopening the thread
+      // restores the same sandbox authorization level.
+      saveThreadPermissionScope(
+        createdThreadId,
+        settings.context.permission_scope as PermissionScope | undefined,
       );
     },
     onFinish: (state) => {

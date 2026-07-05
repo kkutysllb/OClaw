@@ -86,7 +86,9 @@ import { useFollowupsContext } from "./followups-context";
 import { useThread } from "./messages/context";
 import { ModeHoverGuide } from "./mode-hover-guide";
 import { Tooltip } from "./tooltip";
+import { PermissionScopeSelector } from "./permission-scope-selector";
 import { WorkspaceSelector } from "./workspace-selector";
+import type { PermissionScope } from "@/core/threads";
 
 type InputMode = "flash" | "thinking" | "pro" | "ultra";
 
@@ -512,6 +514,14 @@ export function InputBox({
               }
               onSelect={(user_workspace_path) =>
                 onContextChange?.({ ...context, user_workspace_path })
+              }
+            />
+            <PermissionScopeSelector
+              selectedScope={
+                context.permission_scope as PermissionScope | undefined
+              }
+              onSelect={(permission_scope) =>
+                onContextChange?.({ ...context, permission_scope })
               }
             />
             <PromptInputActionMenu>

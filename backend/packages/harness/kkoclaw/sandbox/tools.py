@@ -728,6 +728,130 @@ def _reject_path_traversal(path: str) -> None:
             raise PermissionError("Access denied: path traversal detected")
 
 
+# ---------------------------------------------------------------------------
+# Permission scope (user-driven authorization boundary)
+# ---------------------------------------------------------------------------
+#
+# The scope is a per-thread field set by the user via the
+# PermissionScopeSelector UI. It flows: frontend → run context →
+# ThreadDataMiddleware → thread_data["permission_scope"] → here.
+#
+# Three values:
+#   - "read-only"     : block all write operations (file writes, bash
+#                       redirection, cp/mv/rm/touch/mkdir, ...). Reads of
+#                       workspace paths still allowed.
+#   - "read-write"    : DEFAULT. Existing behaviour — read/write the user
+#                       workspace + sandbox internal paths; external paths
+#                       rejected unless granted.
+#   - "unrestricted"  : trust the whole host (only path traversal rejected).
+#                       Equivalent to the legacy allow_host_bash:true "open"
+#                       behaviour, but explicit and per-thread.
+
+_VALID_SCOPES = ("read-only", "read-write", "unrestricted")
+
+# Bash commands that mutate the filesystem. Used by the read-only scope to
+# reject write intent even when we cannot statically resolve all paths.
+_LOCAL_BASH_WRITE_COMMANDS = frozenset({
+    "cp", "mv", "rm", "rmdir", "touch", "mkdir", "install", "truncate",
+    "chmod", "chown", "chgrp", "ln", "rename", "tee",
+    "dd", "shred", "unlink",
+})
+_LOCAL_BASH_WRITE_OWNERS = frozenset({"git", "pip", "npm", "pnpm", "yarn", "uv", "cargo", "go"})
+
+
+def _resolve_effective_scope(thread_data: ThreadDataState | None) -> str:
+    """Return the effective permission scope for this thread.
+
+    Resolution order:
+      1. ``thread_data["permission_scope"]`` if it is a known value.
+      2. ``app_config.sandbox.permission_scope`` (config.yaml default).
+      3. ``"read-write"`` as a hard-coded fallback.
+
+    The config lookup is cached on the function object to avoid repeated
+    AppConfig reads in hot paths (a subagent task may call this dozens of
+    times).
+    """
+    scope = (thread_data or {}).get("permission_scope")
+    if scope in _VALID_SCOPES:
+        return scope
+
+    cached = getattr(_resolve_effective_scope, "_cfg_cache", None)
+    if cached is None:
+        try:
+            from kkoclaw.config import get_app_config
+
+            cfg_scope = get_app_config().sandbox.permission_scope
+            if cfg_scope in _VALID_SCOPES:
+                cached = cfg_scope
+            else:
+                cached = "read-write"
+        except Exception:
+            cached = "read-write"
+        _resolve_effective_scope._cfg_cache = cached  # type: ignore[attr-defined]
+    return cached
+
+
+def _enforce_scope_write_gate(scope: str, read_only: bool, path: str) -> None:
+    """Early rejection of write operations under the read-only scope.
+
+    Called before any path resolution so a read-only thread fails fast on
+    write_file/str_replace attempts, with a message the
+    ToolErrorHandlingMiddleware marks as unrecoverable (so the model stops
+    retrying instead of looping until max_turns).
+    """
+    if scope == "read-only" and not read_only:
+        raise PermissionError(
+            f"Write access blocked by permission_scope=read-only: {path}. "
+            f"Switch the thread to read-write or unrestricted to write."
+        )
+
+
+def _reject_bash_write_commands(command: str) -> None:
+    """Reject bash commands that would mutate the filesystem.
+
+    Used under the read-only scope. Best-effort: detects redirections
+    (``>``/``>>``/``<&``/``>&``) and a known set of write commands at the
+    head of each piped segment. Reads (cat, ls, grep, ...) are allowed.
+    """
+    # Redirections always indicate write intent regardless of the command.
+    for op in (">", ">>", ">|", "&>", "&>>"):
+        if op in command:
+            raise PermissionError(
+                f"Bash write blocked by permission_scope=read-only (redirection '{op}'): {command.strip()[:120]}"
+            )
+
+    try:
+        tokens = shlex.split(command, posix=True)
+    except ValueError:
+        # Unparseable command — be conservative and reject if any write
+        # command keyword appears as a substring.
+        lowered = command.lower()
+        for w in _LOCAL_BASH_WRITE_COMMANDS:
+            if w in lowered:
+                raise PermissionError(
+                    f"Bash write blocked by permission_scope=read-only (command '{w}'): {command.strip()[:120]}"
+                )
+        return
+
+    # Scan tokens; treat the first non-option token after a command separator
+    # as the command name. Sufficient for the common single-command case.
+    separators = _SHELL_COMMAND_SEPARATORS
+    expecting_command = True
+    for tok in tokens:
+        if expecting_command:
+            # Strip leading command wrappers like `command`/`builtin`.
+            cmd = tok
+            if cmd in _LOCAL_BASH_COMMAND_WRAPPERS:
+                continue
+            if cmd in _LOCAL_BASH_WRITE_COMMANDS:
+                raise PermissionError(
+                    f"Bash write blocked by permission_scope=read-only (command '{cmd}'): {command.strip()[:120]}"
+                )
+            expecting_command = False
+        if tok in separators or tok in {"&&", "||"}:
+            expecting_command = True
+
+
 def validate_local_tool_path(path: str, thread_data: ThreadDataState | None, *, read_only: bool = False) -> None:
     """Validate that a virtual path is allowed for local-sandbox access.
 
@@ -755,6 +879,18 @@ def validate_local_tool_path(path: str, thread_data: ThreadDataState | None, *, 
         raise SandboxRuntimeError("Thread data not available for local sandbox")
 
     _reject_path_traversal(path)
+
+    # Resolve user-driven permission scope (read-only / read-write / unrestricted).
+    scope = _resolve_effective_scope(thread_data)
+
+    # Unrestricted: trust the whole host. Path traversal (rejected above) is
+    # the only check. The user has explicitly opted into this via the UI.
+    if scope == "unrestricted":
+        return
+
+    # read-only: fail fast on any write attempt, before doing path resolution.
+    # read-write: proceed to the existing per-path allow-list below.
+    _enforce_scope_write_gate(scope, read_only, path)
 
     # Skills paths — read-only access only
     if _is_skills_path(path):
@@ -1138,6 +1274,21 @@ def validate_local_bash_command_paths(command: str, thread_data: ThreadDataState
     file_url_match = _FILE_URL_PATTERN.search(command)
     if file_url_match:
         raise PermissionError(f"Unsafe file:// URL in command: {file_url_match.group()}. Use paths under {VIRTUAL_PATH_PREFIX}")
+
+    # Resolve user-driven permission scope.
+    scope = _resolve_effective_scope(thread_data)
+
+    # Unrestricted: trust all paths. Only file:// URLs (rejected above) and
+    # path traversal are blocked. The user has opted in via the UI.
+    if scope == "unrestricted":
+        _reject_path_traversal(command)
+        return
+
+    # read-only: reject any bash command that looks like a write before doing
+    # path scanning. This is conservative — false positives are possible, but
+    # preferable to silently allowing writes under a read-only scope.
+    if scope == "read-only":
+        _reject_bash_write_commands(command)
 
     unsafe_paths: list[str] = []
     allowed_paths = _get_mcp_allowed_paths()

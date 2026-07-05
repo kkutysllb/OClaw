@@ -94,22 +94,15 @@ def is_path_granted(path: str) -> bool:
     Prefix matching: granting ``/a/b`` covers ``/a/b``, ``/a/b/c``, etc.
     The check is read-only and never mutates the store.
 
-    .. note:: This function always reads from disk (bypassing the in-process
-       ``_CACHE``) because the Electron main process may update the file at
-       any time while the Python gateway is running. Using a stale cache would
-       cause false rejections after the user authorizes a path via the system
-       dialog.
+    .. note:: This function uses an mtime-based cache to avoid reading
+       ``granted_paths.json`` from disk on every call (a subagent task may
+       invoke it dozens of times). The cache is invalidated whenever the
+       file's mtime changes, so updates by the Electron main process or by
+       the web grant endpoint become visible on the next call without a
+       process restart.
     """
     normalised = _normalise(path)
-    # Always read from disk — the file may have been updated by the Electron
-    # main process since the last cached read.
-    try:
-        raw = _granted_paths_file().read_text(encoding="utf-8")
-        data = json.loads(raw) if raw.strip() else {"granted_paths": []}
-    except FileNotFoundError:
-        return False
-    except (json.JSONDecodeError, OSError):
-        return False
+    data = _load_grants_for_read()
     for entry in data.get("granted_paths", []):
         granted = entry.get("path", "")
         if not granted:
@@ -119,6 +112,54 @@ def is_path_granted(path: str) -> bool:
         if normalised == granted_resolved or normalised.startswith(granted_resolved + "/"):
             return True
     return False
+
+
+# mtime-based read cache. A subagent task may call is_path_granted() dozens of
+# times within a few seconds; reading the JSON file on every call showed up as
+# a measurable contributor to subagent latency. We stat the file and only
+# re-parse when its mtime has changed, so external writes (Electron main
+# process, web grant endpoint) are still picked up promptly.
+_READ_CACHE: dict[str, Any] | None = None
+_READ_CACHE_MTIME: float | None = None
+_READ_CACHE_LOCK = Lock()
+
+
+def _load_grants_for_read() -> dict[str, Any]:
+    """Load the grant store for read-only checks, using an mtime cache.
+
+    Falls back to a direct read if ``stat`` fails (e.g. on unusual
+    filesystems), preserving the original always-fresh semantics.
+    """
+    global _READ_CACHE, _READ_CACHE_MTIME
+    path = _granted_paths_file()
+    try:
+        current_mtime = path.stat().st_mtime
+    except FileNotFoundError:
+        with _READ_CACHE_LOCK:
+            _READ_CACHE = {"granted_paths": []}
+            _READ_CACHE_MTIME = None
+        return _READ_CACHE
+    except OSError:
+        # Fall back to a direct read on unexpected stat errors.
+        return _load()
+
+    with _READ_CACHE_LOCK:
+        if _READ_CACHE is not None and _READ_CACHE_MTIME == current_mtime:
+            return _READ_CACHE
+
+    # Cache miss or mtime changed: re-read from disk.
+    try:
+        raw = path.read_text(encoding="utf-8")
+        data = json.loads(raw) if raw.strip() else {"granted_paths": []}
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        data = {"granted_paths": []}
+    if "granted_paths" not in data or not isinstance(data["granted_paths"], list):
+        data = {"granted_paths": []}
+
+    with _READ_CACHE_LOCK:
+        _READ_CACHE = data
+        _READ_CACHE_MTIME = current_mtime
+    return data
 
 
 def grant_path(
@@ -176,6 +217,9 @@ def revoke_path(path: str) -> bool:
 
 
 def reset_cache() -> None:
-    """Clear the in-process cache. Used by tests after mutating the file directly."""
-    global _CACHE
+    """Clear the in-process caches. Used by tests after mutating the file directly."""
+    global _CACHE, _READ_CACHE, _READ_CACHE_MTIME
     _CACHE = None
+    with _READ_CACHE_LOCK:
+        _READ_CACHE = None
+        _READ_CACHE_MTIME = None

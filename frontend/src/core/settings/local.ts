@@ -1,4 +1,5 @@
-import type { AgentThreadContext } from "../threads";
+import type { AgentThreadContext, PermissionScope } from "../threads";
+import { PERMISSION_SCOPES } from "../threads";
 
 export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
   notification: {
@@ -16,6 +17,7 @@ export const THREAD_MODEL_KEY_PREFIX = "kkoclaw.thread-model.";
 export const THREAD_AGENT_KEY_PREFIX = "kkoclaw.thread-agent.";
 export const THREAD_WORK_MODE_KEY_PREFIX = "kkoclaw.thread-work-mode.";
 export const THREAD_WORKSPACE_PATH_KEY_PREFIX = "kkoclaw.thread-workspace-path.";
+export const THREAD_PERMISSION_SCOPE_KEY_PREFIX = "kkoclaw.thread-permission-scope.";
 export const RECENT_WORKSPACE_PATHS_KEY = "kkoclaw.recent-workspace-paths";
 
 function isBrowser(): boolean {
@@ -276,6 +278,78 @@ export function applyThreadWorkspacePathOverride(
     context: {
       ...settings.context,
       user_workspace_path: threadWorkspacePath,
+    },
+  };
+}
+
+// ------------------------------------------------------------------
+// Per-thread permission_scope persistence
+// ------------------------------------------------------------------
+// Mirrors the per-thread workspace path persistence above. Stores the
+// user-selected sandbox permission scope (read-only / read-write /
+// unrestricted) so the backend's path validators know how wide to cast
+// their allow-list for this thread.
+//
+// The empty string is a sentinel meaning "explicitly the default scope"
+// (permission_scope = undefined → backend falls back to "read-write"),
+// mirroring the convention used by work_mode_id / workspace_path so a
+// thread explicitly created under the default scope can be distinguished
+// from an old thread that pre-dates the permission_scope contract.
+
+function getThreadPermissionScopeStorageKey(threadId: string): string {
+  return `${THREAD_PERMISSION_SCOPE_KEY_PREFIX}${threadId}`;
+}
+
+function isValidScope(value: unknown): value is PermissionScope {
+  return typeof value === "string" && (PERMISSION_SCOPES as readonly string[]).includes(value);
+}
+
+export function getThreadPermissionScope(
+  threadId: string,
+): PermissionScope | undefined {
+  if (!isBrowser()) {
+    return undefined;
+  }
+  const raw = localStorage.getItem(getThreadPermissionScopeStorageKey(threadId));
+  // ``null`` = no stored value → fall back to default scope.
+  // The empty string "" represents the explicit default scope
+  // (permission_scope = undefined) so it can be distinguished from
+  // "no value".
+  if (raw === null) return undefined;
+  if (raw === "") return undefined;
+  return isValidScope(raw) ? raw : undefined;
+}
+
+export function saveThreadPermissionScope(
+  threadId: string,
+  scope: PermissionScope | undefined,
+) {
+  if (!isBrowser()) {
+    return;
+  }
+  const key = getThreadPermissionScopeStorageKey(threadId);
+  if (scope === undefined) {
+    // Store a sentinel so we know the thread was explicitly created
+    // under the default scope (vs. an old thread with no override).
+    localStorage.setItem(key, "");
+  } else {
+    localStorage.setItem(key, scope);
+  }
+}
+
+export function applyThreadPermissionScopeOverride(
+  settings: LocalSettings,
+  threadPermissionScope: PermissionScope | undefined,
+  hasThreadPermissionScopeOverride: boolean,
+): LocalSettings {
+  if (!hasThreadPermissionScopeOverride) {
+    return settings;
+  }
+  return {
+    ...settings,
+    context: {
+      ...settings.context,
+      permission_scope: threadPermissionScope,
     },
   };
 }

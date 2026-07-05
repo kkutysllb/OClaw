@@ -111,6 +111,15 @@ export interface Translations {
     workspaceRecent: string;
     workspaceClear: string;
     workspaceClearConfirm: string;
+    // Permission scope selector (per-thread sandbox authorization level)
+    permissionScope: string;
+    permissionScopeReadOnly: string;
+    permissionScopeReadWrite: string;
+    permissionScopeUnrestricted: string;
+    permissionScopeReadWriteDescription: string;
+    permissionScopeReadOnlyDescription: string;
+    permissionScopeUnrestrictedDescription: string;
+    permissionScopeUnrestrictedConfirm: string;
     suggestions: {
       suggestion: string;
       prompt: string;

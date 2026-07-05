@@ -130,6 +130,16 @@ export const zhCN: Translations = {
     workspaceRecent: "最近使用",
     workspaceClear: "清除最近记录",
     workspaceClearConfirm: "确定要清除最近工作区路径记录吗？",
+    // Permission scope selector (per-thread sandbox authorization level)
+    permissionScope: "权限",
+    permissionScopeReadOnly: "只读",
+    permissionScopeReadWrite: "读写",
+    permissionScopeUnrestricted: "完全信任",
+    permissionScopeReadWriteDescription: "允许读写工作区目录(默认)",
+    permissionScopeReadOnlyDescription: "仅允许读取,禁止任何写操作",
+    permissionScopeUnrestrictedDescription: "允许访问主机任意路径(风险最高)",
+    permissionScopeUnrestrictedConfirm:
+      "切换到「完全信任」模式将允许 Agent 访问主机上的任意路径,仅阻止路径穿越攻击。请确认你信任此线程中的 Agent 行为。",
     suggestions: [
       {
         suggestion: "写作",

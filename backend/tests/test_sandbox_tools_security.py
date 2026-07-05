@@ -1239,3 +1239,195 @@ def test_file_operation_lock_memory_cleanup() -> None:
 
     # 检查特定 key 是否被清理（而不是检查总长度）
     assert lock_key not in _FILE_OPERATION_LOCKS
+
+
+# ---------- permission_scope ----------
+#
+# These tests cover the user-driven permission scope (read-only / read-write /
+# unrestricted) introduced to move authorization decisions out of config.yaml
+# and into the UI. They focus on the gate functions: _resolve_effective_scope,
+# _enforce_scope_write_gate, _reject_bash_write_commands, and the integration
+# of scope handling into validate_local_tool_path and
+# validate_local_bash_command_paths.
+
+
+class TestPermissionScopeResolution:
+    """Tests for _resolve_effective_scope fallback chain."""
+
+    def test_explicit_scope_wins(self) -> None:
+        from kkoclaw.sandbox.tools import _resolve_effective_scope
+
+        assert _resolve_effective_scope({"permission_scope": "read-only"}) == "read-only"
+        assert _resolve_effective_scope({"permission_scope": "unrestricted"}) == "unrestricted"
+        assert _resolve_effective_scope({"permission_scope": "read-write"}) == "read-write"
+
+    def test_invalid_scope_falls_back_to_config_default(self) -> None:
+        from kkoclaw.sandbox.tools import _resolve_effective_scope
+
+        # Bogus value should not be honoured; falls back to the config-driven
+        # default (which is "read-write" in SandboxConfig).
+        assert _resolve_effective_scope({"permission_scope": "bogus"}) == "read-write"
+
+    def test_none_thread_data_falls_back(self) -> None:
+        from kkoclaw.sandbox.tools import _resolve_effective_scope
+
+        assert _resolve_effective_scope(None) == "read-write"
+        assert _resolve_effective_scope({}) == "read-write"
+
+    def test_config_default_is_used_when_thread_data_has_no_scope(self) -> None:
+        from kkoclaw.sandbox.tools import _resolve_effective_scope
+
+        # Patch the cached config default to confirm the lookup path works.
+        with patch("kkoclaw.config.get_app_config") as mock_cfg:
+            mock_cfg.return_value.sandbox.permission_scope = "unrestricted"
+            _resolve_effective_scope._cfg_cache = None  # type: ignore[attr-defined]
+            try:
+                assert _resolve_effective_scope({}) == "unrestricted"
+            finally:
+                _resolve_effective_scope._cfg_cache = None  # type: ignore[attr-defined]
+
+
+class TestPermissionScopeWriteGate:
+    """Tests for _enforce_scope_write_gate early rejection."""
+
+    def test_read_only_scope_blocks_write(self) -> None:
+        from kkoclaw.sandbox.tools import _enforce_scope_write_gate
+
+        with pytest.raises(PermissionError, match="permission_scope=read-only"):
+            _enforce_scope_write_gate("read-only", read_only=False, path="/tmp/x")
+
+    def test_read_only_scope_allows_read(self) -> None:
+        from kkoclaw.sandbox.tools import _enforce_scope_write_gate
+
+        # Should not raise.
+        _enforce_scope_write_gate("read-only", read_only=True, path="/tmp/x")
+
+    def test_read_write_scope_allows_write(self) -> None:
+        from kkoclaw.sandbox.tools import _enforce_scope_write_gate
+
+        _enforce_scope_write_gate("read-write", read_only=False, path="/tmp/x")
+
+    def test_unrestricted_scope_does_not_gate(self) -> None:
+        from kkoclaw.sandbox.tools import _enforce_scope_write_gate
+
+        # _enforce_scope_write_gate is a no-op for unrestricted (the unrestricted
+        # short-circuit in validate_local_tool_path returns before calling it,
+        # but if called directly it must not block).
+        _enforce_scope_write_gate("unrestricted", read_only=False, path="/tmp/x")
+
+
+class TestPermissionScopeValidateLocalToolPath:
+    """Integration tests: scope handling inside validate_local_tool_path."""
+
+    def test_unrestricted_allows_arbitrary_absolute_path(self) -> None:
+        thread_data = {**_THREAD_DATA, "permission_scope": "unrestricted"}
+        # Should not raise — under unrestricted, any host path is allowed.
+        validate_local_tool_path("/Users/someone/elsewhere/notes.md", thread_data)
+        validate_local_tool_path("/etc/passwd", thread_data, read_only=True)
+
+    def test_unrestricted_still_rejects_traversal(self) -> None:
+        thread_data = {**_THREAD_DATA, "permission_scope": "unrestricted"}
+        with pytest.raises(PermissionError, match="path traversal"):
+            validate_local_tool_path("/tmp/../../../etc/passwd", thread_data)
+
+    def test_read_only_blocks_write_file_path(self) -> None:
+        thread_data = {**_THREAD_DATA, "permission_scope": "read-only"}
+        with pytest.raises(PermissionError, match="permission_scope=read-only"):
+            validate_local_tool_path(
+                f"{VIRTUAL_PATH_PREFIX}/workspace/file.txt",
+                thread_data,
+                read_only=False,
+            )
+
+    def test_read_only_allows_read_file_path(self) -> None:
+        thread_data = {**_THREAD_DATA, "permission_scope": "read-only"}
+        # read_only=True should pass (after the gate, user-data paths are allowed).
+        validate_local_tool_path(
+            f"{VIRTUAL_PATH_PREFIX}/workspace/file.txt",
+            thread_data,
+            read_only=True,
+        )
+
+    def test_read_write_default_behaviour_preserved(self) -> None:
+        """Regression: read-write (default) must keep the existing behaviour.
+
+        A path outside project_root and outside default allowed roots must
+        still be rejected, exactly as before the scope feature was added.
+        """
+        thread_data = {**_THREAD_DATA, "permission_scope": "read-write"}
+        with pytest.raises(PermissionError):
+            validate_local_tool_path("/Users/someone/elsewhere/notes.md", thread_data)
+
+    def test_read_write_allows_user_data_write(self) -> None:
+        thread_data = {**_THREAD_DATA, "permission_scope": "read-write"}
+        validate_local_tool_path(
+            f"{VIRTUAL_PATH_PREFIX}/workspace/file.txt",
+            thread_data,
+            read_only=False,
+        )
+
+
+class TestPermissionScopeBashCommands:
+    """Integration tests: scope handling inside validate_local_bash_command_paths."""
+
+    def test_unrestricted_allows_arbitrary_host_path_in_command(self) -> None:
+        thread_data = {**_THREAD_DATA, "permission_scope": "unrestricted"}
+        # A command that references an arbitrary host path — allowed under unrestricted.
+        validate_local_bash_command_paths("cat /etc/passwd", thread_data)
+
+    def test_unrestricted_still_blocks_file_url(self) -> None:
+        thread_data = {**_THREAD_DATA, "permission_scope": "unrestricted"}
+        with pytest.raises(PermissionError, match="file://"):
+            validate_local_bash_command_paths("curl file:///etc/passwd", thread_data)
+
+    def test_unrestricted_still_rejects_traversal(self) -> None:
+        thread_data = {**_THREAD_DATA, "permission_scope": "unrestricted"}
+        with pytest.raises(PermissionError, match="path traversal"):
+            validate_local_bash_command_paths("cat /tmp/../etc/passwd", thread_data)
+
+    def test_read_only_blocks_redirection(self) -> None:
+        from kkoclaw.sandbox.tools import _reject_bash_write_commands
+
+        with pytest.raises(PermissionError, match="permission_scope=read-only"):
+            _reject_bash_write_commands("echo hi > /tmp/out.txt")
+        with pytest.raises(PermissionError, match="permission_scope=read-only"):
+            _reject_bash_write_commands("echo hi >> /tmp/out.txt")
+
+    def test_read_only_blocks_write_commands(self) -> None:
+        from kkoclaw.sandbox.tools import _reject_bash_write_commands
+
+        for cmd in ("rm /tmp/x", "mkdir /tmp/newdir", "touch /tmp/y", "mv a b", "cp a b"):
+            with pytest.raises(PermissionError, match="permission_scope=read-only"):
+                _reject_bash_write_commands(cmd)
+
+    def test_read_only_allows_read_commands(self) -> None:
+        from kkoclaw.sandbox.tools import _reject_bash_write_commands
+
+        # Pure read commands must not raise under read-only.
+        for cmd in ("cat /tmp/x", "ls /tmp", "grep foo /tmp/x", "echo hello"):
+            _reject_bash_write_commands(cmd)
+
+    def test_read_only_scope_blocks_redirection_in_full_validator(self) -> None:
+        thread_data = {**_THREAD_DATA, "permission_scope": "read-only"}
+        with pytest.raises(PermissionError, match="permission_scope=read-only"):
+            validate_local_bash_command_paths("echo hi > /mnt/user-data/workspace/out.txt", thread_data)
+
+    def test_read_write_default_behaviour_preserved(self) -> None:
+        """Regression: default scope still rejects unsafe host paths in bash."""
+        thread_data = {**_THREAD_DATA, "permission_scope": "read-write"}
+        with pytest.raises(PermissionError, match="Unsafe absolute paths"):
+            validate_local_bash_command_paths("cat /Users/someone/elsewhere/notes.md", thread_data)
+
+
+# ---------- permission_scope context forwarding ----------
+
+
+class TestPermissionScopeContextForwarding:
+    """Verify permission_scope is whitelisted for run-context forwarding."""
+
+    def test_permission_scope_in_gateway_services_whitelist(self) -> None:
+        """The gateway services module must whitelist permission_scope."""
+        from app.gateway.services import _CONTEXT_CONFIGURABLE_KEYS
+
+        assert "permission_scope" in _CONTEXT_CONFIGURABLE_KEYS
+        assert "user_workspace_path" in _CONTEXT_CONFIGURABLE_KEYS

@@ -64,4 +64,24 @@ describe("threads api", () => {
     expect(source).toMatch(/export function saveThreadWorkspacePath/);
     expect(source).toMatch(/export function getThreadWorkspacePath/);
   });
+
+  test("AgentThreadContext type includes permission_scope for runtime forwarding", () => {
+    const source = read("src/core/threads/types.ts");
+    expect(source).toMatch(/permission_scope\??\s*:\s*PermissionScope/);
+  });
+
+  test("thread.submit context includes permission_scope from settings", () => {
+    // Mirror of the user_workspace_path assertion: confirms the context
+    // object literal passed to thread.submit contains a permission_scope
+    // key so the backend's _CONTEXT_CONFIGURABLE_KEYS whitelist can pick
+    // it up.
+    const source = read("src/core/threads/hooks.ts");
+    expect(source).toMatch(/permission_scope/);
+  });
+
+  test("settings local exports saveThreadPermissionScope / getThreadPermissionScope", () => {
+    const source = read("src/core/settings/local.ts");
+    expect(source).toMatch(/export function saveThreadPermissionScope/);
+    expect(source).toMatch(/export function getThreadPermissionScope/);
+  });
 });

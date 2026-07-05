@@ -188,6 +188,18 @@ class ThreadState(AgentState):
 | `/mnt/user-data/outputs` | `backend/.kkoclaw/threads/{thread_id}/user-data/outputs` |
 | `/mnt/skills` | `kk-oclaw/skills/` |
 
+**用户驱动的权限边界（permission_scope）**：
+
+每个线程可通过前端的 `PermissionScopeSelector` 选择沙箱权限范围，决策权在用户而非 `config.yaml`。三个档位：
+
+| scope | 行为 | 适用场景 |
+|-------|------|---------|
+| `read-only` | 阻止所有写操作（文件写入、bash 重定向、cp/mv/rm/touch/mkdir 等） | 只读分析、代码审查 |
+| `read-write`（默认） | 读写用户工作区 + 沙箱内部路径；外部路径拒绝 | 日常任务（与改造前行为一致） |
+| `unrestricted` | 信任整个主机（仅阻止路径穿越） | 信任 Agent 的全自动化任务 |
+
+数据流：前端 `PermissionScopeSelector` → `permission_scope` 写入 run context → 网关 `_CONTEXT_CONFIGURABLE_KEYS` 白名单透传 → `ThreadDataMiddleware` 注入 `thread_data` → `validate_local_tool_path` / `validate_local_bash_command_paths` 的 `_resolve_effective_scope` 读取并应用。子代理通过 `SubagentExecutor._build_initial_state` 自动继承父代理的 `thread_data`,因此 scope 对子代理同样生效。
+
 ### 工具系统
 
 ```

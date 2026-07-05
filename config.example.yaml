@@ -564,6 +564,20 @@ sandbox:
   read_file_output_max_chars: 50000
   ls_output_max_chars: 20000
 
+  # Default sandbox permission scope. Controls how wide the sandbox path
+  # validators cast their allow-list when a thread does not explicitly
+  # select a scope via the PermissionScopeSelector UI.
+  #   - "read-write"    (default): read/write the user workspace + sandbox
+  #                               internal paths; external paths rejected
+  #                               unless granted.
+  #   - "read-only"               : block all write operations (file writes,
+  #                               bash redirection, cp/mv/rm/touch/mkdir, ...).
+  #   - "unrestricted"            : trust the whole host (only path traversal
+  #                               rejected). Equivalent to the legacy
+  #                               allow_host_bash:true "open" behaviour.
+  # The per-thread PermissionScopeSelector overrides this default.
+  permission_scope: read-write
+
 # Option 2: Container-based AIO Sandbox
 # Executes commands in isolated containers (Docker or Apple Container)
 # On macOS: Automatically prefers Apple Container if available, falls back to Docker
