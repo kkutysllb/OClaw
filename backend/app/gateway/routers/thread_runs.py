@@ -15,14 +15,14 @@ import asyncio
 import logging
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import Response, StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.gateway.authz import require_permission
 from app.gateway.deps import get_checkpointer, get_current_user, get_feedback_repo, get_run_event_store, get_run_manager, get_run_store, get_stream_bridge
 from app.gateway.services import format_sse, sse_consumer, start_run, wait_for_run_completion
-from kkoclaw.runtime import RunRecord, RunStatus, serialize_channel_values
+from kkoclaw.runtime import RunManager, RunRecord, RunStatus, serialize_channel_values
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/threads", tags=["runs"])
@@ -89,6 +89,21 @@ class RunCreateRequest(BaseModel):
     after_seconds: float | None = Field(default=None, description="Delayed execution")
     if_not_exists: Literal["reject", "create"] = Field(default="create", description="Thread creation policy")
     feedback_keys: list[str] | None = Field(default=None, description="LangSmith feedback keys")
+
+
+class InjectRequest(BaseModel):
+    """Body for POST /threads/{tid}/runs/{rid}/inject — inject a supplement message mid-run.
+
+    The message is written to ``ThreadState.pending_messages`` (via
+    ``agent.aupdate_state``) WITHOUT interrupting the running worker. The
+    agent's ``before_model`` hook (InjectMiddleware) consumes it at the next
+    model call and treats it as supplemental context.
+    """
+
+    content: str
+    attachments: list[dict] | None = None
+    message_id: str
+    queued_at: int
 
 
 class RunResponse(BaseModel):
@@ -288,6 +303,88 @@ async def cancel_run(
         return Response(status_code=204)
 
     return Response(status_code=202)
+
+
+@router.post("/{thread_id}/runs/{run_id}/inject", response_class=Response)
+@require_permission("runs", "create", owner_check=True, require_existing=True)
+async def inject_message(
+    thread_id: str,
+    run_id: str,
+    body: InjectRequest,
+    request: Request,
+    run_mgr: RunManager = Depends(get_run_manager),
+) -> Response:
+    """Inject a supplement-context message into a running agent WITHOUT interrupting it.
+
+    Writes the message to ``ThreadState.pending_messages`` via
+    ``agent.aupdate_state``. The agent reads it at the next model call's
+    ``before_model`` hook (InjectMiddleware) and treats it as supplemental
+    context — does NOT trigger node execution or a new run.
+
+    Why the route constructs its own agent: ``app.state`` has no shared agent
+    instance, only the checkpointer saver (a process-level singleton). We
+    build ``make_lead_agent(config)`` and attach the SAME saver the worker
+    uses, so ``aupdate_state`` reads/writes the same thread checkpoint.
+    ``aupdate_state`` only writes a new checkpoint — it never executes the
+    graph — so this is safe to call against a running worker.
+    """
+    # ① 校验 run 存在且属于该 thread（与 cancel_run 同款 404 语义）
+    record = await run_mgr.get(run_id)
+    if record is None or record.thread_id != thread_id:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+    # ② 校验 run 仍在运行中（pending/running 可注入；已结束则 409）
+    if record.status not in (RunStatus.pending, RunStatus.running):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "run_not_active",
+                "message": "任务已结束，无法注入。可改为正常发送。",
+                "run_status": record.status.value,
+            },
+        )
+    # ③ 校验 content 非空
+    if not body.content or not body.content.strip():
+        raise HTTPException(status_code=422, detail="content 不能为空")
+
+    # ④ 构造挂了共享 checkpointer 的 agent，写入 pending_messages
+    #    make_lead_agent builds the full middleware chain (some overhead) but
+    #    this route is called rarely (user clicks inject), so correctness first.
+    from kkoclaw.agents.lead_agent.agent import make_lead_agent
+    from langchain_core.runnables import RunnableConfig
+
+    checkpointer = get_checkpointer(request)
+    # checkpoint_ns="" matches the namespace the worker reads (worker.py).
+    agent_config = RunnableConfig(configurable={"thread_id": thread_id, "checkpoint_ns": ""})
+    agent = make_lead_agent(agent_config)
+    agent.checkpointer = checkpointer  # attach the SAME saver the worker uses
+
+    msg_payload = {
+        "id": body.message_id,
+        "content": body.content.strip(),
+        "attachments": body.attachments,
+        "queued_at": body.queued_at,
+        "source": "inject",
+    }
+    try:
+        await agent.aupdate_state(agent_config, {"pending_messages": [msg_payload]})
+    except Exception as e:
+        logger.exception("inject_message: aupdate_state failed for thread=%s run=%s", thread_id, run_id)
+        raise HTTPException(status_code=500, detail=f"注入失败: {e}") from e
+
+    logger.info(
+        "inject_message: accepted thread=%s run=%s msg_id=%s len=%d",
+        thread_id, run_id, body.message_id, len(body.content),
+    )
+
+    return JSONResponse(
+        status_code=202,
+        content={
+            "run_id": run_id,
+            "message_id": body.message_id,
+            "status": "accepted",
+            "note": "消息已写入 pending_messages，将在下一个模型调用步骤生效",
+        },
+    )
 
 
 @router.get("/{thread_id}/runs/{run_id}/join")
