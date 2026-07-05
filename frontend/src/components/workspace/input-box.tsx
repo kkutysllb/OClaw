@@ -9,6 +9,7 @@ import {
   PlusIcon,
   SparklesIcon,
   RocketIcon,
+  SquareIcon,
   ZapIcon,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -118,6 +119,7 @@ export function InputBox({
   onFollowupsVisibilityChange,
   onSubmit,
   onStop,
+  onEnqueue,
   ...props
 }: Omit<ComponentProps<typeof PromptInput>, "onSubmit"> & {
   assistantId?: string | null;
@@ -145,6 +147,7 @@ export function InputBox({
   onFollowupsVisibilityChange?: (visible: boolean) => void;
   onSubmit?: (message: PromptInputMessage) => void;
   onStop?: () => void;
+  onEnqueue?: (message: PromptInputMessage) => void;
 }) {
   const { t } = useI18n();
   const searchParams = useSearchParams();
@@ -265,7 +268,7 @@ export function InputBox({
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
       if (status === "streaming") {
-        onStop?.();
+        onEnqueue?.(message);
         return;
       }
       if (!message.text) {
@@ -295,8 +298,8 @@ export function InputBox({
     [
       context,
       onContextChange,
+      onEnqueue,
       onSubmit,
-      onStop,
       resolvedModelName,
       selectedModel?.supports_thinking,
       status,
@@ -311,6 +314,7 @@ export function InputBox({
   const handleFollowupClick = useCallback(
     (suggestion: string) => {
       if (status === "streaming") {
+        onEnqueue?.({ text: suggestion, files: [] });
         return;
       }
       const current = (textInput.value ?? "").trim();
@@ -323,7 +327,7 @@ export function InputBox({
       setFollowupsHidden(true);
       setTimeout(() => requestFormSubmit(), 0);
     },
-    [requestFormSubmit, status, textInput],
+    [onEnqueue, requestFormSubmit, status, textInput],
   );
 
   const confirmReplaceAndSend = useCallback(() => {
@@ -851,11 +855,28 @@ export function InputBox({
                 </ModelSelectorList>
               </ModelSelectorContent>
             </ModelSelector>
+            {status === "streaming" && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="gap-1"
+                onClick={() => onStop?.()}
+                aria-label="停止当前任务"
+              >
+                <SquareIcon className="size-3.5" />
+                停止
+              </Button>
+            )}
             <PromptInputSubmit
               className="rounded-full"
               disabled={disabled}
               variant="outline"
               status={status}
+              title={
+                status === "streaming"
+                  ? "加入待发送队列（任务执行中）"
+                  : undefined
+              }
             />
           </PromptInputTools>
         </PromptInputFooter>
