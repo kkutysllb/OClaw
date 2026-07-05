@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.5 - 2026-07-05
+
+Compare: `v0.1.4...v0.1.5`
+
+- 报错: Invalid skill: Unexpected key(s) in SKILL.md frontmatter: keywords (399a643)
+- 报错: Security scan rejected executable announcement-search/scripts/__main__.py: Borderline external API references... (7c9fed8)
+
 ## v0.1.4 - 2026-07-05
 
 Compare: `v0.1.3...v0.1.4`
