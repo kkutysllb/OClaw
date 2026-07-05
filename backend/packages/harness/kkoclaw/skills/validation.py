@@ -119,6 +119,17 @@ def _validate_skill_frontmatter(skill_dir: Path) -> tuple[bool, str, str | None]
     if not name:
         return False, "Name cannot be empty", None
 
+    # Normalise to hyphen-case: lowercase + underscores/spaces → hyphens.
+    # This mirrors SkillStorage.validate_skill_name so that skills authored
+    # with underscores (e.g. "backtrader_strategies") are accepted and
+    # silently normalised to "backtrader-strategies" rather than rejected.
+    # The caller (installer / router) receives the normalised name via the
+    # return tuple and uses it for the on-disk directory.
+    name = name.lower()
+    name = re.sub(r"[\s_]+", "-", name)
+    name = re.sub(r"-+", "-", name)
+    name = name.strip("-")
+
     # Check naming convention (hyphen-case: lowercase with hyphens)
     if not re.match(r"^[a-z0-9-]+$", name):
         return False, f"Name '{name}' should be hyphen-case (lowercase letters, digits, and hyphens only)", None

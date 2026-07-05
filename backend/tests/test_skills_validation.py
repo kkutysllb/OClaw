@@ -90,41 +90,48 @@ class TestValidateSkillFrontmatter:
         assert valid is False
         assert "custom-field" in msg
 
-    def test_name_must_be_hyphen_case(self, tmp_path):
+    def test_name_uppercase_normalised_to_hyphen_case(self, tmp_path):
+        """Mixed-case names are normalised to lowercase hyphen-case rather
+        than rejected. 'MySkill' → 'myskill'."""
         skill_dir = _write_skill(
             tmp_path,
             "---\nname: MySkill\ndescription: test\n---\n\nBody\n",
         )
-        valid, msg, _ = _validate_skill_frontmatter(skill_dir)
-        assert valid is False
-        assert "hyphen-case" in msg
+        valid, msg, name = _validate_skill_frontmatter(skill_dir)
+        assert valid is True
+        assert name == "myskill"
 
-    def test_name_no_leading_hyphen(self, tmp_path):
+    def test_name_underscore_normalised_to_hyphen(self, tmp_path):
+        """Underscores are normalised to hyphens. 'backtrader_strategies' →
+        'backtrader-strategies'. Regression for the install-upload 400
+        reported when installing a .skill whose frontmatter used underscores."""
         skill_dir = _write_skill(
             tmp_path,
-            "---\nname: -my-skill\ndescription: test\n---\n\nBody\n",
+            "---\nname: backtrader_strategies\ndescription: test\n---\n\nBody\n",
         )
-        valid, msg, _ = _validate_skill_frontmatter(skill_dir)
-        assert valid is False
-        assert "hyphen" in msg
+        valid, msg, name = _validate_skill_frontmatter(skill_dir)
+        assert valid is True, f"Expected valid, got: {msg}"
+        assert name == "backtrader-strategies"
 
-    def test_name_no_trailing_hyphen(self, tmp_path):
+    def test_name_leading_trailing_hyphen_stripped(self, tmp_path):
+        """Leading/trailing hyphens are stripped during normalisation."""
         skill_dir = _write_skill(
             tmp_path,
-            "---\nname: my-skill-\ndescription: test\n---\n\nBody\n",
+            "---\nname: -my-skill-\ndescription: test\n---\n\nBody\n",
         )
-        valid, msg, _ = _validate_skill_frontmatter(skill_dir)
-        assert valid is False
-        assert "hyphen" in msg
+        valid, _, name = _validate_skill_frontmatter(skill_dir)
+        assert valid is True
+        assert name == "my-skill"
 
-    def test_name_no_consecutive_hyphens(self, tmp_path):
+    def test_name_consecutive_hyphens_collapsed(self, tmp_path):
+        """Consecutive hyphens are collapsed during normalisation."""
         skill_dir = _write_skill(
             tmp_path,
             "---\nname: my--skill\ndescription: test\n---\n\nBody\n",
         )
-        valid, msg, _ = _validate_skill_frontmatter(skill_dir)
-        assert valid is False
-        assert "hyphen" in msg
+        valid, _, name = _validate_skill_frontmatter(skill_dir)
+        assert valid is True
+        assert name == "my-skill"
 
     def test_name_too_long(self, tmp_path):
         long_name = "a" * 65
