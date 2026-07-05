@@ -10,8 +10,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useI18n } from "@/core/i18n/hooks";
 import type { ChannelConfigItem } from "@/core/channels/api";
+import { useI18n } from "@/core/i18n/hooks";
 
 const CHANNEL_ICON_COLORS: Record<string, string> = {
   dingtalk: "bg-sky-500/10 text-sky-500",

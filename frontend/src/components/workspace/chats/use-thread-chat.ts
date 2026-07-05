@@ -28,7 +28,7 @@ function parseThreadIdFromPath(pathname: string | null): string {
   if (!pathname) return "new";
   // Match the last segment after /chats/ in either route shape.
   // Handles encoded agent names (e.g. /workspace/agents/my%20agent/chats/{id}).
-  const match = pathname.match(/\/chats\/([^/?#]+)/);
+  const match = /\/chats\/([^/?#]+)/.exec(pathname);
   const raw = match?.[1];
   if (!raw) return "new";
   try {

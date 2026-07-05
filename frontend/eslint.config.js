@@ -9,6 +9,8 @@ export default tseslint.config(
   {
     ignores: [
       ".next",
+      "out",
+      "out/**",
       "src/components/ui/**",
       "src/components/ai-elements/**",
       "*.js",

@@ -10,6 +10,7 @@
  *  - unknown events → silently ignored
  */
 
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 // Mock `sonner` so every toast method is a spy we can assert against.
@@ -25,16 +26,14 @@ const { toastCallable, toastSpies } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("sonner", () => ({
-  toast: Object.assign(toastCallable, toastSpies),
-}));
-
-import { toast } from "sonner";
-
 import {
   handleStreamEvent,
   type StreamEventDependencies,
 } from "@/core/threads/stream-event-handler";
+
+vi.mock("sonner", () => ({
+  toast: Object.assign(toastCallable, toastSpies),
+}));
 
 function makeDeps(
   overrides: Partial<StreamEventDependencies> = {},

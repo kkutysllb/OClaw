@@ -68,7 +68,7 @@ export function WorkModeDetailDrawer({
 function ModeDetailBody({ mode }: { mode: WorkModeDetail }) {
   const iconKey = mode.id === "coding" ? "Code2" : mode.id === "task" ? "Briefcase" : "Bot";
   const Icon = ICON_MAP[iconKey] ?? BotIcon;
-  const leadName = mode.lead_agent_name || mode.name;
+  const leadName = mode.lead_agent_name ?? mode.name;
   const skillCount = mode.skill_count ?? mode.skills.length;
   const focusAreas = mode.focus_areas ?? [];
   const nonLockedSkills = mode.skills.filter((s) => !s.locked).slice(0, 8);
@@ -84,7 +84,9 @@ function ModeDetailBody({ mode }: { mode: WorkModeDetail }) {
           <div className="min-w-0 flex-1">
             <DialogTitle className="truncate">{mode.name}</DialogTitle>
             <DialogDescription className="mt-1 line-clamp-2">
-              {mode.description || `Work mode: ${mode.id}`}
+              {mode.description?.trim()
+                ? mode.description
+                : `Work mode: ${mode.id}`}
             </DialogDescription>
           </div>
           {mode.is_default && (

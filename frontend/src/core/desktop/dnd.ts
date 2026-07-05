@@ -20,6 +20,7 @@ export interface DroppedFilesDetail {
 }
 
 let initialized = false;
+const noop = () => undefined;
 
 /**
  * Start listening for OS file-drop events on the current window.
@@ -29,10 +30,10 @@ let initialized = false;
  */
 export async function initDragDrop(): Promise<() => void> {
   if (!isDesktop() || typeof window === "undefined") {
-    return () => {};
+    return noop;
   }
   if (initialized) {
-    return () => {};
+    return noop;
   }
 
   // Prevent the browser default (which would navigate to the dropped file).

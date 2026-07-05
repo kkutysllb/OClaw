@@ -92,7 +92,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
             <DropdownMenuItem
               onClick={() => {
-                openFolder(project.path);
+                void openFolder(project.path);
                 if (!isDesktop()) {
                   toast.success("项目路径已复制到剪贴板");
                 }

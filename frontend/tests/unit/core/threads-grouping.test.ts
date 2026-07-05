@@ -2,13 +2,13 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import {
-  groupThreadsByWorkMode,
-  resolveThreadWorkModeId,
-} from "@/core/threads/grouping";
-import {
   THREAD_AGENT_KEY_PREFIX,
   THREAD_WORK_MODE_KEY_PREFIX,
 } from "@/core/settings/local";
+import {
+  groupThreadsByWorkMode,
+  resolveThreadWorkModeId,
+} from "@/core/threads/grouping";
 import type { AgentThread } from "@/core/threads/types";
 
 function makeThread(threadId: string): AgentThread {

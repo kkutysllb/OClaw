@@ -59,7 +59,7 @@ describe("fetcher desktop auth", () => {
     await fetchWithAuth("http://127.0.0.1:29987/api/v1/auth/me");
 
     const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
-    const headers = new Headers((init as RequestInit | undefined)?.headers);
+    const headers = new Headers((init)?.headers);
     expect(headers.get("Authorization")).toBe("Bearer desktop-token");
   });
 
@@ -71,7 +71,7 @@ describe("fetcher desktop auth", () => {
     await fetchWithAuth("/api/models", { method: "POST" });
 
     const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
-    const request = init as RequestInit | undefined;
+    const request = init;
     const headers = new Headers(request?.headers);
     expect(headers.get("Authorization")).toBeNull();
     expect(headers.get("X-CSRF-Token")).toBe("csrf-dev-token");

@@ -12,7 +12,7 @@ import { useI18n } from "@/core/i18n/hooks";
  */
 function parseThreadIdFromPath(pathname: string | null): string {
   if (!pathname) return "new";
-  const match = pathname.match(/\/chats\/([^/?#]+)/);
+  const match = /\/chats\/([^/?#]+)/.exec(pathname);
   const raw = match?.[1];
   if (!raw) return "new";
   try {

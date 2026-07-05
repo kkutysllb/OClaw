@@ -5,9 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
+import { BackendStatusIndicator } from "@/components/desktop";
 import { Button } from "@/components/ui/button";
 import { AgentWelcome } from "@/components/workspace/agent-welcome";
-import { BackendStatusIndicator } from "@/components/desktop";
 import { ArtifactTrigger } from "@/components/workspace/artifacts";
 import { ChatBox, useThreadChat } from "@/components/workspace/chats";
 import { ExportTrigger } from "@/components/workspace/export-trigger";
@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
 
 function parseAgentNameFromPath(pathname: string | null): string {
   if (!pathname) return "";
-  const match = pathname.match(/\/workspace\/agents\/([^/]+)\//);
+  const match = /\/workspace\/agents\/([^/]+)\//.exec(pathname);
   const raw = match?.[1];
   if (!raw) return "";
   try {

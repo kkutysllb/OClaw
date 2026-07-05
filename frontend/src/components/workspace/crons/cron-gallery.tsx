@@ -14,13 +14,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useI18n } from "@/core/i18n/hooks";
-import type { CronJobConfig } from "@/core/crons/types";
 import {
   deleteCronJob,
   fetchCronJobs,
   toggleCronJob,
 } from "@/core/crons/api";
+import type { CronJobConfig } from "@/core/crons/types";
+import { useI18n } from "@/core/i18n/hooks";
 
 import { CronCard } from "./cron-card";
 
@@ -48,7 +48,7 @@ export function CronGallery() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const handleAdd = () => {
@@ -190,7 +190,7 @@ export function CronGallery() {
               {t.crons.deleteJob}
             </DialogTitle>
             <DialogDescription className="pl-10">
-              {t.crons.deleteConfirm.replace("{name}", deleteTarget || "")}
+              {t.crons.deleteConfirm.replace("{name}", deleteTarget ?? "")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="px-6 pb-5">

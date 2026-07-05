@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   HelpCircleIcon,
   KeyIcon,
   MessageCircleIcon,
-  Settings2Icon,
   ToggleLeftIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -21,8 +20,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { useI18n } from "@/core/i18n/hooks";
 import type { ChannelConfigItem } from "@/core/channels/api";
+import { useI18n } from "@/core/i18n/hooks";
 
 import { ChannelHelp } from "./channel-help";
 
@@ -142,7 +141,8 @@ export function ChannelDialog({
     }
   };
 
-  const displayName = config?.display_name_zh || config?.display_name || name || "";
+  const displayName =
+    config?.display_name_zh ?? config?.display_name ?? name ?? "";
 
   if (showHelp && name) {
     return (

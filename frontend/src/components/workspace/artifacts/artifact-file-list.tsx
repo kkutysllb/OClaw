@@ -10,10 +10,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { downloadArtifactUrl } from "@/core/artifacts/authenticated-url";
 import { urlOfArtifact } from "@/core/artifacts/utils";
 import { useI18n } from "@/core/i18n/hooks";
 import { useInstallSkill } from "@/core/skills/hooks";
-import { downloadArtifactUrl } from "@/core/artifacts/authenticated-url";
 import {
   getFileExtensionDisplayName,
   getFileIcon,

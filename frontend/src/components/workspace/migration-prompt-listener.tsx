@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,8 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { ImportWizardDialog } from "@/components/workspace/settings/import-wizard-dialog";
 import { isDesktop } from "@/core/config";
-import { useI18n } from "@/core/i18n/hooks";
 import type { DetectedSource } from "@/core/desktop/types";
+import { useI18n } from "@/core/i18n/hooks";
 
 /**
  * Listens for the backend's `migration:available` event (fired once on first

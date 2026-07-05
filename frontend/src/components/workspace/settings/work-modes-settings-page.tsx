@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +32,6 @@ import {
   useWorkModes,
 } from "@/core/work-modes/hooks";
 import type { WorkModeDetail } from "@/core/work-modes/types";
-import { toast } from "sonner";
 
 import { SettingsSection } from "./settings-section";
 
@@ -120,6 +120,7 @@ export function WorkModesSettingsPage() {
       if (editingId) {
         // Update existing mode
         const { id: _id, ...patch } = payload;
+        void _id;
         await updateMode.mutateAsync({ modeId: editingId, ...patch });
         toast.success(
           t.settings.workModes.updatedSuccess.replace("{name}", trimmedName),
@@ -222,11 +223,10 @@ export function WorkModesSettingsPage() {
                   <ModeCard
                     key={mode.id}
                     mode={mode}
-                    t={t}
-                    onEdit={() => openEditDialog(mode)}
-                    onDelete={() => handleDelete(mode)}
-                    onGoToSkills={() => router.push("/workspace/skills")}
-                  />
+	                    t={t}
+	                    onEdit={() => openEditDialog(mode)}
+	                    onDelete={() => handleDelete(mode)}
+	                  />
                 ))}
               </div>
             )}
@@ -361,14 +361,12 @@ function ModeCard({
   builtin = false,
   onEdit,
   onDelete,
-  onGoToSkills,
 }: {
   mode: WorkModeDetail;
   t: ReturnType<typeof useI18n>["t"];
   builtin?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
-  onGoToSkills?: () => void;
 }) {
   const Icon = MODE_ICONS[mode.id] ?? SparklesIcon;
   const skillCount = mode.skills?.length ?? mode.skill_count ?? 0;

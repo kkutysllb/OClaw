@@ -12,7 +12,6 @@
  * explicit ``work_mode_id`` persisted at creation.
  */
 
-import type { WorkMode } from "@/core/work-modes/types";
 import {
   getThreadAgentName,
   getThreadWorkModeId,
@@ -22,6 +21,8 @@ import {
   getAvailableWorkModes,
   resolveWorkModeByAgentName,
 } from "@/core/work-modes/defaults";
+import type { WorkMode } from "@/core/work-modes/types";
+
 import type { AgentThread } from "./types";
 
 /**

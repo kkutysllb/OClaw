@@ -4,6 +4,7 @@ import { DownloadIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/core/i18n/hooks";
+
 import { SettingsSection } from "./settings-section";
 
 interface ImportSettingsPageProps {

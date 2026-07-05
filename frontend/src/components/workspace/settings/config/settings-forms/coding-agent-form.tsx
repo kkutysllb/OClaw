@@ -161,13 +161,13 @@ export function CodingAgentForm() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={MODEL_INHERIT}>继承全局默认模型</SelectItem>
-                  {models
-                    .filter((model) => model.name)
-                    .map((model) => (
-                      <SelectItem key={model.name} value={model.name!}>
-                        {model.display_name || model.name}
-                      </SelectItem>
-                    ))}
+	                  {models
+	                    .filter((model) => model.name)
+	                    .map((model) => (
+	                      <SelectItem key={model.name} value={model.name!}>
+	                        {model.display_name?.trim() ? model.display_name : model.name}
+	                      </SelectItem>
+	                    ))}
                 </SelectContent>
               </Select>
             </div>

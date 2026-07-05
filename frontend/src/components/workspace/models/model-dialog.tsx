@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   CpuIcon,
@@ -10,8 +9,14 @@ import {
   Settings2Icon,
   ZapIcon,
 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -24,11 +29,6 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { useI18n } from "@/core/i18n/hooks";
 import type { Model, ModelRequest } from "@/core/models/types";
 
@@ -130,12 +130,12 @@ export function ModelDialog({
     if (open) {
       if (model) {
         setName(model.name);
-        setDisplayName(model.display_name || "");
-        setUseVal(model.use || "");
-        setModelId(model.model || "");
-        setApiKey(model.api_key || "");
-        setOriginalApiKey(model.api_key || "");
-        setBaseUrl(model.base_url || "");
+        setDisplayName(model.display_name ?? "");
+        setUseVal(model.use ?? "");
+        setModelId(model.model ?? "");
+        setApiKey(model.api_key ?? "");
+        setOriginalApiKey(model.api_key ?? "");
+        setBaseUrl(model.base_url ?? "");
         setMaxTokens(model.max_tokens != null ? String(model.max_tokens) : "");
         setMaxInputTokens(
           model.max_input_tokens != null ? String(model.max_input_tokens) : "",
@@ -147,7 +147,7 @@ export function ModelDialog({
         setRequestTimeout(
           model.request_timeout != null ? String(model.request_timeout) : "",
         );
-        setDescription(model.description || "");
+        setDescription(model.description ?? "");
         setSupportsThinking(!!model.supports_thinking);
         setSupportsVision(!!model.supports_vision);
         setSupportsReasoningEffort(!!model.supports_reasoning_effort);

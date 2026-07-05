@@ -45,7 +45,7 @@ export function parseUnifiedDiffForSideBySide(
   };
 
   for (const line of diffText.split("\n")) {
-    const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    const hunk = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
     if (hunk) {
       flushDeleted();
       oldLineNumber = Number(hunk[1]);

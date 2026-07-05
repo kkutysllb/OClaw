@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("@/env", () => ({
   env: {
@@ -12,12 +12,26 @@ vi.mock("@/core/auth/session", () => ({
   getDesktopSessionToken: vi.fn(() => null),
 }));
 
+import { installSkill } from "@/core/skills/api";
 import {
   addSkillToWorkMode,
   loadWorkModes,
   removeSkillFromWorkMode,
 } from "@/core/work-modes/api";
-import { installSkill } from "@/core/skills/api";
+
+function fetchUrl(input: Parameters<typeof fetch>[0]): string {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (input instanceof URL) {
+    return input.toString();
+  }
+  return input.url;
+}
+
+function requestBodyText(body: BodyInit | null | undefined): string {
+  return typeof body === "string" ? body : "";
+}
 
 const SAMPLE_WORK_MODES_RESPONSE = {
   default_mode_id: "task",
@@ -71,7 +85,7 @@ describe("work-modes api", () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0]!;
-    expect(String(url)).toContain("/api/work-modes");
+    expect(fetchUrl(url)).toContain("/api/work-modes");
     expect(init?.method ?? "GET").toBe("GET");
 
     expect(result.default_mode_id).toBe("task");
@@ -121,7 +135,7 @@ describe("work-modes api", () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0]!;
-    expect(String(url)).toContain(
+    expect(fetchUrl(url)).toContain(
       "/api/work-modes/task/skills/my-skill",
     );
     expect(init?.method).toBe("PUT");
@@ -144,7 +158,7 @@ describe("work-modes api", () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0]!;
-    expect(String(url)).toContain(
+    expect(fetchUrl(url)).toContain(
       "/api/work-modes/task/skills/my-skill",
     );
     expect(init?.method).toBe("DELETE");
@@ -189,7 +203,7 @@ describe("work-modes api", () => {
 
     const [, init] = fetchSpy.mock.calls[0]!;
     expect(init?.method).toBe("POST");
-    expect(JSON.parse(String(init?.body))).toEqual({
+    expect(JSON.parse(requestBodyText(init?.body))).toEqual({
       thread_id: "thread-1",
       path: "mnt/user-data/outputs/coding-helper.skill",
       work_modes: ["coding"],

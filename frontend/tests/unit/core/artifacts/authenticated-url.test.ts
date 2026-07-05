@@ -92,7 +92,7 @@ describe("desktop authenticated artifact URLs", () => {
 
     expect(url).toBe("blob:artifact");
     const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
-    const headers = new Headers((init as RequestInit | undefined)?.headers);
+    const headers = new Headers((init)?.headers);
     expect(headers.get("Authorization")).toBe("Bearer desktop-token");
   });
 

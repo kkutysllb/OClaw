@@ -2,19 +2,19 @@
 
 import { MessageCircleIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { useI18n } from "@/core/i18n/hooks";
 import {
   fetchChannelConfigs,
   restartChannel,
   updateChannelConfig,
   type ChannelConfigItem,
 } from "@/core/channels/api";
+import { useI18n } from "@/core/i18n/hooks";
 
 import { ChannelCard } from "./channel-card";
 import { ChannelDialog } from "./channel-dialog";
-import { toast } from "sonner";
 
 export function ChannelGallery() {
   const { t } = useI18n();
@@ -48,7 +48,7 @@ export function ChannelGallery() {
   }, []);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
 
   const handleEdit = (name: string) => {

@@ -1,5 +1,5 @@
-import { buildLoginUrl } from "@/core/auth/types";
 import { getDesktopSessionToken } from "@/core/auth/session";
+import { buildLoginUrl } from "@/core/auth/types";
 import { isDesktop, isDesktopBackendManagedMode } from "@/core/config";
 
 /** HTTP methods that the gateway's CSRFMiddleware checks. */

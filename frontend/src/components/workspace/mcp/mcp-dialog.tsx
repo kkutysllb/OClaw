@@ -133,14 +133,14 @@ export function McpDialog({
   useEffect(() => {
     if (open) {
       if (isEdit && config) {
-        setServerName(name!);
-        setTransportType(config.type || "stdio");
-        setCommand(config.command || "");
+        setServerName(name);
+        setTransportType(config.type ?? "stdio");
+        setCommand(config.command ?? "");
         setArgsText((config.args ?? []).join("\n"));
         setEnvText(formatMultiline(config.env));
-        setUrl(config.url || "");
+        setUrl(config.url ?? "");
         setHeadersText(formatMultiline(config.headers));
-        setDescription(config.description || "");
+        setDescription(config.description ?? "");
         setEnabled(config.enabled);
         setOauthEnabled(config.oauth?.enabled ?? false);
         setOauthTokenUrl(config.oauth?.token_url ?? "");

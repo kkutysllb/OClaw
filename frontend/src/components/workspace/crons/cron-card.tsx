@@ -11,8 +11,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useI18n } from "@/core/i18n/hooks";
 import type { CronJobConfig } from "@/core/crons/types";
+import { useI18n } from "@/core/i18n/hooks";
 
 interface CronCardProps {
   name: string;

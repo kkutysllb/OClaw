@@ -20,8 +20,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { pickDirectory } from "@/core/desktop";
 import { isDesktop } from "@/core/config";
+import { pickDirectory } from "@/core/desktop";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   addRecentWorkspacePath,

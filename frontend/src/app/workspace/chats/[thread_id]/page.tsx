@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { SparklesIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { BackendStatusIndicator } from "@/components/desktop";
@@ -40,7 +41,6 @@ import {
 import { useThreadStream } from "@/core/threads/hooks";
 import { textOfMessage } from "@/core/threads/utils";
 import { useWorkModes } from "@/core/work-modes/hooks";
-import { SparklesIcon } from "lucide-react";
 import { env } from "@/env";
 import { cn } from "@/lib/utils";
 

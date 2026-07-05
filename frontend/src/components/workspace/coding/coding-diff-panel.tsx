@@ -50,7 +50,7 @@ export function CodingDiffPanel({
   const [diffViewMode, setDiffViewMode] = useState<"side-by-side" | "unified">(
     "side-by-side",
   );
-  const files = diff?.files ?? [];
+  const files = useMemo(() => diff?.files ?? [], [diff?.files]);
   const totalAdditions = files.reduce((sum, file) => sum + file.additions, 0);
   const totalDeletions = files.reduce((sum, file) => sum + file.deletions, 0);
 
@@ -364,7 +364,7 @@ function renderUnifiedDiff(diffText: string, highlightedUnifiedLine: number | nu
   return (
     <div className="min-w-[720px] p-4 font-mono text-xs leading-5">
       {diffText.split("\n").map((line, index) => {
-        const hunk = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+        const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
         if (hunk) {
           newLineNumber = Number(hunk[1]);
         } else if (line.startsWith("+") && !line.startsWith("+++ ")) {

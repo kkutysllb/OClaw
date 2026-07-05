@@ -12,10 +12,9 @@ import {
   WrenchIcon,
   Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,

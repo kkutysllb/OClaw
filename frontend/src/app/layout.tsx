@@ -1,8 +1,8 @@
 import "@/styles/globals.css";
 import "katex/dist/katex.min.css";
 
-import { type ReactNode } from "react";
 import type { Metadata } from "next";
+import { type ReactNode } from "react";
 
 import { DesktopProviders } from "@/components/desktop/providers";
 

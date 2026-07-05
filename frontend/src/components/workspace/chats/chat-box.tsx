@@ -150,7 +150,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
               className="size-full"
               filepath={selectedArtifact}
               threadId={threadId}
-              workModeId={effectiveWorkModeId as string | undefined}
+              workModeId={effectiveWorkModeId}
             />
           ) : (
             <div className="relative flex size-full justify-center">
@@ -181,7 +181,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
                       className="max-w-(--container-width-sm) p-4 pt-12"
                       files={thread.values.artifacts ?? []}
                       threadId={threadId}
-                      workModeId={effectiveWorkModeId as string | undefined}
+                      workModeId={effectiveWorkModeId}
                     />
                   </main>
                 </div>

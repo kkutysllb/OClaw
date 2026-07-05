@@ -35,8 +35,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useMemo, useRef } from "react";
 import { useTheme } from "next-themes";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -1044,19 +1044,23 @@ function EmbeddedXtermViewport({
   onWriteRef.current = onWrite;
 
   /** Read the actual computed CSS custom-property value at runtime. */
-  const readCssVar = (name: string): string => {
-    if (typeof document === "undefined") return "";
-    return getComputedStyle(document.documentElement)
+  const readCssVar = useCallback((name: string, fallback: string): string => {
+    if (typeof document === "undefined") return fallback;
+    const value = getComputedStyle(document.documentElement)
       .getPropertyValue(name)
       .trim();
-  };
+    return value.length > 0 ? value : fallback;
+  }, []);
 
-  const getTerminalTheme = () => ({
-    background: readCssVar("--background") || "#0a0a0a",
-    foreground: readCssVar("--foreground") || "#fafafa",
-    cursor: readCssVar("--foreground") || "#fafafa",
-    selectionBackground: readCssVar("--muted") || "#333333",
-  });
+  const getTerminalTheme = useCallback(
+    () => ({
+      background: readCssVar("--background", "#0a0a0a"),
+      foreground: readCssVar("--foreground", "#fafafa"),
+      cursor: readCssVar("--foreground", "#fafafa"),
+      selectionBackground: readCssVar("--muted", "#333333"),
+    }),
+    [readCssVar],
+  );
 
   useEffect(() => {
     const host = viewportRef.current;
@@ -1101,7 +1105,7 @@ function EmbeddedXtermViewport({
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [tab.id]);
+  }, [getTerminalTheme, tab.id]);
 
   useEffect(() => {
     if (!active) return;
@@ -1122,7 +1126,7 @@ function EmbeddedXtermViewport({
     const terminal = terminalRef.current;
     if (!terminal) return;
     terminal.options.theme = getTerminalTheme();
-  }, [resolvedTheme]);
+  }, [getTerminalTheme, resolvedTheme]);
 
   return (
     <div

@@ -131,6 +131,17 @@ function getStreamErrorMessage(error: unknown): string {
   return "Request failed.";
 }
 
+function toError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  const wrapped = new Error(getStreamErrorMessage(error));
+  if (typeof error === "object" && error !== null) {
+    Object.assign(wrapped, error);
+  }
+  return wrapped;
+}
+
 /**
  * Detect a 409 Conflict from the backend, raised when a thread already has
  * an active run and a new run was created with the default "reject"
@@ -514,7 +525,7 @@ export function useThreadStream({
 
     if (!currentThreadId || isMock) {
       if (localStopError) {
-        throw localStopError;
+        throw toError(localStopError);
       }
       return;
     }
@@ -544,14 +555,14 @@ export function useThreadStream({
       if (status === 404 || status === 409 || status === "404" || status === "409") {
         clearStoredStreamReconnectKey(currentThreadId);
         if (localStopError) {
-          throw localStopError;
+          throw toError(localStopError);
         }
         return;
       }
       if (localStopError) {
-        throw error;
+        throw toError(error);
       }
-      throw error;
+      throw toError(error);
     }
 
     if (localStopError) {

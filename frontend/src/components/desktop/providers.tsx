@@ -2,10 +2,10 @@
 
 import { type ReactNode, useEffect, useState } from "react";
 
+import { UpdateChecker } from "@/components/desktop/update-checker";
 import { ThemeProvider } from "@/components/theme-provider";
 import { I18nProvider } from "@/core/i18n/context";
 import { DEFAULT_LOCALE } from "@/core/i18n/locale";
-import { UpdateChecker } from "@/components/desktop/update-checker";
 
 /**
  * Desktop-only provider wrapper for the static-export root layout.

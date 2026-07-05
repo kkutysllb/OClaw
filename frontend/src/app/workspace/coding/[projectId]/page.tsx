@@ -20,7 +20,7 @@ import { CodingWorkbench } from "@/components/workspace/coding/coding-workbench"
  */
 function parseProjectIdFromPath(pathname: string | null): string {
   if (!pathname) return "";
-  const match = pathname.match(/\/workspace\/coding\/([^/?#]+)/);
+  const match = /\/workspace\/coding\/([^/?#]+)/.exec(pathname);
   const raw = match?.[1];
   if (!raw) return "";
   try {

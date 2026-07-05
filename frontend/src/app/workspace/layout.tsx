@@ -1,7 +1,7 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { AuthProvider } from "@/core/auth/AuthProvider";
 import { getDesktopSessionToken } from "@/core/auth/session";

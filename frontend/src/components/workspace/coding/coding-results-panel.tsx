@@ -3,13 +3,13 @@
 import { ArrowLeftIcon, FileTextIcon, PackageOpenIcon } from "lucide-react";
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ArtifactFileDetail,
   ArtifactFileList,
   useArtifacts,
 } from "@/components/workspace/artifacts";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface CodingResultsPanelProps {
   threadId: string;

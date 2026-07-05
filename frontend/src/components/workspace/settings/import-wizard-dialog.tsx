@@ -13,7 +13,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useI18n } from "@/core/i18n/hooks";
 import type {
   DetectedSource,
   MigrationCategory,
@@ -22,6 +21,7 @@ import type {
   MigrationResult,
   MigrationScanResult,
 } from "@/core/desktop/types";
+import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 
 interface ImportWizardDialogProps {
@@ -131,7 +131,7 @@ export function ImportWizardDialog({
     try {
       const res = (await window.oclawDesktop.scanMigrationSource(
         path,
-      )) as MigrationScanResult;
+      ));
       setScan(res);
       return res;
     } catch (e) {
@@ -191,7 +191,7 @@ export function ImportWizardDialog({
       const res = (await window.oclawDesktop?.executeMigration({
         sourceRepoRoot,
         options,
-      })) as MigrationResult;
+      }))!;
       clearInterval(timer);
       setProgress(100);
       setResult(res);
@@ -438,7 +438,9 @@ function SourceStep({
 }
 
 // Local helper to avoid ESLint complaining about the controlled input wiring.
-function setManualPathValue(_v: string) {}
+function setManualPathValue(_v: string) {
+  return undefined;
+}
 
 function ContentStep({
   scan,

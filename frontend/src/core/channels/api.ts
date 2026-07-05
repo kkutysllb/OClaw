@@ -1,5 +1,5 @@
-import { getBackendBaseURL } from "@/core/config";
 import { fetch } from "@/core/api/fetcher";
+import { getBackendBaseURL } from "@/core/config";
 
 export interface ChannelConfigItem {
   enabled: boolean;

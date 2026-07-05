@@ -2,6 +2,7 @@
 
 import { AlertTriangleIcon, PlusIcon, TerminalIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +24,6 @@ import type { MCPServerConfig } from "@/core/mcp/types";
 
 import { McpCard } from "./mcp-card";
 import { McpDialog } from "./mcp-dialog";
-import { toast } from "sonner";
 
 export function McpGallery() {
   const { t } = useI18n();
@@ -56,7 +56,7 @@ export function McpGallery() {
   }, []);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
 
   const handleAdd = () => {

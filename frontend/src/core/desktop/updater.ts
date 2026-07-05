@@ -9,6 +9,8 @@ import { isDesktop } from "../config";
 
 import type { UpdateInfo } from "./types";
 
+const noop = () => undefined;
+
 /** Check if an application update is available. */
 export async function checkForUpdates(): Promise<UpdateInfo | null> {
   if (!isDesktop()) return null;
@@ -42,12 +44,12 @@ export async function installUpdate(): Promise<boolean> {
 export function onUpdateDownloading(
   handler: (info: { version: string; releaseDate?: string }) => void,
 ): () => void {
-  if (!isDesktop()) return () => {};
+  if (!isDesktop()) return noop;
   try {
     return window.oclawDesktop!.onUpdateDownloading(handler);
   } catch (e) {
     console.warn("[desktop] onUpdateDownloading subscribe failed:", e);
-    return () => {};
+    return noop;
   }
 }
 
@@ -62,11 +64,11 @@ export function onUpdateDownloading(
 export function onUpdateReady(
   handler: (info: { version: string; releaseDate?: string }) => void,
 ): () => void {
-  if (!isDesktop()) return () => {};
+  if (!isDesktop()) return noop;
   try {
     return window.oclawDesktop!.onUpdateReady(handler);
   } catch (e) {
     console.warn("[desktop] onUpdateReady subscribe failed:", e);
-    return () => {};
+    return noop;
   }
 }

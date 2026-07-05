@@ -54,8 +54,6 @@ import {
 } from "@/core/threads/export";
 import { groupThreadsByWorkMode } from "@/core/threads/grouping";
 import type { ThreadGroup } from "@/core/threads/grouping";
-import type { WorkMode } from "@/core/work-modes/types";
-import { useWorkModes } from "@/core/work-modes/hooks";
 import {
   useDeleteThread,
   useRenameThread,
@@ -63,6 +61,8 @@ import {
 } from "@/core/threads/hooks";
 import type { AgentThread, AgentThreadState } from "@/core/threads/types";
 import { pathOfThread, titleOfThread } from "@/core/threads/utils";
+import { useWorkModes } from "@/core/work-modes/hooks";
+import type { WorkMode } from "@/core/work-modes/types";
 import { env } from "@/env";
 import { isIMEComposing } from "@/lib/ime";
 
@@ -102,7 +102,7 @@ function resolveModeName(name: string, t: unknown): string {
 
 function parseThreadIdFromPath(pathname: string | null): string {
   if (!pathname) return "new";
-  const match = pathname.match(/\/chats\/([^/?#]+)/);
+  const match = /\/chats\/([^/?#]+)/.exec(pathname);
   const raw = match?.[1];
   if (!raw) return "new";
   try {
@@ -114,7 +114,7 @@ function parseThreadIdFromPath(pathname: string | null): string {
 
 function parseAgentNameFromPath(pathname: string | null): string | undefined {
   if (!pathname) return undefined;
-  const match = pathname.match(/\/workspace\/agents\/([^/]+)\//);
+  const match = /\/workspace\/agents\/([^/]+)\//.exec(pathname);
   const raw = match?.[1];
   if (!raw) return undefined;
   try {
