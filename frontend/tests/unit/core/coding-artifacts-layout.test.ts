@@ -160,6 +160,9 @@ describe("coding artifacts layout", () => {
 
     expect(chatBox).toContain('artifactsMode = "side-panel"');
     expect(chatBox).toContain('artifactsMode === "disabled"');
-    expect(chatBox).toContain("return <>{children}</>;");
+    // disabled 模式下不再有 artifacts 面板(用 hasArtifactsPanel 标志控制布局计算),
+    // 但仍渲染 chat | todos 两栏布局,因此 chat 区不会被 artifacts 面板调整尺寸。
+    expect(chatBox).toContain("hasArtifactsPanel");
+    expect(chatBox).toContain('defaultLayout={LAYOUT_MODES.allClosed}');
   });
 });
