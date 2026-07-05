@@ -6,7 +6,7 @@
   "scripts": {
     "demo:save": "node scripts/save-demo.js",
     "build": "next build",
-    "check": "eslint . --ext .ts,.tsx && tsc --noEmit",
+    "check": "eslint . --ext .ts,.tsx && pnpm run typecheck",
     "dev": "next dev --webpack",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
@@ -17,7 +17,7 @@
     "test": "vitest run",
     "build:desktop": "node scripts/desktop-build.mjs",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node scripts/typecheck.mjs"
   },
   "dependencies": {
     "@codemirror/lang-css": "^6.3.1",
