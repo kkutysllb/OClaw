@@ -42,19 +42,61 @@ def _resolve_cron_config_path() -> Path:
 
 
 def _load_cron_config() -> dict[str, Any]:
-    """Load the full cron_config.json as a dict. Returns empty dict if missing."""
+    """Load the full cron_config.json as a dict.
+
+    Returns ``{"cronJobs": {}}`` when the file is missing OR when it is
+    corrupt (invalid UTF-8 / invalid JSON). A corrupt file was observed in
+    the wild after a non-atomic concurrent write — see ``_save_cron_config``.
+    Logging the corruption once is preferable to crashing the scheduler
+    poll loop and the REST handlers that depend on this helper.
+    """
     path = _resolve_cron_config_path()
     if not path.exists():
         return {"cronJobs": {}}
-    with open(path, encoding="utf-8") as f:
-        return json.load(f) or {"cronJobs": {}}
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f) or {"cronJobs": {}}
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+        logger.warning(
+            "cron_config.json at %s is corrupt (%s); treating as empty. "
+            "The next successful save will overwrite it atomically.",
+            path,
+            exc,
+        )
+        return {"cronJobs": {}}
 
 
 def _save_cron_config(data: dict[str, Any]) -> Path:
-    """Write the dict to cron_config.json."""
+    """Write the dict to cron_config.json atomically.
+
+    Writes to a sibling temp file then ``os.replace()``s it into place.
+    This guarantees readers (the scheduler poll loop, other REST handlers)
+    never observe a half-written file — which previously produced a
+    corrupt JSON / invalid UTF-8 blob when two writers raced or a write
+    was interrupted.
+    """
+    import os
+    import tempfile
+
     path = _resolve_cron_config_path()
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # mkstemp in the same dir guarantees the rename is atomic on the same
+    # filesystem (os.replace is atomic, but only within one fs).
+    fd, tmp = tempfile.mkstemp(
+        dir=str(path.parent), prefix=".cron_config.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, path)
+    except Exception:
+        # Best-effort cleanup of the temp file on failure; the original
+        # file is untouched because we haven't replaced it yet.
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
     logger.info(f"cron_config.json written to {path}")
     return path
 

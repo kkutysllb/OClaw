@@ -251,7 +251,7 @@ function startGateway() {
   console.log(`[dev]   KKOCLAW_EXTENSIONS_CONFIG_PATH=${extensionsConfigPath}`);
   console.log(`[dev]   KKOCLAW_DATA_DIR=${dataDir}`);
   console.log(`[dev]   KKOCLAW_SKILLS_PATH=${skillsPath}`);
-  gatewayProcess = start("uv", ["run", "uvicorn", "app.gateway.app:app", "--host", "127.0.0.1", "--port", GATEWAY_PORT], {
+  gatewayProcess = start("uv", ["run", "python", "-m", "uvicorn", "app.gateway.app:app", "--host", "127.0.0.1", "--port", GATEWAY_PORT], {
     cwd: BACKEND_DIR,
     env: {
       ...process.env,

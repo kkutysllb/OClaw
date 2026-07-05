@@ -234,8 +234,15 @@ export class BackendManager extends EventEmitter {
     if (!backendDir) return null;
 
     // 2. Project venv via `uv run`.
+    // Use `python -m uvicorn` (NOT `uvicorn` directly): `uv run uvicorn`
+    // resolves the `uvicorn` executable on PATH, which may point at a
+    // system/conda uvicorn linked to the wrong interpreter. Running the
+    // module via the project venv's Python guarantees we load the uvicorn
+    // installed inside `.venv` together with `kkoclaw` and its deps.
     const uvArgs = [
       "run",
+      "python",
+      "-m",
       "uvicorn",
       "app.gateway.app:app",
       "--host",

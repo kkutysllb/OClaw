@@ -46,11 +46,16 @@ def _resolve_cron_config_path() -> Path:
 
 
 def _load_cron_config() -> dict[str, Any]:
-    path = _resolve_cron_config_path()
-    if not path.exists():
-        return {"cronJobs": {}}
-    with open(path, encoding="utf-8") as f:
-        return json.load(f) or {"cronJobs": {}}
+    """Load cron_config.json, tolerating corruption.
+
+    Delegates to :mod:`app.gateway.routers.crons` so the scheduler and the
+    REST handlers share one resilient loader. A corrupt file (e.g. after a
+    non-atomic concurrent write) returns an empty config instead of
+    crashing the scheduler poll loop.
+    """
+    from app.gateway.routers.crons import _load_cron_config as _router_load
+
+    return _router_load()
 
 
 # ---------------------------------------------------------------------------
