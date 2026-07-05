@@ -21,7 +21,6 @@ import {
 import { ThreadContext } from "@/components/workspace/messages/context";
 import { RefreshButton } from "@/components/workspace/refresh-button";
 import { ThreadTitle } from "@/components/workspace/thread-title";
-import { TodoList } from "@/components/workspace/todo-list";
 import { TodoTrigger } from "@/components/workspace/todo-trigger";
 import { TokenUsageIndicator } from "@/components/workspace/token-usage-indicator";
 import { Tooltip } from "@/components/workspace/tooltip";
@@ -186,18 +185,6 @@ export default function AgentChatPage() {
                     : "max-w-(--container-width-md)",
                 )}
               >
-                <div className="absolute -top-4 right-0 left-0 z-0">
-                  <div className="absolute right-0 bottom-0 left-0">
-                    <TodoList
-                      className="bg-background/5"
-                      todos={thread.values.todos ?? []}
-                      hidden={
-                        !thread.values.todos || thread.values.todos.length === 0
-                      }
-                    />
-                  </div>
-                </div>
-
                 {isNewThread && (
                   <div className={cn("max-w-(--container-width-sm) mx-auto w-full")}>
                     <AgentWelcome agent={agent} agentName={agent_name} />
