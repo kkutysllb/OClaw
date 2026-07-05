@@ -1,6 +1,7 @@
-import { ChevronUpIcon, ListTodoIcon } from "lucide-react";
+import { ListTodoIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import type { Todo } from "@/core/todos";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +16,6 @@ export function TodoList({
   className,
   todos,
   collapsed: controlledCollapsed,
-  hidden = false,
   onToggle,
 }: {
   className?: string;
@@ -24,7 +24,7 @@ export function TodoList({
   hidden?: boolean;
   onToggle?: () => void;
 }) {
-  const [internalCollapsed, setInternalCollapsed] = useState(true);
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isControlled = controlledCollapsed !== undefined;
   const collapsed = isControlled ? controlledCollapsed : internalCollapsed;
 
@@ -36,63 +36,71 @@ export function TodoList({
     }
   };
 
+  const isEmpty = !todos || todos.length === 0;
+
   return (
     <div
       className={cn(
-        "flex h-fit w-full origin-bottom translate-y-4 flex-col overflow-hidden rounded-t-xl border border-b-0 bg-white backdrop-blur-sm transition-all duration-200 ease-out",
-        hidden ? "pointer-events-none translate-y-8 opacity-0" : "",
+        "bg-background flex h-full w-full flex-col overflow-hidden border-l",
         className,
       )}
     >
       <header
-        className={cn(
-          "bg-accent flex min-h-8 shrink-0 cursor-pointer items-center justify-between px-4 text-sm transition-all duration-300 ease-out",
-        )}
+        className="bg-accent flex min-h-9 shrink-0 items-center justify-between px-4 text-sm"
         onClick={handleToggle}
       >
-        <div className="text-muted-foreground">
-          <div className="flex items-center justify-center gap-2">
-            <ListTodoIcon className="size-4" />
-            <div>To-dos</div>
-          </div>
+        <div className="text-muted-foreground flex items-center gap-2">
+          <ListTodoIcon className="size-4" />
+          <div>任务清单</div>
         </div>
-        <div>
-          <ChevronUpIcon
-            className={cn(
-              "text-muted-foreground size-4 transition-transform duration-300 ease-out",
-              collapsed ? "" : "rotate-180",
-            )}
-          />
-        </div>
+        {onToggle && (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="关闭任务面板"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+          >
+            <XIcon className="size-4" />
+          </Button>
+        )}
       </header>
       <main
         className={cn(
-          "bg-accent flex grow px-2 transition-all duration-300 ease-out",
-          collapsed ? "h-0 pb-3" : "h-28 pb-4",
+          "min-h-0 grow flex-col overflow-y-auto px-2 py-2 transition-all duration-300 ease-out",
+          collapsed ? "hidden" : "flex",
         )}
       >
-        <QueueList className="bg-background mt-0 w-full rounded-t-xl">
-          {todos.map((todo, i) => (
-            <QueueItem key={i + (todo.content ?? "")}>
-              <div className="flex items-center gap-2">
-                <QueueItemIndicator
-                  className={
-                    todo.status === "in_progress" ? "bg-primary/70" : ""
-                  }
-                  completed={todo.status === "completed"}
-                />
-                <QueueItemContent
-                  className={
-                    todo.status === "in_progress" ? "text-primary/70" : ""
-                  }
-                  completed={todo.status === "completed"}
-                >
-                  {todo.content}
-                </QueueItemContent>
-              </div>
-            </QueueItem>
-          ))}
-        </QueueList>
+        {isEmpty ? (
+          <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+            暂无任务清单
+          </div>
+        ) : (
+          <QueueList className="w-full">
+            {todos.map((todo, i) => (
+              <QueueItem key={i + (todo.content ?? "")}>
+                <div className="flex items-center gap-2">
+                  <QueueItemIndicator
+                    className={
+                      todo.status === "in_progress" ? "bg-primary/70" : ""
+                    }
+                    completed={todo.status === "completed"}
+                  />
+                  <QueueItemContent
+                    className={
+                      todo.status === "in_progress" ? "text-primary/70" : ""
+                    }
+                    completed={todo.status === "completed"}
+                  >
+                    {todo.content}
+                  </QueueItemContent>
+                </div>
+              </QueueItem>
+            ))}
+          </QueueList>
+        )}
       </main>
     </div>
   );

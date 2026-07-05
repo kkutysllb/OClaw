@@ -22,6 +22,7 @@ import { ThreadContext } from "@/components/workspace/messages/context";
 import { RefreshButton } from "@/components/workspace/refresh-button";
 import { ThreadTitle } from "@/components/workspace/thread-title";
 import { TodoList } from "@/components/workspace/todo-list";
+import { TodoTrigger } from "@/components/workspace/todo-trigger";
 import { TokenUsageIndicator } from "@/components/workspace/token-usage-indicator";
 import { Tooltip } from "@/components/workspace/tooltip";
 import { useAgent } from "@/core/agents";
@@ -157,6 +158,7 @@ export default function AgentChatPage() {
                 messages={thread.messages}
               />
               <ExportTrigger threadId={threadId} />
+              <TodoTrigger todos={thread.values.todos} />
               <ArtifactTrigger />
             </div>
           </header>

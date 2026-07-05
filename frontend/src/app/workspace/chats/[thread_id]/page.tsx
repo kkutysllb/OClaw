@@ -24,6 +24,7 @@ import { ThreadContext } from "@/components/workspace/messages/context";
 import { RefreshButton } from "@/components/workspace/refresh-button";
 import { ThreadTitle } from "@/components/workspace/thread-title";
 import { TodoList } from "@/components/workspace/todo-list";
+import { TodoTrigger } from "@/components/workspace/todo-trigger";
 import { TokenUsageIndicator } from "@/components/workspace/token-usage-indicator";
 import { Welcome } from "@/components/workspace/welcome";
 import { WorkModeBadge } from "@/components/workspace/work-mode-badge";
@@ -189,6 +190,7 @@ export default function ChatPage() {
                 messages={thread.messages}
               />
               <ExportTrigger threadId={threadId} />
+              <TodoTrigger todos={thread.values.todos} />
               <ArtifactTrigger />
             </div>
           </header>
