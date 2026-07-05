@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.6 - 2026-07-05
+
+Compare: `v0.1.5...v0.1.6`
+
+- 报错: Security scan rejected executable announcement-search/scripts/__main__.py: Borderline external API references... (ca5f618)
+
 ## v0.1.5 - 2026-07-05
 
 Compare: `v0.1.4...v0.1.5`
