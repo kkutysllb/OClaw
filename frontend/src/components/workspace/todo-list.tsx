@@ -21,7 +21,6 @@ export function TodoList({
   className?: string;
   todos: Todo[];
   collapsed?: boolean;
-  hidden?: boolean;
   onToggle?: () => void;
 }) {
   const [internalCollapsed, setInternalCollapsed] = useState(false);
