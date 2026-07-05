@@ -635,6 +635,8 @@ export interface Translations {
       descriptionPlaceholder: string;
       descriptionCount: string;
       workModesLabel: string;
+      workModesHint: string;
+      workModesEmpty: string;
       // Step 2: template
       templateLabel: string;
       templateBlank: string;

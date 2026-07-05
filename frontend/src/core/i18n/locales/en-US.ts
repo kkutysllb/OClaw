@@ -725,6 +725,8 @@ export const enUS: Translations = {
       descriptionPlaceholder: "What does this skill do? When should it be used?",
       descriptionCount: "{count} / 1024",
       workModesLabel: "Bind to work modes",
+      workModesHint: "Selected modes will auto-load this skill. Leaving empty defaults to the task mode.",
+      workModesEmpty: "No mode selected — the skill will default to the task mode on create.",
       templateLabel: "Choose a template to start from",
       templateBlank: "Blank",
       templateTask: "Task",

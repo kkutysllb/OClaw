@@ -71,7 +71,13 @@ interface BasicsForm {
 const INITIAL_BASICS: BasicsForm = {
   name: "",
   description: "",
-  workModes: ["task"],
+  // Start empty — let the user actively choose which work modes to bind.
+  // The previous default of ["task"] made "日常办公 (task)" look mandatory
+  // because the toggle was pre-checked and the onValueChange fallback
+  // re-added "task" whenever the user tried to clear all selections.
+  // The submit path still defaults to ["task"] when the user leaves it
+  // empty, so backend correctness is preserved.
+  workModes: [],
 };
 
 export function CreateSkillWizard({
@@ -601,9 +607,7 @@ function StepBasics({ form, setForm, workModesData, t }: StepBasicsProps) {
         <ToggleGroup
           type="multiple"
           value={form.workModes}
-          onValueChange={(values) =>
-            setForm((p) => ({ ...p, workModes: values.length > 0 ? values : ["task"] }))
-          }
+          onValueChange={(values) => setForm((p) => ({ ...p, workModes: values }))}
           variant="outline"
         >
           {workModesData.modes.map((mode) => (
@@ -612,6 +616,11 @@ function StepBasics({ form, setForm, workModesData, t }: StepBasicsProps) {
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
+        <p className="text-muted-foreground text-xs">
+          {form.workModes.length === 0
+            ? t.settings.createSkillWizard.workModesEmpty
+            : t.settings.createSkillWizard.workModesHint}
+        </p>
       </div>
     </div>
   );
@@ -779,9 +788,7 @@ function StepUploadSkill({ file, onPick, onClear, form, setForm, workModesData, 
         <ToggleGroup
           type="multiple"
           value={form.workModes}
-          onValueChange={(values) =>
-            setForm((p) => ({ ...p, workModes: values.length > 0 ? values : ["task"] }))
-          }
+          onValueChange={(values) => setForm((p) => ({ ...p, workModes: values }))}
           variant="outline"
         >
           {workModesData.modes.map((mode) => (
@@ -790,6 +797,11 @@ function StepUploadSkill({ file, onPick, onClear, form, setForm, workModesData, 
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
+        <p className="text-muted-foreground text-xs">
+          {form.workModes.length === 0
+            ? t.settings.createSkillWizard.workModesEmpty
+            : t.settings.createSkillWizard.workModesHint}
+        </p>
       </div>
 
       {file && (

@@ -19,8 +19,20 @@ _BUILTIN_MODE_IDS = {"core", "task", "coding"}
 
 # Cross-platform compatibility keys that are normalised into metadata.compat
 # rather than rejected outright.  These keys appear in skill templates from
-# other platforms (Claude Code, Qoder, etc.) and should degrade gracefully.
-_COMPAT_FRONTMATTER_KEYS = {"capabilities", "inputs", "permissions", "requires", "tags"}
+# other platforms (Claude Code, Qoder, Anthropic skill marketplace, etc.) and
+# should degrade gracefully. Common ones:
+#   - capabilities / inputs / permissions / requires / tags: Claude Code skills
+#   - category: skill-marketplace categorisation (e.g. "coding", "productivity")
+#   - package: packaging-tool provenance metadata
+_COMPAT_FRONTMATTER_KEYS = {
+    "capabilities",
+    "inputs",
+    "permissions",
+    "requires",
+    "tags",
+    "category",
+    "package",
+}
 
 
 def _normalise_skill_frontmatter(frontmatter: dict) -> dict:

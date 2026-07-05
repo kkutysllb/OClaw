@@ -701,6 +701,8 @@ export const zhCN: Translations = {
       descriptionPlaceholder: "这个技能做什么?何时使用?",
       descriptionCount: "{count} / 1024",
       workModesLabel: "绑定工作模式",
+      workModesHint: "选中的模式会自动加载此技能。不选则默认绑定到日常办公(task)模式。",
+      workModesEmpty: "未选择任何模式,创建时将默认绑定到日常办公(task)模式。",
       templateLabel: "选择一个模板作为起点",
       templateBlank: "空白技能",
       templateTask: "任务技能",

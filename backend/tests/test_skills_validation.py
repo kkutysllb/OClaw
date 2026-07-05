@@ -258,7 +258,7 @@ class TestNormaliseSkillFrontmatter:
         assert "custom-field" in result
 
     def test_all_compat_keys_normalised(self):
-        """All five compat keys should be moved."""
+        """All compat keys (including category/package) should be moved."""
         fm = {
             "name": "my-skill",
             "description": "test",
@@ -267,6 +267,8 @@ class TestNormaliseSkillFrontmatter:
             "permissions": "z",
             "requires": "w",
             "tags": ["a"],
+            "category": "coding",
+            "package": "anthropic/skill-marketplace",
         }
         result = _normalise_skill_frontmatter(fm)
         for key in _COMPAT_FRONTMATTER_KEYS:
@@ -277,6 +279,8 @@ class TestNormaliseSkillFrontmatter:
         assert compat["permissions"] == "z"
         assert compat["requires"] == "w"
         assert compat["tags"] == ["a"]
+        assert compat["category"] == "coding"
+        assert compat["package"] == "anthropic/skill-marketplace"
 
 
 class TestValidateFrontmatterWithCompatNormalisation:
@@ -302,7 +306,27 @@ class TestValidateFrontmatterWithCompatNormalisation:
         valid, msg, name = _validate_skill_frontmatter(skill_dir)
         assert valid is True
         assert msg == "Skill is valid!"
-        assert name == "my-skill"
+
+    def test_skill_with_category_and_package_valid(self, tmp_path):
+        """Skills carrying `category` and `package` (common in third-party
+        marketplaces) must validate, with those keys normalised into
+        metadata.compat rather than rejected as unexpected.
+
+        Regression for the install-upload 400 reported when a user uploaded
+        a .skill whose frontmatter contained both keys.
+        """
+        skill_dir = _write_skill(
+            tmp_path,
+            "---\n"
+            "name: market-skill\n"
+            "description: A skill authored for an external marketplace\n"
+            "category: coding\n"
+            "package: anthropic/skill-marketplace\n"
+            "---\n\n# market-skill\nBody\n",
+        )
+        valid, msg, name = _validate_skill_frontmatter(skill_dir)
+        assert valid is True, f"Expected valid, got: {msg}"
+        assert name == "market-skill"
 
     def test_unknown_key_still_rejected(self, tmp_path):
         """Truly unknown keys should still cause validation failure."""
