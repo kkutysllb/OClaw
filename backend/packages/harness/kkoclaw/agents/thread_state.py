@@ -56,6 +56,28 @@ def merge_viewed_images(existing: dict[str, ViewedImageData] | None, new: dict[s
     return {**existing, **new}
 
 
+def merge_pending_messages(left: list[dict] | None, right: list[dict] | None) -> list[dict]:
+    """Reducer for pending_messages — queue of messages injected mid-run.
+
+    三态语义（由右值形态决定）:
+      - right = []          → 清空（middleware 消费 pending 后清空队列）
+      - right = [msg, ...]  → 追加（inject 路由 / aupdate_state 写入），按 id 去重
+      - 未提供该 channel    → 保持 left（superstep 无写入时，LangGraph 不调 reducer）
+
+    对应 merge_viewed_images 的"空 dict 清空"约定，但用于 list 字段。
+    """
+    if left is None:
+        left = []
+    if right is None:
+        return left
+    if not right:
+        return []  # 显式传空 list = 清空
+    # 追加，按 id 去重
+    existing_ids = {m.get("id") for m in left if m.get("id")}
+    appended = [m for m in right if not (m.get("id") and m.get("id") in existing_ids)]
+    return [*left, *appended]
+
+
 class ThreadState(AgentState):
     sandbox: NotRequired[SandboxState | None]
     thread_data: NotRequired[ThreadDataState | None]
@@ -65,6 +87,9 @@ class ThreadState(AgentState):
     todo_completion_control: NotRequired[dict[str, Any] | None]
     uploaded_files: NotRequired[list[dict] | None]
     viewed_images: Annotated[dict[str, ViewedImageData], merge_viewed_images]  # image_path -> {base64, mime_type}
+    # 运行中由用户注入的待处理消息队列（inject 功能）。
+    # list[dict] 保证 JSON-safe 便于 checkpoint 序列化；middleware 读取时构造 HumanMessage。
+    pending_messages: Annotated[list[dict], merge_pending_messages]
 
 
 class RuntimeContext(TypedDict, total=False):
