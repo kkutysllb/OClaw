@@ -516,22 +516,16 @@ async def upload_support_files(
                         status_code=400,
                         detail=f"Security scan blocked {relative_path}: {scan.reason}",
                     )
-                # scripts/ require explicit allow (warn is rejected),
-                # mirroring the installer's strictness for executable files.
-                # EXCEPTION: a scan that timed out degrades to "warn" with a
-                # reason containing "timed out" — in that case we let the
-                # upload through rather than punishing the user for a slow
-                # model provider. A genuine "warn" (model flagged something
-                # borderline) is still rejected for scripts.
-                if (
-                    executable
-                    and scan.decision != "allow"
-                    and "timed out" not in scan.reason.lower()
-                ):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Security scan did not explicitly allow script {relative_path}: {scan.reason}",
-                    )
+                # scripts/ uploads via the wizard (support-files endpoint)
+                # accept both "allow" and "warn" — unlike the .skill installer
+                # (which requires explicit "allow" for executables because the
+                # archive may come from an untrusted third-party marketplace),
+                # this endpoint is driven by an explicit user action: the user
+                # picked the file from their own machine. A "warn" typically
+                # flags borderline-but-legitimate patterns like external API
+                # references (e.g. a script that calls a documented API with
+                # an env-var key), which is exactly what the user intends to
+                # upload. Only "block" (clear malicious content) is rejected.
                 scan_meta = {"decision": scan.decision, "reason": scan.reason}
                 storage.write_custom_skill(skill_name, relative_path, content_text)
             else:

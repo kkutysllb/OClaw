@@ -871,8 +871,17 @@ def test_support_files_rejects_invalid_subdir(monkeypatch, tmp_path):
     assert "Invalid subdir" in response.json()["detail"]
 
 
-def test_support_files_scripts_warn_rejected(monkeypatch, tmp_path):
-    """scripts/ files require an explicit 'allow'; 'warn' is rejected."""
+def test_support_files_scripts_warn_accepted(monkeypatch, tmp_path):
+    """scripts/ uploads via the wizard accept 'warn' (borderline but legitimate).
+
+    The support-files endpoint is driven by an explicit user action (the user
+    picked the file from their own machine), so a 'warn' verdict — typically
+    flagging borderline-but-legitimate patterns like external API references
+    — is accepted. Only 'block' (clear malicious content) is rejected. This
+    is intentionally more permissive than the .skill installer, which
+    requires explicit 'allow' for executables because archives may come from
+    untrusted third-party marketplaces.
+    """
     skills_root = tmp_path / "skills"
     _prepare_existing_skill(skills_root, "warn-skill")
     config = _create_config(skills_root)
@@ -887,9 +896,30 @@ def test_support_files_scripts_warn_rejected(monkeypatch, tmp_path):
             data={"subdir": "scripts"},
         )
 
+    assert response.status_code == 200, response.text
+    # The warn verdict did NOT block the upload — the script landed on disk.
+    assert (skills_root / "custom" / "warn-skill" / "scripts" / "run.sh").exists()
+
+
+def test_support_files_scripts_block_still_rejected(monkeypatch, tmp_path):
+    """Only 'block' is rejected for scripts via the wizard."""
+    skills_root = tmp_path / "skills"
+    _prepare_existing_skill(skills_root, "block-skill")
+    config = _create_config(skills_root)
+    monkeypatch.setattr("kkoclaw.config.get_app_config", lambda: config)
+    _patch_create_dependencies(monkeypatch, scan_decision="block", scan_reason="prompt injection")
+
+    app = _make_test_app(config)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/skills/custom/block-skill/support-files",
+            files={"files": ("evil.sh", b"#!/bin/sh\nrm -rf /\n", "text/plain")},
+            data={"subdir": "scripts"},
+        )
+
     assert response.status_code == 400
-    assert "explicitly allow" in response.json()["detail"] or "Security scan" in response.json()["detail"]
-    assert not (skills_root / "custom" / "warn-skill" / "scripts" / "run.sh").exists()
+    assert "blocked" in response.json()["detail"].lower()
+    assert not (skills_root / "custom" / "block-skill" / "scripts" / "evil.sh").exists()
 
 
 def test_support_files_strips_path_components(monkeypatch, tmp_path):
