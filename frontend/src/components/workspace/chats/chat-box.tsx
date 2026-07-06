@@ -10,7 +10,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { useTodos } from "@/core/todos/context";
+import { TodosProvider, useTodos } from "@/core/todos/context";
 import { env } from "@/env";
 import { cn } from "@/lib/utils";
 
@@ -52,7 +52,7 @@ interface ChatBoxProps {
   artifactsMode?: "side-panel" | "disabled";
 }
 
-const ChatBox: React.FC<ChatBoxProps> = ({
+const ChatBoxInner: React.FC<ChatBoxProps> = ({
   children,
   threadId,
   workModeId,
@@ -291,4 +291,4 @@ const ChatBox: React.FC<ChatBoxProps> = ({
   );
 };
 
-export { ChatBox };
+export { ChatBoxInner as ChatBox };

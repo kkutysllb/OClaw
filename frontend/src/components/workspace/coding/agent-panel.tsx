@@ -37,6 +37,7 @@ import {
 import { ChatBox } from "@/components/workspace/chats";
 import { FollowupsProvider } from "@/components/workspace/followups-context";
 import { InputBox } from "@/components/workspace/input-box";
+import { TodosProvider } from "@/core/todos/context";
 import {
   MessageList,
   MESSAGE_LIST_DEFAULT_PADDING_BOTTOM,
@@ -424,7 +425,8 @@ function AgentPanelInner({ projectId, onThreadIdChange, onFocusFile }: AgentPane
 
   return (
     <ThreadContext.Provider value={{ thread }}>
-      <ChatBox threadId={uiThreadId} artifactsMode="disabled">
+      <TodosProvider>
+        <ChatBox threadId={uiThreadId} artifactsMode="disabled">
         <div
           className={cn(
             "relative flex size-full min-h-0 flex-col",
@@ -506,6 +508,7 @@ function AgentPanelInner({ projectId, onThreadIdChange, onFocusFile }: AgentPane
           )}
         </div>
       </ChatBox>
+      </TodosProvider>
     </ThreadContext.Provider>
   );
 }
