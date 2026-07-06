@@ -274,6 +274,11 @@ export function useThreadStream({
   //   racing the optimistic-message cleanup and producing duplicate bubbles.
   //   Deferring to the effect ensures thread.messages is settled first.
   const stopFlagRef = useRef(false);
+  // ⚠ currentRunId 用 state 而非 ref：onCreated 设置 run_id 后必须触发重渲染，
+  // 否则消费方（useQueueCoordinator.injectNow）拿到的 currentRunId 仍是旧值（null），
+  // 导致 "if (!currentRunId) return" 静默跳过，立即注入失效（打包后尤其明显，
+  // dev 模式靠 Fast Refresh/额外状态更新碰巧刷新）。
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentRunIdRef = useRef<string | null>(null);
   const autoSendTriggerRef = useRef<(() => Promise<void>) | null>(null);
   const pendingAutoSendRef = useRef(false);
@@ -316,8 +321,10 @@ export function useThreadStream({
     threadIdRef.current = _threadId;
     // Track the active run_id for queue injection + reset the stop flag so a
     // fresh run is treated as "not manually stopped" until stopThread() fires.
+    // 同步更新 ref（供回调内同步读取）与 state（触发重渲染让 coordinator 拿到新值）。
     if (_runId) {
       currentRunIdRef.current = _runId;
+      setCurrentRunId(_runId);
     }
     stopFlagRef.current = false;
     if (!startedRef.current) {
@@ -490,6 +497,7 @@ export function useThreadStream({
 
       // Run finished — clear the active run_id regardless of stop reason.
       currentRunIdRef.current = null;
+      setCurrentRunId(null);
 
       // 标记"本轮正常结束、待自动发送"。真正的 autoSendNext 触发放在
       // 监听 thread.isLoading 的 effect 里执行（见下方 useEffect），不在此处
@@ -1050,7 +1058,9 @@ export function useThreadStream({
     // roi APIs) don't have to rely solely on the onStart callback chain.
     streamThreadId: onStreamThreadId ?? undefined,
     // 当前活动 run_id（运行中时非空），供队列协调器做消息注入。
-    currentRunId: currentRunIdRef.current,
+    // 用 state 而非 ref.current，确保 onCreated 设置后触发重渲染，
+    // coordinator 能拿到最新值。
+    currentRunId,
     // 注册 autoSend 触发器：onFinish 正常结束时会调用它来发送队列下一条。
     registerAutoSendTrigger,
   } as const;
