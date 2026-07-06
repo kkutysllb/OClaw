@@ -1,7 +1,8 @@
 "use client";
 
 import {
-  ChevronUpIcon,
+  ArrowDownIcon,
+  ArrowUpIcon,
   Loader2Icon,
   PencilIcon,
   RotateCwIcon,
@@ -11,7 +12,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -26,14 +26,13 @@ import type {
 } from "@/core/threads/queue-store";
 import { cn } from "@/lib/utils";
 
-const STATUS_CLASS: Record<QueuedMessageStatus, string> = {
-  pending: "bg-muted text-muted-foreground",
-  injecting:
-    "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-  injected:
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
-  sending: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-  error: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+// 左侧状态色条（更克制的视觉，替代原来花哨的 Badge 背景）
+const STATUS_BAR_CLASS: Record<QueuedMessageStatus, string> = {
+  pending: "bg-muted-foreground/40",
+  injecting: "bg-blue-500",
+  injected: "bg-emerald-500",
+  sending: "bg-blue-500",
+  error: "bg-red-500",
 };
 
 interface Props {
@@ -92,11 +91,7 @@ export function QueuedMessagesBar({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div
-        role="list"
-        aria-label={t.queue.title}
-        className="flex flex-col gap-2 border-t bg-background px-3 py-2"
-      >
+      <div className="flex flex-col gap-1.5 border-t bg-background px-3 py-2">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">
             {t.queue.title} ({pendingCount})
@@ -118,85 +113,104 @@ export function QueuedMessagesBar({
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div
+          role="list"
+          aria-label={t.queue.title}
+          className="flex max-h-48 flex-col gap-1 overflow-y-auto"
+        >
           {messages.map((msg) => {
             const pendingMsgs = messages.filter((m) => m.status === "pending");
             const pendingPos = pendingMsgs.findIndex((m) => m.id === msg.id);
             const canMoveUp = msg.status === "pending" && pendingPos > 0;
+            const canMoveDown =
+              msg.status === "pending" &&
+              pendingPos >= 0 &&
+              pendingPos < pendingMsgs.length - 1;
             return (
               <div
                 key={msg.id}
                 role="listitem"
                 className={cn(
-                  "relative w-56 rounded-md border bg-muted/50 p-2 text-xs",
+                  "flex items-start gap-2 rounded-md border bg-muted/40 px-2.5 py-1.5 text-xs",
                   msg.status === "error" && "border-red-300 dark:border-red-800",
                 )}
               >
-                <div className="mb-1 flex items-center justify-between gap-1">
-                  <Badge
-                    variant="secondary"
-                    className={cn(
-                      "h-4 px-1.5 text-[10px]",
-                      STATUS_CLASS[msg.status],
-                    )}
-                  >
+                {/* 左侧状态色条 */}
+                <span
+                  className={cn(
+                    "mt-0.5 h-3 w-1 shrink-0 rounded-full",
+                    STATUS_BAR_CLASS[msg.status],
+                  )}
+                  aria-hidden
+                />
+
+                {/* 中间：状态标签 + 内容 */}
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
                     {(msg.status === "injecting" ||
                       msg.status === "sending") && (
-                      <Loader2Icon className="mr-1 size-2.5 animate-spin" />
+                      <Loader2Icon className="size-2.5 animate-spin" />
                     )}
                     {statusLabel[msg.status]}
-                  </Badge>
-                  {msg.status === "error" && msg.error && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="max-w-24 truncate text-[10px] text-red-600">
-                          {msg.error}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>{msg.error}</TooltipContent>
-                    </Tooltip>
+                    {msg.status === "error" && msg.error && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="max-w-40 truncate text-red-600">
+                            {msg.error}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>{msg.error}</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </span>
+
+                  {editingId === msg.id ? (
+                    <textarea
+                      autoFocus
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={commitEdit}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          commitEdit();
+                        } else if (e.key === "Escape") {
+                          setEditingId(null);
+                        }
+                      }}
+                      className="w-full resize-none rounded border bg-background px-1.5 py-1 text-xs outline-none"
+                      rows={2}
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap break-words text-foreground">
+                      {msg.content}
+                    </p>
                   )}
                 </div>
 
-                {editingId === msg.id ? (
-                  <textarea
-                    autoFocus
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onBlur={commitEdit}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        commitEdit();
-                      } else if (e.key === "Escape") {
-                        setEditingId(null);
-                      }
-                    }}
-                    className="w-full resize-none rounded border bg-background px-1 py-0.5 text-xs outline-none"
-                    rows={2}
-                  />
-                ) : (
-                  <p className="line-clamp-2 text-foreground" title={msg.content}>
-                    {msg.content}
-                  </p>
-                )}
-
-                {/* 操作按钮 */}
-                <div className="mt-1.5 flex items-center gap-0.5">
+                {/* 右侧操作按钮组 */}
+                <div className="flex shrink-0 items-center gap-0.5">
                   {msg.status === "pending" && (
                     <>
-                      <IconBtn
-                        label={t.queue.action.edit}
-                        onClick={() => startEdit(msg)}
-                      >
-                        <PencilIcon className="size-3" />
-                      </IconBtn>
                       <IconBtn
                         label={t.queue.action.moveUp}
                         onClick={() => onReorder(msg.id, "up")}
                         disabled={!canMoveUp}
                       >
-                        <ChevronUpIcon className="size-3" />
+                        <ArrowUpIcon className="size-3" />
+                      </IconBtn>
+                      <IconBtn
+                        label="下移"
+                        onClick={() => onReorder(msg.id, "down")}
+                        disabled={!canMoveDown}
+                      >
+                        <ArrowDownIcon className="size-3" />
+                      </IconBtn>
+                      <IconBtn
+                        label={t.queue.action.edit}
+                        onClick={() => startEdit(msg)}
+                      >
+                        <PencilIcon className="size-3" />
                       </IconBtn>
                       <IconBtn
                         label={t.queue.action.delete}
@@ -216,7 +230,7 @@ export function QueuedMessagesBar({
                           isStreaming && "text-blue-600 hover:text-blue-700",
                         )}
                       >
-                        <ZapIcon className="size-3" />
+                        <ZapIcon className="size-3.5" />
                       </IconBtn>
                     </>
                   )}
@@ -244,7 +258,6 @@ export function QueuedMessagesBar({
                       </IconBtn>
                     </>
                   )}
-                  {/* injecting / sending: 仅 spinner，无按钮（已在 Badge 里显示 spinner） */}
                 </div>
               </div>
             );
