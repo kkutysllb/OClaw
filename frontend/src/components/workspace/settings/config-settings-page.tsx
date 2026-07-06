@@ -11,7 +11,6 @@ import {
   HardDriveIcon,
   Loader2Icon,
   PowerIcon,
-  ScrollTextIcon,
   Settings2Icon,
   TerminalIcon,
   TypeIcon,
@@ -40,9 +39,7 @@ import { LogLevelForm } from "./config/settings-forms/log-level-form";
 import { MemoryForm } from "./config/settings-forms/memory-form";
 import { RunEventsForm } from "./config/settings-forms/run-events-form";
 import { SandboxForm } from "./config/settings-forms/sandbox-form";
-import { SummarizationForm } from "./config/settings-forms/summarization-form";
 import { TitleForm } from "./config/settings-forms/title-form";
-import { TokenEconomyForm } from "./config/settings-forms/token-economy-form";
 import { TokenUsageForm } from "./config/settings-forms/token-usage-form";
 import { UploadsForm } from "./config/settings-forms/uploads-form";
 import { YamlEditorSection } from "./config/yaml-editor-section";
@@ -55,12 +52,10 @@ type ConfigSubPage =
   | "run_events"
   | "cron"
   | "title"
-  | "summarization"
   | "memory"
   | "uploads"
   | "log_level"
   | "token_usage"
-  | "token_economy"
   | "yaml";
 
 interface NavItem {
@@ -134,9 +129,7 @@ export function ConfigSettingsPage() {
       title: "对话行为",
       items: [
         { id: "title", label: "标题生成", icon: TypeIcon },
-        { id: "summarization", label: "上下文摘要", icon: ScrollTextIcon },
         { id: "memory", label: "记忆", icon: BrainIcon },
-        { id: "token_economy", label: "Token 经济", icon: ZapIcon },
       ],
     },
     {
@@ -235,12 +228,10 @@ export function ConfigSettingsPage() {
             {active === "run_events" && <RunEventsForm />}
             {active === "cron" && <CronForm />}
             {active === "title" && <TitleForm />}
-            {active === "summarization" && <SummarizationForm />}
             {active === "memory" && <MemoryForm />}
             {active === "uploads" && <UploadsForm />}
             {active === "log_level" && <LogLevelForm />}
             {active === "token_usage" && <TokenUsageForm />}
-            {active === "token_economy" && <TokenEconomyForm />}
             {active === "yaml" && <YamlEditorSection />}
           </div>
         </ScrollArea>
