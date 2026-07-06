@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.1.7 - 2026-07-06
+
+Compare: `v0.1.6...v0.1.7`
+
+- fix(threads): defer queue auto-send to isLoading effect to fix duplicate message (bd060a4)
+- chore(todo-list): remove dead 'hidden' prop (defe336)
+- feat(integration): wire onFinish auto-send + InputBox queue props (108749a)
+- test(layout): update disabled-artifacts assertion for two-panel mode (60dd87c)
+- refactor(pages): remove inline TodoList floating-bar usage (1a13382)
+- feat(layout): three-panel layout (chat | todos | artifacts) (a29cd8d)
+- feat(i18n): add queue and todoPanel keys (zh + en) (990ac4c)
+- feat(todos): add TodoTrigger button (仿 ArtifactTrigger) (1a09485)
+- feat(todos): add TodosProvider context with localStorage persistence (3db4467)
+- feat(input): streaming 时发送=入队, 停止按钮独立化 (8391d59)
+- feat(ui): add QueuedMessagesBar component (cbc9da4)
+- fix(queue): guard autoSendNext against concurrent calls + add retry test (d2a6e6d)
+- feat(threads): add useQueueCoordinator hook (865b9fa)
+- feat(api): add injectMessage API call for /inject route (de76a7e)
+- feat(threads): add queue-store with localStorage persistence (49bb90f)
+- feat(agent): register InjectMiddleware in lead_agent chain (bdd3b3b)
+- refactor(inject): use inline get_run_manager + add 500 path test (ec6d299)
+- feat(gateway): add POST /inject route for mid-run message injection (c41a6cb)
+- feat(middleware): add InjectMiddleware for supplement-context injection (0f9ca21)
+- test(state): cover keep/None states and within-right dedup (93b0fbb)
+- feat(state): add pending_messages field with merge_pending_messages reducer (39d8e65)
+- 文件: backend/packages/harness/kkoclaw/skills/validation.py (f599e54)
+
 ## v0.1.6 - 2026-07-05
 
 Compare: `v0.1.5...v0.1.6`
