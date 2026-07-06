@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.8 - 2026-07-06
+
+Compare: `v0.1.7...v0.1.8`
+
+- fix(chat-box): split layout constants for 2 vs 3 panel modes (a5fe243)
+- fix(coding): wrap coding ChatBox with TodosProvider (55e2ea9)
+
 ## v0.1.7 - 2026-07-06
 
 Compare: `v0.1.6...v0.1.7`
