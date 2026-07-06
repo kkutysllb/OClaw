@@ -361,6 +361,10 @@ export function useThreadStream({
       typeof window !== "undefined" ? () => window.localStorage : false,
     fetchStateHistory: { limit: 1 },
     onCreated(meta) {
+      console.log("[useThreadStream] onCreated fired", {
+        thread_id: meta.thread_id,
+        run_id: meta.run_id,
+      });
       handleStreamStart(meta.thread_id, meta.run_id);
       if (context.agent_name && !isMock) {
         void getAPIClient()
