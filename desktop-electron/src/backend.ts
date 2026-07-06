@@ -11,7 +11,7 @@
  */
 
 import { app, BrowserWindow, dialog } from "electron";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import {
   copyFileSync,
   cpSync,
@@ -287,8 +287,15 @@ export class BackendManager extends EventEmitter {
     // abort with "No provider configured" / "*_API_KEY is not set".
     const skillModelVars = this.loadSkillModelsEnv();
 
+    // 用户登录 shell 的完整环境变量（TUSHARE_TOKEN / ZHIPU_API_KEY / 自定义 PATH 等）。
+    // macOS GUI app 由 launchd 启动，不 source ~/.zshrc/~/.bash_profile，导致用户在
+    // shell rc 里 export 的凭证对 gateway 进程不可见——agent 跑脚本读 os.environ
+    // 时 KeyError，被误判成"bash/python3 不可用"。这里通过登录 shell 加载补齐。
+    const loginShellEnv = this.loadLoginShellEnv();
+
     const env: NodeJS.ProcessEnv = {
       ...process.env,
+      ...loginShellEnv,
       ...skillModelVars,
       // Isolation: desktop state lives under ~/.kkoclaw-desktop.
       KKOCLAW_HOME: getKkoclawHome(),
@@ -758,6 +765,76 @@ export class BackendManager extends EventEmitter {
     } catch (e) {
       this.appendLog(
         `[backend] failed to read skill models env: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      return {};
+    }
+  }
+
+  /**
+   * 通过登录+交互式 shell 加载用户的完整环境变量。
+   *
+   * macOS GUI app（从 Dock/Finder 启动）由 launchd 拉起，默认不 source
+   * ~/.zshrc / ~/.bash_profile，所以用户在 shell rc 里 export 的凭证
+   * （TUSHARE_TOKEN、ZHIPU_API_KEY、自定义 PATH 等）对 gateway 进程不可见。
+   * 这会导致 agent 跑脚本时 `os.environ['XXX']` KeyError，被误判为
+   * "bash/python3 不可用"。
+   *
+   * 本方法同步执行 `$SHELL -l -i -c 'env'`（或 bash/dash 回退），解析输出
+   * 得到登录交互式 shell 的全部变量，合并进 gateway 环境。失败时静默返回空
+   * 对象（非致命——仅意味着凭证仍需手动在 ~/.kkoclaw-desktop/.env 配置）。
+   *
+   * 仅在 macOS/Linux 上执行；Windows 走注册表机制，此处跳过。
+   */
+  private loadLoginShellEnv(): Record<string, string> {
+    // Windows 的环境变量机制不同（注册表 + 系统属性），launchd 问题不存在，跳过。
+    if (platform() === "win32") return {};
+
+    const shell = process.env.SHELL ?? "/bin/zsh";
+    try {
+      // -l: 登录 shell（source ~/.zprofile / ~/.bash_profile）
+      // -i: 交互式（source ~/.zshrc / ~/.bashrc）
+      // -c 'env': 打印所有环境变量
+      // 注意：交互式 shell 可能打印额外噪音到 stderr，我们只解析 stdout。
+      const result = spawnSync(shell, ["-l", "-i", "-c", "env"], {
+        encoding: "utf8",
+        timeout: 10_000, // 防止 rc 里有交互式阻塞命令（如 powerlevel10k 向终端等待输入）
+        // 不传 env，让 shell 用自己的默认环境 + rc
+      });
+
+      if (result.error || result.status !== 0) {
+        // 常见原因：rc 里有阻塞命令、shell 不支持 -i、超时
+        const reason = result.error
+          ? result.error.message
+          : `exit ${result.status}`;
+        this.appendLog(
+          `[backend] loadLoginShellEnv: ${shell} -l -i -c env failed (${reason}), skipping shell env inheritance`,
+        );
+        return {};
+      }
+
+      const stdout = result.stdout ?? "";
+      const vars: Record<string, string> = {};
+      for (const line of stdout.split("\n")) {
+        // 形如 KEY=VALUE；跳过无 = 的行（shell 可能混入非 env 输出）
+        const eqIdx = line.indexOf("=");
+        if (eqIdx <= 0) continue;
+        const key = line.slice(0, eqIdx).trim();
+        const value = line.slice(eqIdx + 1);
+        // 过滤掉明显非环境变量的噪音行（key 含空格/特殊字符）
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+        vars[key] = value;
+      }
+
+      const count = Object.keys(vars).length;
+      if (count > 0) {
+        this.appendLog(
+          `[backend] loadLoginShellEnv: inherited ${count} vars from ${shell} (incl. ${Object.keys(vars).filter((k) => k.includes("TOKEN") || k.includes("KEY") || k.includes("API")).length} credential-like keys)`,
+        );
+      }
+      return vars;
+    } catch (e) {
+      this.appendLog(
+        `[backend] loadLoginShellEnv: unexpected error (${e instanceof Error ? e.message : String(e)}), skipping`,
       );
       return {};
     }
