@@ -32,7 +32,12 @@ export function DesktopProviders({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ThemeProvider attribute="class" enableSystem disableTransitionOnChange>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="light"
+      enableSystem
+      disableTransitionOnChange
+    >
       <I18nProvider initialLocale={DEFAULT_LOCALE}>
         {children}
         <UpdateChecker />

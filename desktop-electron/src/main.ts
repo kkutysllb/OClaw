@@ -16,6 +16,7 @@ import {
   shell,
   Tray,
   nativeImage,
+  nativeTheme,
   type BrowserWindowConstructorOptions,
 } from "electron";
 import { existsSync } from "node:fs";
@@ -61,6 +62,10 @@ const appWindows = new Set<BrowserWindow>();
 let lastActiveWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let backend: BackendManager | null = null;
+
+// Keep the native macOS title bar and window chrome dark without drawing a
+// second renderer-owned title bar.
+nativeTheme.themeSource = "dark";
 
 /** True when the user explicitly requested quit (tray → Quit). */
 let isQuitting = false;
@@ -131,6 +136,7 @@ function createAppWindow(options: AppWindowOptions = {}): BrowserWindow {
     show: false,
     title: "OClaw",
     icon: resolveIcon(),
+    backgroundColor: "#1f1f1f",
     webPreferences: {
       // Security: keep Node out of the renderer; expose only the typed bridge.
       contextIsolation: true,

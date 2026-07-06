@@ -1,3 +1,6 @@
+import type { PermissionScope } from "../threads";
+import { PERMISSION_SCOPES } from "../threads";
+
 import {
   DEFAULT_LOCAL_SETTINGS,
   LOCAL_SETTINGS_KEY,
@@ -9,11 +12,13 @@ import {
   getLocalSettings,
   getThreadModelName,
   saveLocalSettings,
+  saveThreadAgentName,
   saveThreadModelName,
+  saveThreadPermissionScope,
+  saveThreadWorkModeId,
+  saveThreadWorkspacePath,
   type LocalSettings,
 } from "./local";
-import type { PermissionScope } from "../threads";
-import { PERMISSION_SCOPES } from "../threads";
 
 type Listener = () => void;
 
@@ -21,6 +26,14 @@ export type LocalSettingsSetter = <K extends keyof LocalSettings>(
   key: K,
   value: Partial<LocalSettings[K]>,
 ) => void;
+
+type ThreadContextSettingsPatch = Partial<LocalSettings["context"]> & {
+  model_name?: string | undefined;
+  agent_name?: string | undefined;
+  work_mode_id?: string | undefined;
+  user_workspace_path?: string | undefined;
+  permission_scope?: PermissionScope | undefined;
+};
 
 const listeners = new Set<Listener>();
 const threadModelNames = new Map<string, string | undefined>();
@@ -351,14 +364,42 @@ export function updateThreadSettings<K extends keyof LocalSettings>(
   baseSettings = nextBaseSettings;
   saveLocalSettings(baseSettings);
 
-  if (
-    key === "context" &&
-    Object.prototype.hasOwnProperty.call(value, "model_name")
-  ) {
-    const contextValue = value as Partial<LocalSettings["context"]>;
-    const threadModelName = contextValue.model_name;
-    threadModelNames.set(threadId, threadModelName);
-    saveThreadModelName(threadId, threadModelName);
+  if (key === "context") {
+    const contextValue = value as ThreadContextSettingsPatch;
+
+    if (Object.prototype.hasOwnProperty.call(value, "model_name")) {
+      const threadModelName = contextValue.model_name;
+      threadModelNames.set(threadId, threadModelName);
+      saveThreadModelName(threadId, threadModelName);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(value, "agent_name")) {
+      const threadAgentName = contextValue.agent_name;
+      threadAgentHasOverride.add(threadId);
+      threadAgentNames.set(threadId, threadAgentName);
+      saveThreadAgentName(threadId, threadAgentName);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(value, "work_mode_id")) {
+      const threadWorkModeId = contextValue.work_mode_id;
+      threadWorkModeHasOverride.add(threadId);
+      threadWorkModeIds.set(threadId, threadWorkModeId);
+      saveThreadWorkModeId(threadId, threadWorkModeId);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(value, "user_workspace_path")) {
+      const threadWorkspacePath = contextValue.user_workspace_path;
+      threadWorkspacePathHasOverride.add(threadId);
+      threadWorkspacePaths.set(threadId, threadWorkspacePath);
+      saveThreadWorkspacePath(threadId, threadWorkspacePath);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(value, "permission_scope")) {
+      const threadPermissionScope = contextValue.permission_scope;
+      threadPermissionScopeHasOverride.add(threadId);
+      threadPermissionScopes.set(threadId, threadPermissionScope);
+      saveThreadPermissionScope(threadId, threadPermissionScope);
+    }
   }
 
   emitChange();
