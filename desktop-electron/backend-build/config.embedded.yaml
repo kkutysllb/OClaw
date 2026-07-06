@@ -729,7 +729,9 @@ agent_recursion_limit: 500
 # TodoMiddleware 在 agent 想提前退出但还有未完成 todo 时，最多强制
 # 重入 model 节点的次数。调高 = 允许 agent 磨完长 todo 列表；
 # 设为 0 = 关闭安全网（不建议，可能引起无限循环烧爆 token）。
-todo_max_completion_reminders: 10
+# 注：过高的值会在上下文已很大时反复拉回 model 节点继续堆 token，
+# 加剧长任务上下文撑爆。3 是兼顾"多磨几轮完成 todo"与"控制 token 堆积"的折中。
+todo_max_completion_reminders: 3
 
 # ============================================================================
 # 技能配置
@@ -785,9 +787,9 @@ summarization:
     # Trigger when token count reaches 15564
     - type: tokens
       value: 15564
-    # Uncomment to also trigger when message count reaches 50
-    # - type: messages
-    #   value: 50
+    # Also trigger when message count reaches 40 (model-independent safety net)
+    - type: messages
+      value: 40
     # Uncomment to trigger when 80% of model's max input tokens is reached
     # - type: fraction
     #   value: 0.8
@@ -1106,15 +1108,17 @@ cron_management:
 #
 # 注意：Storm Breaker 集成在 TokenEconomyMiddleware 中，
 # 通过 storm_breaker_* 字段控制。
-# token_economy:
-#   enabled: false                          # 总开关，默认禁用
-#   concise_responses: true                 # 注入简洁响应指令
-#   compress_history_tool_results: true     # 压缩历史工具结果
-#   max_history_tool_result_chars: 2000     # 历史工具结果保留字符数
-#   recent_tool_result_count: 4             # 最近 N 条 ToolMessage 免压缩
-#   storm_breaker_enabled: true             # 启用同回合重复抑制
-#   storm_breaker_threshold: 2              # 相同调用出现 N 次后抑制
-#   storm_breaker_window: 8                 # 滑动窗口大小
+# 已内置默认启用（代码层 TokenEconomyConfig.enabled 默认 True）。
+# 以下显式配置保持启用，确保历史工具结果被压缩，防止长任务上下文撑爆。
+token_economy:
+  enabled: true                          # 总开关
+  concise_responses: true                 # 注入简洁响应指令
+  compress_history_tool_results: true     # 压缩历史工具结果
+  max_history_tool_result_chars: 2000     # 历史工具结果保留字符数
+  recent_tool_result_count: 4             # 最近 N 条 ToolMessage 免压缩
+  storm_breaker_enabled: true             # 启用同回合重复抑制
+  storm_breaker_threshold: 2              # 相同调用出现 N 次后抑制
+  storm_breaker_window: 8                 # 滑动窗口大小
 
 # ============================================================================
 # 熔断器配置

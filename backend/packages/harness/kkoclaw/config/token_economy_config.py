@@ -5,8 +5,9 @@ Implements Kun-inspired token optimization layers:
 - Historical tool-result compression
 - Tool Storm Breaker (same-turn duplicate call suppression)
 
-All features are **disabled by default** to ensure backward compatibility.
-Enable explicitly in config.yaml.
+Enabled by default — these are core stability mechanisms that prevent long-task
+context from being blown out by unbounded historical tool output. Override in
+config.yaml only to disable.
 """
 
 from __future__ import annotations
@@ -21,12 +22,14 @@ class TokenEconomyConfig(BaseModel):
     concise response instructions, historical tool-result compression,
     and same-turn duplicate tool call suppression (Storm Breaker).
 
-    All fields default to safe values; the system is opt-in via ``enabled``.
+    Enabled by default — historical tool-result compression is essential for
+    long-running tasks where unbounded ToolMessage content would otherwise
+    exceed the model's context window.
     """
 
     enabled: bool = Field(
-        default=False,
-        description="Master switch for the entire Token Economy system. When False, no token economy logic runs.",
+        default=True,
+        description="Master switch for the entire Token Economy system. Enabled by default — historical tool-result compression prevents long-task context blowout.",
     )
 
     # -- Concise response instructions ---
