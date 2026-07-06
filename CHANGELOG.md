@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.1.9 - 2026-07-06
+
+Compare: `v0.1.8...v0.1.9`
+
+- 要求用户把凭证 export 在 ~/.zshrc/~/.bash_profile 里（当前机器已满足）。如果用户没在 shell rc 里设置、也没在 ~/.kkoclaw-desktop/.env 里配置，凭证仍会缺失——但那是用户配置问题，不再是系统缺陷。请重新打包桌面端验证。 (a9bb7d4)
+- fix(desktop): gateway 继承用户登录 shell 环境变量，修复 agent 工具失效 (009653b)
+- docs(config): 修正 token_economy / circuit_breaker 注释与实际行为一致 (a55902f)
+- refactor(settings): 移除上下文摘要/Token 经济的前端设置 UI (f145edf)
+- fix(config): 上下文压缩/摘要改为内置默认启用，修配置错误值 (a5fbcf9)
+- style(queue): 纵向长条列表替代横向卡片 (bbe19de)
+- fix(queue): make currentRunId reactive so inject works in packaged build (dda72f9)
+- 修复前端权限切换bug (b13423b)
+
 ## v0.1.8 - 2026-07-06
 
 Compare: `v0.1.7...v0.1.8`
