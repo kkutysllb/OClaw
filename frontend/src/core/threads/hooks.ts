@@ -263,11 +263,20 @@ export function useThreadStream({
   //   manually stopped (skip queue auto-send). Reset after each finish.
   // currentRunIdRef: the active run_id, captured from onCreated meta so the
   //   queue coordinator can inject messages into the live run.
-  // autoSendTriggerRef: callback registered by the page; invoked from
-  //   onFinish when the run completes normally (not stopped).
+  // autoSendTriggerRef: callback registered by the page; invoked (deferred)
+  //   when the run completes normally (not stopped).
+  //
+  // pendingAutoSendRef: set true by onFinish when the run ended normally.
+  //   The actual autoSendNext dispatch happens in a layout effect watching
+  //   thread.isLoading — NOT inside onFinish itself. onFinish runs inside
+  //   useStream's callback where thread.messages may not yet reflect the
+  //   final state; calling sendMessage there captured a stale prevMsgCountRef,
+  //   racing the optimistic-message cleanup and producing duplicate bubbles.
+  //   Deferring to the effect ensures thread.messages is settled first.
   const stopFlagRef = useRef(false);
   const currentRunIdRef = useRef<string | null>(null);
   const autoSendTriggerRef = useRef<(() => Promise<void>) | null>(null);
+  const pendingAutoSendRef = useRef(false);
   const listeners = useRef({
     onSend,
     onStart,
@@ -482,10 +491,13 @@ export function useThreadStream({
       // Run finished — clear the active run_id regardless of stop reason.
       currentRunIdRef.current = null;
 
-      // 仅"正常结束"（非手动停止）才触发队列自动发送。手动停止时
-      // stopFlagRef 已被 stopThread() 置为 true，跳过本次自动发送。
+      // 标记"本轮正常结束、待自动发送"。真正的 autoSendNext 触发放在
+      // 监听 thread.isLoading 的 effect 里执行（见下方 useEffect），不在此处
+      // 同步调用。因为 onFinish 在 useStream 回调内触发，此刻 thread.messages
+      // 可能尚未刷新到本轮最终值，直接调 sendMessage 会让 prevMsgCountRef 取到
+      // 偏小基准，乐观消息清除时序紊乱，间歇性出现两条相同用户消息。
       if (!stopFlagRef.current) {
-        void autoSendTriggerRef.current?.();
+        pendingAutoSendRef.current = true;
       }
       // 重置停止标志，为下一次运行做准备。
       stopFlagRef.current = false;
@@ -679,6 +691,23 @@ export function useThreadStream({
       setOptimisticMessages([]);
     }
   }, [thread.messages.length, optimisticMessages.length]);
+
+  // ── Deferred queue auto-send (Task 16 fix) ───────────────────────────
+  // onFinish 只设置 pendingAutoSendRef；真正的 autoSendNext 在此 effect 里触发。
+  // 该 effect 在 thread.isLoading 翻转为 false 时运行，此时 React 已把本轮
+  // 最终的 thread.messages 刷新到位，sendMessage 取到的 prevMsgCountRef 基准
+  // 正确，乐观消息清除时序稳定，不会出现两条相同用户消息。
+  const prevIsLoadingRef = useRef(thread.isLoading);
+  useEffect(() => {
+    const wasLoading = prevIsLoadingRef.current;
+    const nowLoading = thread.isLoading;
+    prevIsLoadingRef.current = nowLoading;
+    // 仅在 loading: true → false 的下降沿触发，且本轮是"正常结束"。
+    if (wasLoading && !nowLoading && pendingAutoSendRef.current) {
+      pendingAutoSendRef.current = false;
+      void autoSendTriggerRef.current?.();
+    }
+  }, [thread.isLoading]);
 
   const sendMessage = useCallback(
     async (
