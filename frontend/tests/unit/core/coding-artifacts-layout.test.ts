@@ -163,6 +163,8 @@ describe("coding artifacts layout", () => {
     // disabled 模式下不再有 artifacts 面板(用 hasArtifactsPanel 标志控制布局计算),
     // 但仍渲染 chat | todos 两栏布局,因此 chat 区不会被 artifacts 面板调整尺寸。
     expect(chatBox).toContain("hasArtifactsPanel");
-    expect(chatBox).toContain('defaultLayout={LAYOUT_MODES.allClosed}');
+    // disabled 模式渲染 chat | todos 两栏，用 2-panel 布局（LAYOUT_2），
+    // 避免给 setLayout 传 3 个值导致 'Invalid 2 panel layout' 错误。
+    expect(chatBox).toContain('defaultLayout={LAYOUT_2.allClosed}');
   });
 });

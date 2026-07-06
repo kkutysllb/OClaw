@@ -22,27 +22,33 @@ import {
 import { useThread } from "../messages/context";
 import { TodoList } from "../todo-list";
 
-// 三栏布局比例: chat | todos | artifacts
-const LAYOUT_MODES = {
+// 布局比例（值的数量必须等于实际渲染的 panel 数，否则 setLayout 会报
+// "Invalid N panel layout: ..."）。三栏 chat | todos | artifacts 用 *_3，
+// 两栏 chat | todos（artifactsMode="disabled"）用 *_2。
+const LAYOUT_3 = {
   allClosed: { chat: 100, todos: 0, artifacts: 0 },
   todosOpen: { chat: 75, todos: 25, artifacts: 0 },
   artifactsOpen: { chat: 60, todos: 0, artifacts: 40 },
   bothOpen: { chat: 50, todos: 22, artifacts: 28 },
 } as const;
 
+const LAYOUT_2 = {
+  allClosed: { chat: 100, todos: 0 },
+  todosOpen: { chat: 75, todos: 25 },
+} as const;
+
 function computeLayout(
   todosOpen: boolean,
   artifactsOpen: boolean,
   hasArtifactsPanel: boolean,
-) {
-  // artifacts 面板被禁用时,只有 chat | todos 两栏
+): Record<string, number> {
   if (!hasArtifactsPanel) {
-    return todosOpen ? LAYOUT_MODES.todosOpen : LAYOUT_MODES.allClosed;
+    return todosOpen ? LAYOUT_2.todosOpen : LAYOUT_2.allClosed;
   }
-  if (todosOpen && artifactsOpen) return LAYOUT_MODES.bothOpen;
-  if (todosOpen) return LAYOUT_MODES.todosOpen;
-  if (artifactsOpen) return LAYOUT_MODES.artifactsOpen;
-  return LAYOUT_MODES.allClosed;
+  if (todosOpen && artifactsOpen) return LAYOUT_3.bothOpen;
+  if (todosOpen) return LAYOUT_3.todosOpen;
+  if (artifactsOpen) return LAYOUT_3.artifactsOpen;
+  return LAYOUT_3.allClosed;
 }
 
 interface ChatBoxProps {
@@ -145,7 +151,7 @@ const ChatBoxInner: React.FC<ChatBoxProps> = ({
       <ResizablePanelGroup
         id={`${resizableIdBase}-panels`}
         orientation="horizontal"
-        defaultLayout={LAYOUT_MODES.allClosed}
+        defaultLayout={LAYOUT_2.allClosed}
         groupRef={layoutRef}
       >
         <ResizablePanel className="relative" defaultSize={100} id="chat">
@@ -186,7 +192,7 @@ const ChatBoxInner: React.FC<ChatBoxProps> = ({
     <ResizablePanelGroup
       id={`${resizableIdBase}-panels`}
       orientation="horizontal"
-      defaultLayout={LAYOUT_MODES.allClosed}
+      defaultLayout={LAYOUT_3.allClosed}
       groupRef={layoutRef}
     >
       <ResizablePanel className="relative" defaultSize={100} id="chat">
