@@ -442,11 +442,6 @@ export function useThreadStream({
     onCustomEvent(event: unknown) {
       handleStreamEvent(event, {
         updateSubtask,
-        authorizePath:
-          typeof window !== "undefined" && window.oclawDesktop
-            ? (params) => window.oclawDesktop!.authorizePath(params)
-            : undefined,
-        threadId: threadIdRef.current ?? undefined,
       });
       // Forward the raw event to the consumer so it can refresh UI state
       // (file explorer, stage panel, etc.) as a reliable backup path that
@@ -924,10 +919,6 @@ export function useThreadStream({
                 // this directory. Falls back to the default user data
                 // root (~/.kkoclaw) when undefined.
                 user_workspace_path: context.user_workspace_path,
-                // Forward the per-thread permission scope so the backend
-                // sandbox path validators know how wide to cast their
-                // allow-list. Falls back to "read-write" when undefined.
-                permission_scope: context.permission_scope,
               },
             },
           );

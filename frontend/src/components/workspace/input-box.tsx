@@ -63,7 +63,7 @@ import { fetch } from "@/core/api/fetcher";
 import { getBackendBaseURL } from "@/core/config";
 import { useI18n } from "@/core/i18n/hooks";
 import { useModels } from "@/core/models/hooks";
-import type { AgentThreadContext, PermissionScope } from "@/core/threads";
+import type { AgentThreadContext } from "@/core/threads";
 import type { QueuedMessage } from "@/core/threads/queue-store";
 import { textOfMessage } from "@/core/threads/utils";
 import { cn } from "@/lib/utils";
@@ -87,7 +87,6 @@ import {
 import { useFollowupsContext } from "./followups-context";
 import { useThread } from "./messages/context";
 import { ModeHoverGuide } from "./mode-hover-guide";
-import { PermissionScopeSelector } from "./permission-scope-selector";
 import { QueuedMessagesBar } from "./queued-messages-bar";
 import { Tooltip } from "./tooltip";
 import { WorkspaceSelector } from "./workspace-selector";
@@ -548,14 +547,6 @@ export function InputBox({
               }
               onSelect={(user_workspace_path) =>
                 onContextChange?.({ ...context, user_workspace_path })
-              }
-            />
-            <PermissionScopeSelector
-              selectedScope={
-                context.permission_scope as PermissionScope | undefined
-              }
-              onSelect={(permission_scope) =>
-                onContextChange?.({ ...context, permission_scope })
               }
             />
             <PromptInputActionMenu>

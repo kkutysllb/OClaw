@@ -17,10 +17,7 @@ class ThreadDataState(TypedDict):
     # ThreadDataMiddleware and read by the sandbox path validators to scope
     # bash/read/write access to a user-chosen directory.
     user_workspace_path: NotRequired[str | None]
-    # Per-thread permission scope controlling how wide the sandbox path
-    # validators cast their net. One of: "read-only", "read-write"
-    # (default), "unrestricted". When absent the SandboxConfig default is
-    # used, falling back to "read-write".
+    # @deprecated 沙箱 permission_scope 已移除，字段保留仅为旧 checkpoint 反序列化兼容
     permission_scope: NotRequired[str | None]
 
 

@@ -50,20 +50,6 @@ interface EmbeddedTerminalSession {
   promptLabel: string;
 }
 
-// ── Path authorization ────────────────────────────────────────────────────
-
-interface AuthorizePathResult {
-  authorized: boolean;
-}
-
-interface GrantedPathEntry {
-  path: string;
-  granted_at: string;
-  scope: string;
-  thread_id?: string;
-  granted_via: string;
-}
-
 // ── Web-to-desktop migration ──────────────────────────────────────────────
 
 interface MigrationOptions {
@@ -250,21 +236,6 @@ contextBridge.exposeInMainWorld("oclawDesktop", {
     updates: Record<string, string>,
   ): Promise<SkillModelsConfig> =>
     ipcRenderer.invoke("skill-models:set", updates),
-
-  // ── Path authorization ────────────────────────────────────────────
-  /** Show system dialog to authorize an external path. */
-  authorizePath: (params: {
-    path: string;
-    agentType: string;
-    threadId?: string;
-  }): Promise<AuthorizePathResult> =>
-    ipcRenderer.invoke("authorize-path", params),
-  /** List all user-granted paths (for settings UI). */
-  listGrantedPaths: (): Promise<GrantedPathEntry[]> =>
-    ipcRenderer.invoke("granted-paths:list"),
-  /** Revoke a previously granted path. */
-  revokeGrantedPath: (path: string): Promise<boolean> =>
-    ipcRenderer.invoke("granted-paths:revoke", path),
 
   // ── Web-to-desktop migration ───────────────────────────────────────
   detectMigrationSources: (): Promise<DetectedSource[]> =>

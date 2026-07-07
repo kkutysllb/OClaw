@@ -115,22 +115,6 @@ export interface SkillModelVar {
   isSecret: boolean;
 }
 
-// ── Path authorization ───────────────────────────────────────────────────
-
-/** Result of a path authorization dialog. */
-export interface AuthorizePathResult {
-  authorized: boolean;
-}
-
-/** A single user-granted path entry (mirrors Electron `GrantedPathEntry`). */
-export interface GrantedPathEntry {
-  path: string;
-  granted_at: string;
-  scope: string;
-  thread_id?: string;
-  granted_via: string;
-}
-
 // ── Web-to-desktop migration ──────────────────────────────────────────────
 
 export type MigrationCategory =
@@ -280,18 +264,6 @@ export interface DesktopBridge {
   getSkillModels(): Promise<SkillModelsConfig>;
   /** Merge updates into the `.env` (redaction placeholders are preserved). */
   setSkillModels(updates: Record<string, string>): Promise<SkillModelsConfig>;
-
-  // ── Path authorization ─────────────────────────────────────────────
-  /** Show system dialog to authorize an external path. */
-  authorizePath(params: {
-    path: string;
-    agentType: string;
-    threadId?: string;
-  }): Promise<AuthorizePathResult>;
-  /** List all user-granted paths (for settings UI). */
-  listGrantedPaths(): Promise<GrantedPathEntry[]>;
-  /** Revoke a previously granted path. */
-  revokeGrantedPath(path: string): Promise<boolean>;
 
   // ── Web-to-desktop migration ─────────────────────────────────────────
   /** Detect web-deployment project roots that have migratable data. */

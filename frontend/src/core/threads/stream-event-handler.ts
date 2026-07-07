@@ -4,19 +4,12 @@
  * a React component or the `useStream` harness.
  *
  * The handler is intentionally side-effect free apart from the injected
- * dependencies (`toast`, `updateSubtask`, `authorizePath`). This keeps
+ * dependencies (`toast`, `updateSubtask`). This keeps
  * it deterministic and easy to assert against.
  */
 
 import type { AIMessage } from "@langchain/langgraph-sdk";
 import { toast } from "sonner";
-
-/** Shape of the desktop bridge's `authorizePath` IPC method. */
-export type AuthorizePathFn = (params: {
-  path: string;
-  agentType: string;
-  threadId?: string;
-}) => Promise<{ authorized: boolean }>;
 
 /** Callback used to feed `task_running` events into the subtask UI. */
 export type UpdateSubtaskFn = (update: {
@@ -28,11 +21,6 @@ export type UpdateSubtaskFn = (update: {
 export interface StreamEventDependencies {
   /** Subtask context updater from `useUpdateSubtask`. */
   updateSubtask: UpdateSubtaskFn;
-  /** Desktop bridge authorization method. When omitted (web build),
-   *  `path_authorization_required` events are silently ignored. */
-  authorizePath?: AuthorizePathFn;
-  /** Current thread id, forwarded to the desktop authorization dialog. */
-  threadId?: string;
 }
 
 /**
@@ -40,7 +28,6 @@ export interface StreamEventDependencies {
  *
  * Supported event types:
  *  - `task_running`                → forward latest AI message to subtask UI
- *  - `path_authorization_required`  → toast + desktop authorization dialog
  *  - `subagent_limit_truncated`     → toast warning (tasks silently dropped)
  *  - `task_failed` / `task_timed_out` / `task_cancelled` → toast error
  *  - `llm_retry`                    → generic toast with retry message
@@ -51,7 +38,7 @@ export function handleStreamEvent(
   event: unknown,
   deps: StreamEventDependencies,
 ): void {
-  const { updateSubtask, authorizePath, threadId } = deps;
+  const { updateSubtask } = deps;
 
   if (!isObjectWithKey(event, "type")) {
     return;
@@ -67,39 +54,6 @@ export function handleStreamEvent(
       message: AIMessage;
     };
     updateSubtask({ id: e.task_id, latestMessage: e.message });
-    return;
-  }
-
-  if (type === "path_authorization_required") {
-    const e = event as {
-      type: "path_authorization_required";
-      path: string;
-      agent_type: string;
-      read_only?: boolean;
-      timeout_seconds?: number;
-    };
-    // Only the desktop shell has the authorizePath IPC bridge.
-    if (authorizePath) {
-      const timeoutHint = e.timeout_seconds
-        ? `\n请在 ${Math.floor(e.timeout_seconds / 60)} 分钟内完成操作，超时将自动拒绝。`
-        : "";
-      toast.info(
-        `Agent 请求访问路径：\n${e.path}\n请在弹出的对话框中选择是否授权。${timeoutHint}`,
-      );
-      void authorizePath({
-        path: e.path,
-        agentType: e.agent_type,
-        threadId,
-      })
-        .then((result) => {
-          if (!result.authorized) {
-            toast.warning(`已拒绝路径访问：${e.path}`);
-          }
-        })
-        .catch(() => {
-          toast.error("路径授权对话框无法显示");
-        });
-    }
     return;
   }
 

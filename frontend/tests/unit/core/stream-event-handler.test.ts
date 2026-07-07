@@ -5,7 +5,6 @@
  * Coverage focuses on the UX-improvement surface area:
  *  - `subagent_limit_truncated`  → warning toast (previously silent)
  *  - `task_failed` / `task_timed_out` / `task_cancelled` → error toast
- *  - `path_authorization_required` → info toast + desktop IPC + timeout hint
  *  - `task_running` / `llm_retry` → existing behaviour preserved
  *  - unknown events → silently ignored
  */
@@ -39,16 +38,12 @@ function makeDeps(
   overrides: Partial<StreamEventDependencies> = {},
 ): StreamEventDependencies & {
   updateSubtask: ReturnType<typeof vi.fn>;
-  authorizePath: ReturnType<typeof vi.fn>;
 } {
   return {
     updateSubtask: vi.fn(),
-    authorizePath: vi.fn(),
-    threadId: "thread-123",
     ...overrides,
   } as StreamEventDependencies & {
     updateSubtask: ReturnType<typeof vi.fn>;
-    authorizePath: ReturnType<typeof vi.fn>;
   };
 }
 
@@ -135,18 +130,6 @@ describe("handleStreamEvent", () => {
       expect(msg).toContain("2");
       expect(msg).toContain("并发上限");
     });
-
-    test("does not call authorizePath", () => {
-      handleStreamEvent(
-        {
-          type: "subagent_limit_truncated",
-          dropped_count: 1,
-          max_concurrent: 2,
-        },
-        deps,
-      );
-      expect(deps.authorizePath).not.toHaveBeenCalled();
-    });
   });
 
   // ── task_failed / task_timed_out / task_cancelled ────────────────────
@@ -207,119 +190,6 @@ describe("handleStreamEvent", () => {
       const msg = toastSpies.error.mock.calls[0]?.[0] as string;
       // Should be exactly the label with no trailing 「：」
       expect(msg).toBe("子任务执行失败");
-    });
-  });
-
-  // ── path_authorization_required ─────────────────────────────────────
-  describe("path_authorization_required", () => {
-    test("shows info toast with path and calls authorizePath when bridge available", () => {
-      deps.authorizePath.mockResolvedValue({ authorized: true });
-
-      handleStreamEvent(
-        {
-          type: "path_authorization_required",
-          path: "/Users/test/data",
-          agent_type: "coding_agent",
-          read_only: false,
-        },
-        deps,
-      );
-
-      expect(toastSpies.info).toHaveBeenCalledTimes(1);
-      const msg = toastSpies.info.mock.calls[0]?.[0] as string;
-      expect(msg).toContain("/Users/test/data");
-      expect(deps.authorizePath).toHaveBeenCalledWith({
-        path: "/Users/test/data",
-        agentType: "coding_agent",
-        threadId: "thread-123",
-      });
-    });
-
-    test("includes timeout hint when timeout_seconds is provided", () => {
-      deps.authorizePath.mockResolvedValue({ authorized: true });
-
-      handleStreamEvent(
-        {
-          type: "path_authorization_required",
-          path: "/secret",
-          agent_type: "lead",
-          timeout_seconds: 120,
-        },
-        deps,
-      );
-
-      const msg = toastSpies.info.mock.calls[0]?.[0] as string;
-      expect(msg).toContain("2 分钟内完成操作");
-      expect(msg).toContain("超时将自动拒绝");
-    });
-
-    test("omits timeout hint when timeout_seconds is absent", () => {
-      deps.authorizePath.mockResolvedValue({ authorized: true });
-
-      handleStreamEvent(
-        {
-          type: "path_authorization_required",
-          path: "/no-timeout",
-          agent_type: "lead",
-        },
-        deps,
-      );
-
-      const msg = toastSpies.info.mock.calls[0]?.[0] as string;
-      expect(msg).not.toContain("分钟内完成操作");
-    });
-
-    test("shows warning toast when authorization is denied", async () => {
-      deps.authorizePath.mockResolvedValue({ authorized: false });
-
-      handleStreamEvent(
-        {
-          type: "path_authorization_required",
-          path: "/denied",
-          agent_type: "lead",
-        },
-        deps,
-      );
-
-      await vi.waitFor(() => {
-        expect(toastSpies.warning).toHaveBeenCalledWith(
-          expect.stringContaining("/denied"),
-        );
-      });
-    });
-
-    test("shows error toast when authorizePath rejects", async () => {
-      deps.authorizePath.mockRejectedValue(new Error("IPC down"));
-
-      handleStreamEvent(
-        {
-          type: "path_authorization_required",
-          path: "/boom",
-          agent_type: "lead",
-        },
-        deps,
-      );
-
-      await vi.waitFor(() => {
-        expect(toastSpies.error).toHaveBeenCalledWith(
-          "路径授权对话框无法显示",
-        );
-      });
-    });
-
-    test("does nothing when authorizePath is undefined (web build)", () => {
-      const webDeps = makeDeps({ authorizePath: undefined });
-
-      handleStreamEvent(
-        {
-          type: "path_authorization_required",
-          path: "/web",
-          agent_type: "lead",
-        },
-        webDeps,
-      );
-
-      expect(toastSpies.info).not.toHaveBeenCalled();
     });
   });
 

@@ -37,19 +37,6 @@ describe("thread settings overrides", () => {
     window.localStorage.clear();
   });
 
-  test("updates permission_scope override immediately for the active thread", async () => {
-    const store = await loadStore();
-
-    store.updateThreadSettings("thread-a", "context", {
-      permission_scope: "unrestricted",
-    });
-
-    expect(store.hasThreadPermissionScopeOverride("thread-a")).toBe(true);
-    expect(store.getThreadPermissionScopeSnapshot("thread-a")).toBe(
-      "unrestricted",
-    );
-  });
-
   test("updates workspace path override immediately for the active thread", async () => {
     const store = await loadStore();
 

@@ -192,19 +192,6 @@ export function getSkillsDir(): string {
 }
 
 /**
- * The persisted file remembering user-granted external paths.
- *
- * When an agent tries to read/write outside the default allowed roots
- * (`~/.kkoclaw-desktop`, `~/.oclaw-coding-desktop`, project roots, system
- * temp), the desktop shows a system authorization dialog. Accepted paths are
- * appended here so subsequent access is silent (prefix-matched). File mode is
- * 0600 — only the current user may read/modify the grant list.
- */
-export function getGrantedPathsPath(): string {
-  return join(getAppDataDir(), "granted_paths.json");
-}
-
-/**
  * The bundled skills source directory (read-only).
  *
  * - Packaged: PyInstaller ships skills under `resources/gateway/_internal/skills/`.

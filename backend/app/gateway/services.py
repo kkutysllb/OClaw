@@ -148,10 +148,6 @@ _CONTEXT_CONFIGURABLE_KEYS: frozenset[str] = frozenset(
         # Distinct from the internal sandbox ``workspace_path`` to avoid
         # collision.
         "user_workspace_path",
-        # Per-thread sandbox permission scope ("read-only" / "read-write" /
-        # "unrestricted"). Read by ``ThreadDataMiddleware`` and the sandbox
-        # path validators to decide how wide the allow-list casts.
-        "permission_scope",
     }
 )
 

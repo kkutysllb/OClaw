@@ -64,9 +64,6 @@ function makeBridge(overrides: Partial<DesktopBridge> = {}): DesktopBridge {
     })),
     getSkillModels: vi.fn(async () => ({ providers: [], vars: [], filePath: "" })),
     setSkillModels: vi.fn(async () => ({ providers: [], vars: [], filePath: "" })),
-    authorizePath: vi.fn(async () => ({ authorized: true })),
-    listGrantedPaths: vi.fn(async () => []),
-    revokeGrantedPath: vi.fn(async () => true),
     detectMigrationSources: vi.fn(async () => []),
     scanMigrationSource: vi.fn(async () => ({
       sourceRepoRoot: "",

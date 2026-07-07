@@ -34,12 +34,10 @@ _UNRECOVERABLE_ERROR_PATTERNS: list[re.Pattern] = [
     # different one wastes tokens and turns — the model cannot fix a missing
     # user authorization on its own. Mark these as unrecoverable so the model
     # stops and reports the problem to the user instead of looping.
-    re.compile(r"Write access blocked by permission_scope"),
     re.compile(r"Unsafe absolute paths in command"),
     re.compile(r"Only paths under /mnt/"),
     re.compile(r"outside the project root"),
     re.compile(r"Write access to .* is not allowed"),
-    re.compile(r"Path requires user authorization"),
 ]
 
 

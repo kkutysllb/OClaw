@@ -1,12 +1,8 @@
-import type { PermissionScope } from "../threads";
-import { PERMISSION_SCOPES } from "../threads";
-
 import {
   DEFAULT_LOCAL_SETTINGS,
   LOCAL_SETTINGS_KEY,
   THREAD_AGENT_KEY_PREFIX,
   THREAD_MODEL_KEY_PREFIX,
-  THREAD_PERMISSION_SCOPE_KEY_PREFIX,
   THREAD_WORK_MODE_KEY_PREFIX,
   THREAD_WORKSPACE_PATH_KEY_PREFIX,
   getLocalSettings,
@@ -14,7 +10,6 @@ import {
   saveLocalSettings,
   saveThreadAgentName,
   saveThreadModelName,
-  saveThreadPermissionScope,
   saveThreadWorkModeId,
   saveThreadWorkspacePath,
   type LocalSettings,
@@ -32,7 +27,6 @@ type ThreadContextSettingsPatch = Partial<LocalSettings["context"]> & {
   agent_name?: string | undefined;
   work_mode_id?: string | undefined;
   user_workspace_path?: string | undefined;
-  permission_scope?: PermissionScope | undefined;
 };
 
 const listeners = new Set<Listener>();
@@ -43,8 +37,6 @@ const threadWorkModeIds = new Map<string, string | undefined>();
 const threadWorkModeHasOverride = new Set<string>();
 const threadWorkspacePaths = new Map<string, string | undefined>();
 const threadWorkspacePathHasOverride = new Set<string>();
-const threadPermissionScopes = new Map<string, PermissionScope | undefined>();
-const threadPermissionScopeHasOverride = new Set<string>();
 
 let baseSettings: LocalSettings = DEFAULT_LOCAL_SETTINGS;
 let baseSettingsLoaded = false;
@@ -104,8 +96,6 @@ function handleStorage(event: StorageEvent) {
     threadWorkModeHasOverride.clear();
     threadWorkspacePaths.clear();
     threadWorkspacePathHasOverride.clear();
-    threadPermissionScopes.clear();
-    threadPermissionScopeHasOverride.clear();
     emitChange();
     return;
   }
@@ -134,14 +124,6 @@ function handleStorage(event: StorageEvent) {
         THREAD_WORKSPACE_PATH_KEY_PREFIX.length,
       );
       _refreshThreadWorkspacePathSnapshot(threadId);
-      emitChange();
-      return;
-    }
-    if (event.key.startsWith(THREAD_PERMISSION_SCOPE_KEY_PREFIX)) {
-      const threadId = event.key.slice(
-        THREAD_PERMISSION_SCOPE_KEY_PREFIX.length,
-      );
-      _refreshThreadPermissionScopeSnapshot(threadId);
       emitChange();
       return;
     }
@@ -291,58 +273,6 @@ export function hasThreadWorkspacePathOverride(threadId: string): boolean {
   return threadWorkspacePathHasOverride.has(threadId);
 }
 
-// ------------------------------------------------------------------
-// Per-thread permission_scope snapshot (mirrors workspace_path logic)
-// ------------------------------------------------------------------
-
-function _isValidScope(value: unknown): value is PermissionScope {
-  return (
-    typeof value === "string" &&
-    (PERMISSION_SCOPES as readonly string[]).includes(value)
-  );
-}
-
-function _refreshThreadPermissionScopeSnapshot(threadId: string) {
-  const raw = localStorage.getItem(
-    `${THREAD_PERMISSION_SCOPE_KEY_PREFIX}${threadId}`,
-  );
-  if (raw === null) {
-    threadPermissionScopes.delete(threadId);
-    threadPermissionScopeHasOverride.delete(threadId);
-  } else {
-    threadPermissionScopeHasOverride.add(threadId);
-    // Empty string sentinel = explicit default scope (scope = undefined).
-    // Invalid values are also treated as undefined to be resilient against
-    // older clients or manual edits.
-    threadPermissionScopes.set(
-      threadId,
-      raw === "" || !_isValidScope(raw) ? undefined : raw,
-    );
-  }
-}
-
-export function getThreadPermissionScopeSnapshot(
-  threadId: string,
-): PermissionScope | undefined {
-  ensureBaseSettingsLoaded();
-
-  if (!threadPermissionScopeHasOverride.has(threadId)) {
-    _refreshThreadPermissionScopeSnapshot(threadId);
-  }
-
-  return threadPermissionScopes.get(threadId);
-}
-
-export function hasThreadPermissionScopeOverride(threadId: string): boolean {
-  ensureBaseSettingsLoaded();
-
-  if (!threadPermissionScopeHasOverride.has(threadId)) {
-    _refreshThreadPermissionScopeSnapshot(threadId);
-  }
-
-  return threadPermissionScopeHasOverride.has(threadId);
-}
-
 export const updateLocalSettings: LocalSettingsSetter = (key, value) => {
   ensureBaseSettingsLoaded();
   ensureStorageListenerRegistered();
@@ -392,13 +322,6 @@ export function updateThreadSettings<K extends keyof LocalSettings>(
       threadWorkspacePathHasOverride.add(threadId);
       threadWorkspacePaths.set(threadId, threadWorkspacePath);
       saveThreadWorkspacePath(threadId, threadWorkspacePath);
-    }
-
-    if (Object.prototype.hasOwnProperty.call(value, "permission_scope")) {
-      const threadPermissionScope = contextValue.permission_scope;
-      threadPermissionScopeHasOverride.add(threadId);
-      threadPermissionScopes.set(threadId, threadPermissionScope);
-      saveThreadPermissionScope(threadId, threadPermissionScope);
     }
   }
 

@@ -153,17 +153,6 @@ class ThreadDataMiddleware(AgentMiddleware[ThreadDataMiddlewareState]):
         if user_workspace_path:
             paths["user_workspace_path"] = str(user_workspace_path)
 
-        # Per-thread permission scope chosen via the PermissionScopeSelector
-        # UI. Stored in thread_data so the sandbox path validators can pick
-        # it up via ``_resolve_effective_scope``. Absent => fall back to the
-        # SandboxConfig default ("read-write").
-        permission_scope = (
-            context.get("permission_scope")
-            or configurable.get("permission_scope")
-        )
-        if permission_scope:
-            paths["permission_scope"] = str(permission_scope)
-
         if last_message and isinstance(last_message, HumanMessage):
             messages[-1] = HumanMessage(
                 content=last_message.content,
