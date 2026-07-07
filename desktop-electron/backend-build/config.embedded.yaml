@@ -564,56 +564,6 @@ sandbox:
   read_file_output_max_chars: 50000
   ls_output_max_chars: 20000
 
-# Option 2: Container-based AIO Sandbox
-# Executes commands in isolated containers (Docker or Apple Container)
-# On macOS: Automatically prefers Apple Container if available, falls back to Docker
-# On other platforms: Uses Docker
-# Uncomment to use:
-# sandbox:
-#   use: kkoclaw.community.aio_sandbox:AioSandboxProvider
-#
-#   # Optional: Container image to use (works with both Docker and Apple Container)
-#   # Default: all-in-one-sandbox:latest
-#   # Recommended: all-in-one-sandbox:latest (works on both x86_64 and arm64)
-#   # image: all-in-one-sandbox:latest
-#
-#   # Optional: Base port for sandbox containers (default: 8080)
-#   # port: 8080
-
-#   # Optional: Maximum number of concurrent sandbox containers (default: 3)
-#   # When the limit is reached the least-recently-used sandbox is evicted to
-#   # make room for new ones. Use a positive integer here; omit this field to use the default.
-#   # replicas: 3
-#
-#   # Optional: Prefix for container names (default: kkoclaw-sandbox)
-#   #   container_prefix: kkoclaw-sandbox
-#
-#   # Optional: Additional mount directories from host to container
-#   # NOTE: Skills directory is automatically mounted from skills.path to skills.container_path
-#   # mounts:
-#   #   # Other custom mounts
-#   #   - host_path: /path/on/host
-#   #     container_path: /home/user/shared
-#   #     read_only: false
-#   #
-#   #   # KKOCLAW will surface configured container_path values to the agent,
-#   #   # so it can directly read/write mounted directories such as /home/user/shared
-#
-#   # Optional: Environment variables to inject into the sandbox container
-#   # Values starting with $ will be resolved from host environment variables
-#   # environment:
-#   #   NODE_ENV: production
-#   #   DEBUG: "false"
-#   #   API_KEY: $MY_API_KEY        # Reads from host's MY_API_KEY env var
-#   #   DATABASE_URL: $DATABASE_URL  # Reads from host's DATABASE_URL env var
-
-# Option 3: Provisioner-managed AIO Sandbox (docker-compose-dev)
-# Each sandbox_id gets a dedicated Pod in k3s, managed by the provisioner.
-# Recommended for production or advanced users who want better isolation and scalability.:
-# sandbox:
-#   use: kkoclaw.community.aio_sandbox:AioSandboxProvider
-#   provisioner_url: http://provisioner:9194
-
 # ============================================================================
 # 子智能体配置
 # ============================================================================

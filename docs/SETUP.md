@@ -55,22 +55,6 @@ OClaw 使用一个 YAML 配置文件，应放置在**项目根目录**中。
 
 **推荐**：将 `config.yaml` 放在项目根目录（`kk-oclaw/config.yaml`）
 
-## Sandbox 设置（可选但推荐）
-
-如果你计划使用 Docker/容器 sandbox（在 `config.yaml` 中配置 `sandbox.use: kkoclaw.community.aio_sandbox:AioSandboxProvider`），强烈建议提前拉取容器镜像：
-
-```bash
-# 从项目根目录执行
-make setup-sandbox
-```
-
-**为什么要提前拉取？**
-- Sandbox 镜像（~500MB+）会在首次使用时拉取，导致长时间等待
-- 提前拉取可以显示清晰的进度指示
-- 避免首次使用 agent 时的困惑
-
-如果跳过此步骤，镜像将在首次 agent 执行时自动拉取，根据你的网络速度可能需要几分钟。
-
 ## 故障排查
 
 ### 找不到配置文件

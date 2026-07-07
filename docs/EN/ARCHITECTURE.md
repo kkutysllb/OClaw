@@ -135,13 +135,13 @@ class ThreadState(AgentState):
 ### Sandbox System
 
 ```
-┌─────────────────────────┐              ┌─────────────────────────┐
-│  LocalSandboxProvider   │              │  AioSandboxProvider     │
-│                         │              │                         │
-│  - Singleton instance   │              │  - Docker-based         │
-│  - Direct execution     │              │  - Isolated containers  │
-│  - Dev environment      │              │  - Production use       │
-└─────────────────────────┘              └─────────────────────────┘
+┌─────────────────────────┐
+│  LocalSandboxProvider   │
+│                         │
+│  - Singleton instance   │
+│  - Direct execution     │
+│  - Local environment    │
+└─────────────────────────┘
 ```
 
 **Virtual Path Mapping**:
@@ -204,7 +204,7 @@ skills/
 
 ## Security Considerations
 
-- **Sandbox Isolation**: Agent code executes within sandbox boundaries; Docker sandbox recommended for production.
+- **Sandbox Isolation**: Agent code executes within sandbox boundaries (local execution mode).
 - **API Security**: Thread-isolated data directories, path traversal protection, env var secrets.
 - **MCP Security**: Each MCP server runs in its own process, runtime resolution of env vars, independent enable/disable.
 

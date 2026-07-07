@@ -88,7 +88,6 @@ stop_all() {
     _kill_port $GATEWAY_PORT
     _kill_port $FRONTEND_PORT
     _kill_port $NGINX_PORT
-    ./scripts/cleanup-containers.sh kkoclaw-sandbox 2>/dev/null || true
     rm -f "$REPO_ROOT/temp/nginx-local-gen.conf" 2>/dev/null || true
     echo "✓ All services stopped"
 }

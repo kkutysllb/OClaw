@@ -23,48 +23,9 @@ fi
 COMPOSE_CMD="docker compose -p kkoclaw-dev -f docker-compose-dev.yaml"
 
 detect_sandbox_mode() {
-    local config_file="$PROJECT_ROOT/config.yaml"
-    local sandbox_use=""
-    local provisioner_url=""
-
-    if [ ! -f "$config_file" ]; then
-        echo "local"
-        return
-    fi
-
-    sandbox_use=$(awk '
-        /^[[:space:]]*sandbox:[[:space:]]*$/ { in_sandbox=1; next }
-        in_sandbox && /^[^[:space:]#]/ { in_sandbox=0 }
-        in_sandbox && /^[[:space:]]*use:[[:space:]]*/ {
-            line=$0
-            sub(/^[[:space:]]*use:[[:space:]]*/, "", line)
-            print line
-            exit
-        }
-    ' "$config_file")
-
-    provisioner_url=$(awk '
-        /^[[:space:]]*sandbox:[[:space:]]*$/ { in_sandbox=1; next }
-        in_sandbox && /^[^[:space:]#]/ { in_sandbox=0 }
-        in_sandbox && /^[[:space:]]*provisioner_url:[[:space:]]*/ {
-            line=$0
-            sub(/^[[:space:]]*provisioner_url:[[:space:]]*/, "", line)
-            print line
-            exit
-        }
-    ' "$config_file")
-
-    if [[ "$sandbox_use" == *"kkoclaw.sandbox.local:LocalSandboxProvider"* ]]; then
-        echo "local"
-    elif [[ "$sandbox_use" == *"kkoclaw.community.aio_sandbox:AioSandboxProvider"* ]]; then
-        if [ -n "$provisioner_url" ]; then
-            echo "provisioner"
-        else
-            echo "aio"
-        fi
-    else
-        echo "local"
-    fi
+    # Local sandbox is the only supported mode now; kept as a function so
+    # existing call sites (init/start) continue to read a stable value.
+    echo "local"
 }
 
 # Cleanup function for Ctrl+C
@@ -91,72 +52,33 @@ docker_available() {
     return 0
 }
 
-# Initialize: pre-pull the sandbox image so first Pod startup is fast
+# Initialize: verify the Docker environment is ready for the dev workflow
 init() {
     echo "=========================================="
-    echo "  KKOCLAW Init — Pull Sandbox Image"
+    echo "  KKOCLAW Init"
     echo "=========================================="
     echo ""
 
-    SANDBOX_IMAGE="all-in-one-sandbox:latest"
+    # Local sandbox is the only supported mode (no container image required).
+    echo -e "${GREEN}Local sandbox mode — no Docker image required.${NC}"
+    echo ""
 
-    # Detect sandbox mode from config.yaml
-    local sandbox_mode
-    sandbox_mode="$(detect_sandbox_mode)"
-
-    # Skip image pull for local sandbox mode (no container image needed)
-    if [ "$sandbox_mode" = "local" ]; then
-        echo -e "${GREEN}Detected local sandbox mode — no Docker image required.${NC}"
+    if docker_available; then
+        echo -e "${GREEN}✓ Docker environment is ready.${NC}"
         echo ""
-
-        if docker_available; then
-            echo -e "${GREEN}✓ Docker environment is ready.${NC}"
-            echo ""
-            echo -e "${YELLOW}Next step: make docker-start${NC}"
-        else
-            echo -e "${YELLOW}Docker does not appear to be installed, or the Docker daemon is not reachable.${NC}"
-            echo "Local sandbox mode itself does not require Docker, but Docker-based workflows (e.g., docker-start) will fail until Docker is available."
-            echo ""
-            echo -e "${YELLOW}Install and start Docker, then run: make docker-init && make docker-start${NC}"
-        fi
-
-        return 0
-    fi
-
-    if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${SANDBOX_IMAGE}$"; then
-        echo -e "${BLUE}Pulling sandbox image: $SANDBOX_IMAGE ...${NC}"
-        echo ""
-
-        if ! docker pull "$SANDBOX_IMAGE" 2>&1; then
-            echo ""
-            echo -e "${YELLOW}⚠ Failed to pull sandbox image.${NC}"
-            echo ""
-            echo "This is expected if:"
-            echo "  1. You are using local sandbox mode (default — no image needed)"
-            echo "  2. You are behind a corporate proxy or firewall"
-            echo "  3. The registry requires authentication"
-            echo ""
-            echo -e "${GREEN}The Docker development environment can still be started.${NC}"
-            echo "If you need AIO sandbox (container-based execution):"
-            echo "  - Ensure you have network access to the registry"
-            echo "  - Or configure a custom sandbox image in config.yaml"
-            echo ""
-            echo -e "${YELLOW}Next step: make docker-start${NC}"
-            return 0
-        fi
+        echo -e "${YELLOW}Next step: make docker-start${NC}"
     else
-        echo -e "${GREEN}Sandbox image already exists locally: $SANDBOX_IMAGE${NC}"
+        echo -e "${YELLOW}Docker does not appear to be installed, or the Docker daemon is not reachable.${NC}"
+        echo "Local sandbox mode itself does not require Docker, but Docker-based workflows (e.g., docker-start) will fail until Docker is available."
+        echo ""
+        echo -e "${YELLOW}Install and start Docker, then run: make docker-init && make docker-start${NC}"
     fi
 
-    echo ""
-    echo -e "${GREEN}✓ Sandbox image is ready.${NC}"
-    echo ""
-    echo -e "${YELLOW}Next step: make docker-start${NC}"
+    return 0
 }
 
 # Start Docker development environment
 start() {
-    local sandbox_mode
     local services
 
     if [ "$#" -gt 0 ]; then
@@ -170,23 +92,13 @@ start() {
     echo "=========================================="
     echo ""
 
-    sandbox_mode="$(detect_sandbox_mode)"
-
     services="frontend gateway nginx"
-    if [ "$sandbox_mode" = "provisioner" ]; then
-        services="frontend gateway provisioner nginx"
-    fi
 
     echo -e "${BLUE}Runtime: Gateway embedded agent runtime${NC}"
-    echo -e "${BLUE}Detected sandbox mode: $sandbox_mode${NC}"
-    if [ "$sandbox_mode" = "provisioner" ]; then
-        echo -e "${BLUE}Provisioner enabled (Kubernetes mode).${NC}"
-    else
-        echo -e "${BLUE}Provisioner disabled (not required for this sandbox mode).${NC}"
-    fi
+    echo -e "${BLUE}Sandbox mode: local${NC}"
     echo ""
-    
-    # Set KKOCLAW_ROOT for provisioner if not already set
+
+    # Set KKOCLAW_ROOT if not already set (referenced in docker-compose-dev.yaml)
     if [ -z "$KKOCLAW_ROOT" ]; then
         export KKOCLAW_ROOT="$PROJECT_ROOT"
         echo -e "${BLUE}Setting KKOCLAW_ROOT=$KKOCLAW_ROOT${NC}"
@@ -261,16 +173,12 @@ logs() {
             service="nginx"
             echo -e "${BLUE}Viewing nginx logs...${NC}"
             ;;
-        --provisioner)
-            service="provisioner"
-            echo -e "${BLUE}Viewing provisioner logs...${NC}"
-            ;;
         "")
             echo -e "${BLUE}Viewing all logs...${NC}"
             ;;
         *)
             echo -e "${YELLOW}Unknown option: $1${NC}"
-            echo "Usage: $0 logs [--frontend|--gateway|--nginx|--provisioner]"
+            echo "Usage: $0 logs [--frontend|--gateway|--nginx]"
             exit 1
             ;;
     esac
@@ -287,8 +195,6 @@ stop() {
     fi
     echo "Stopping Docker development services..."
     cd "$DOCKER_DIR" && $COMPOSE_CMD down
-    echo "Cleaning up sandbox containers..."
-    "$SCRIPT_DIR/cleanup-containers.sh" kkoclaw-sandbox 2>/dev/null || true
     echo -e "${GREEN}✓ Docker services stopped${NC}"
 }
 
@@ -315,14 +221,13 @@ help() {
     echo "Usage: $0 <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  init              - Pull the sandbox image (speeds up first Pod startup)"
-    echo "  start             - Start Docker services (auto-detects sandbox mode from config.yaml)"
+    echo "  init              - Verify the Docker environment is ready"
+    echo "  start             - Start Docker services"
     echo "  restart           - Restart all running Docker services"
     echo "  logs [option] - View Docker development logs"
     echo "                  --frontend   View frontend logs only"
     echo "                  --gateway    View gateway logs only"
     echo "                  --nginx      View nginx logs only"
-    echo "                  --provisioner View provisioner logs only"
     echo "  stop          - Stop Docker development services"
     echo "  help          - Show this help message"
     echo ""

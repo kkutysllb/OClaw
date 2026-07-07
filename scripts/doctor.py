@@ -584,18 +584,7 @@ def check_sandbox(config_path: Path) -> list[CheckResult]:
                         "bash compatibility",
                         "warn",
                         "host bash enabled on LocalSandboxProvider",
-                        fix="Use container sandbox for stronger isolation when bash is required",
-                    )
-                )
-        elif "AioSandboxProvider" in sandbox_use:
-            results.append(CheckResult("sandbox configured", "ok", "Container sandbox"))
-            if not sandbox.get("provisioner_url") and not (shutil.which("docker") or shutil.which("container")):
-                results.append(
-                    CheckResult(
-                        "container runtime available",
-                        "warn",
-                        "no Docker/Apple Container runtime detected",
-                        fix="Install Docker Desktop / Apple Container, or switch to local sandbox",
+                        fix="Enable only in a fully trusted environment",
                     )
                 )
         elif sandbox_use:

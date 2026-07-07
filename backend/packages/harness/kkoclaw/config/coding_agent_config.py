@@ -26,7 +26,6 @@ class CodingAgentTestConfig(BaseModel):
 class CodingAgentConfig(BaseModel):
     enabled: bool = Field(default=True, description="Whether the dedicated coding_agent graph is enabled")
     model: str | None = Field(default=None, description="Optional model override for coding tasks")
-    sandbox: Literal["local", "docker"] = Field(default="local", description="Preferred sandbox mode for coding tasks")
     default_permission_mode: Literal["safe-only", "safe", "yolo"] = Field(
         default="safe-only",
         description="Default permission policy for coding-agent tools",

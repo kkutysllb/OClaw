@@ -5,7 +5,6 @@
 #   - nginx:       Reverse proxy (port 9191, configurable via PORT env var)
 #   - frontend:    Next.js production server
 #   - gateway:     FastAPI Gateway API + agent runtime
-#   - provisioner: (optional) Sandbox provisioner for Kubernetes mode
 #
 # Key environment variables (set via environment/.env or scripts/deploy.sh):
 #   KKOCLAW_PROJECT_ROOT           — project root for relative runtime paths
@@ -17,8 +16,7 @@
 #   KKOCLAW_CONFIG_PATH            — path to config.yaml
 #   KKOCLAW_EXTENSIONS_CONFIG_PATH — path to extensions_config.json
 #   KKOCLAW_SKILLS_PATH            — skills dir, default $KKOCLAW_PROJECT_ROOT/skills
-#   KKOCLAW_DOCKER_SOCKET          — Docker socket path, default /var/run/docker.sock
-#   KKOCLAW_REPO_ROOT              — repo root (used for skills host path in DooD)
+#   KKOCLAW_REPO_ROOT              — repo root (used for skills host path)
 #   BETTER_AUTH_SECRET               — required for frontend auth/session security
 #
 # LangSmith tracing is disabled by default (LANGSMITH_TRACING=false).
@@ -83,8 +81,6 @@ services:
       - ../skills:/app/skills:ro
       - ${KKOCLAW_HOME}:/app/backend/.kkoclaw
       - ../logs:/app/logs
-      # DooD: AioSandboxProvider starts sandbox containers via host Docker daemon
-      - ${KKOCLAW_DOCKER_SOCKET}:/var/run/docker.sock
       # CLI auth directories for auto-auth (Claude Code + Codex CLI)
       - type: bind
         source: ${HOME:?HOME must be set}/.claude
@@ -108,7 +104,7 @@ services:
       - KKOCLAW_EXTENSIONS_CONFIG_PATH=/app/backend/extensions_config.json
       - KKOCLAW_CHANNELS_LANGGRAPH_URL=${KKOCLAW_CHANNELS_LANGGRAPH_URL:-http://gateway:9193/api}
       - KKOCLAW_CHANNELS_GATEWAY_URL=${KKOCLAW_CHANNELS_GATEWAY_URL:-http://gateway:9193}
-      # DooD path/network translation
+      # Path/network translation
       - KKOCLAW_HOST_BASE_DIR=${KKOCLAW_HOME}
       - KKOCLAW_HOST_SKILLS_PATH=${KKOCLAW_REPO_ROOT}/skills
       - KKOCLAW_SANDBOX_HOST=host.docker.internal
@@ -122,37 +118,6 @@ services:
       - kkoclaw
     restart: unless-stopped
 
-  # ── Sandbox Provisioner (optional, Kubernetes mode) ────────────────────────
-  provisioner:
-    build:
-      context: ./provisioner
-      dockerfile: Dockerfile
-      args:
-        APT_MIRROR: ${APT_MIRROR:-}
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
-    container_name: kkoclaw-provisioner
-    volumes:
-      - ~/.kube/config:/root/.kube/config:ro
-    environment:
-      - K8S_NAMESPACE=kkoclaw
-      - SANDBOX_IMAGE=all-in-one-sandbox:latest
-      - SKILLS_HOST_PATH=${KKOCLAW_REPO_ROOT}/skills
-      - THREADS_HOST_PATH=${KKOCLAW_HOME}/threads
-      - KUBECONFIG_PATH=/root/.kube/config
-      - NODE_HOST=host.docker.internal
-      - K8S_API_SERVER=https://host.docker.internal:26443
-    env_file:
-      - ../.env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - kkoclaw
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9194/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
 networks:
   kkoclaw:
     driver: bridge

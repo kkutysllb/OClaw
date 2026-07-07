@@ -65,23 +65,6 @@ def test_get_available_tools_hides_renamed_host_bash_alias(monkeypatch):
     assert "ls" in names
 
 
-def test_get_available_tools_keeps_bash_for_aio_sandbox(monkeypatch):
-    config = _make_config(
-        allow_host_bash=False,
-        sandbox_use="kkoclaw.community.aio_sandbox:AioSandboxProvider",
-    )
-    monkeypatch.setattr("kkoclaw.tools.tools.get_app_config", lambda: config)
-    monkeypatch.setattr(
-        "kkoclaw.tools.tools.resolve_variable",
-        lambda use, _: SimpleNamespace(name="bash" if "bash_tool" in use else "ls"),
-    )
-
-    names = [tool.name for tool in get_available_tools(include_mcp=False, subagent_enabled=False)]
-
-    assert "bash" in names
-    assert "ls" in names
-
-
 def test_is_host_bash_allowed_defaults_false_when_sandbox_missing():
     assert is_host_bash_allowed(SimpleNamespace()) is False
     assert is_host_bash_allowed(SimpleNamespace(sandbox=None)) is False

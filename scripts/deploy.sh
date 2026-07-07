@@ -8,8 +8,6 @@
 #   deploy.sh start              — start from pre-built images
 #   deploy.sh down               — stop and remove containers
 #
-# Sandbox mode (local / aio / provisioner) is auto-detected from config.yaml.
-#
 # Examples:
 #   deploy.sh                    # build + start
 #   deploy.sh build              # build all images
@@ -134,41 +132,6 @@ if [ -z "$BETTER_AUTH_SECRET" ]; then
     fi
 fi
 
-# ── detect_sandbox_mode ───────────────────────────────────────────────────────
-
-detect_sandbox_mode() {
-    local sandbox_use=""
-    local provisioner_url=""
-
-    [ -f "$KKOCLAW_CONFIG_PATH" ] || { echo "local"; return; }
-
-    sandbox_use=$(awk '
-        /^[[:space:]]*sandbox:[[:space:]]*$/ { in_sandbox=1; next }
-        in_sandbox && /^[^[:space:]#]/ { in_sandbox=0 }
-        in_sandbox && /^[[:space:]]*use:[[:space:]]*/ {
-            line=$0; sub(/^[[:space:]]*use:[[:space:]]*/, "", line); print line; exit
-        }
-    ' "$KKOCLAW_CONFIG_PATH")
-
-    provisioner_url=$(awk '
-        /^[[:space:]]*sandbox:[[:space:]]*$/ { in_sandbox=1; next }
-        in_sandbox && /^[^[:space:]#]/ { in_sandbox=0 }
-        in_sandbox && /^[[:space:]]*provisioner_url:[[:space:]]*/ {
-            line=$0; sub(/^[[:space:]]*provisioner_url:[[:space:]]*/, "", line); print line; exit
-        }
-    ' "$KKOCLAW_CONFIG_PATH")
-
-    if [[ "$sandbox_use" == *"kkoclaw.community.aio_sandbox:AioSandboxProvider"* ]]; then
-        if [ -n "$provisioner_url" ]; then
-            echo "provisioner"
-        else
-            echo "aio"
-        fi
-    else
-        echo "local"
-    fi
-}
-
 # ── down ──────────────────────────────────────────────────────────────────────
 
 if [ "$CMD" = "down" ]; then
@@ -177,7 +140,6 @@ if [ "$CMD" = "down" ]; then
     export KKOCLAW_HOME="${KKOCLAW_HOME:-$REPO_ROOT/backend/.kkoclaw}"
     export KKOCLAW_CONFIG_PATH="${KKOCLAW_CONFIG_PATH:-$KKOCLAW_HOME/config.yaml}"
     export KKOCLAW_EXTENSIONS_CONFIG_PATH="${KKOCLAW_EXTENSIONS_CONFIG_PATH:-$KKOCLAW_HOME/extensions_config.json}"
-    export KKOCLAW_DOCKER_SOCKET="${KKOCLAW_DOCKER_SOCKET:-/var/run/docker.sock}"
     export KKOCLAW_REPO_ROOT="${KKOCLAW_REPO_ROOT:-$REPO_ROOT}"
     export BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET:-placeholder}"
     "${COMPOSE_CMD[@]}" down
@@ -192,11 +154,6 @@ if [ "$CMD" = "build" ]; then
     echo "  KKOCLAW — Building Images"
     echo "=========================================="
     echo ""
-
-    # Docker socket is needed for compose to parse volume specs
-    if [ -z "$KKOCLAW_DOCKER_SOCKET" ]; then
-        export KKOCLAW_DOCKER_SOCKET="/var/run/docker.sock"
-    fi
 
     "${COMPOSE_CMD[@]}" build
 
@@ -218,34 +175,11 @@ echo "=========================================="
 echo ""
 
 # ── Detect runtime configuration ────────────────────────────────────────────
-# Only needed for start / up — determines whether provisioner is launched.
 
-sandbox_mode="$(detect_sandbox_mode)"
-echo -e "${BLUE}Sandbox mode: $sandbox_mode${NC}"
-
+echo -e "${BLUE}Sandbox mode: local${NC}"
 echo -e "${BLUE}Runtime: Gateway embedded agent runtime${NC}"
 
 services="frontend gateway nginx"
-
-if [ "$sandbox_mode" = "provisioner" ]; then
-    services="$services provisioner"
-fi
-
-# ── KKOCLAW_DOCKER_SOCKET ───────────────────────────────────────────────────
-
-if [ -z "$KKOCLAW_DOCKER_SOCKET" ]; then
-    export KKOCLAW_DOCKER_SOCKET="/var/run/docker.sock"
-fi
-
-if [ "$sandbox_mode" != "local" ]; then
-    if [ ! -S "$KKOCLAW_DOCKER_SOCKET" ]; then
-        echo -e "${RED}⚠ Docker socket not found at $KKOCLAW_DOCKER_SOCKET${NC}"
-        echo "  AioSandboxProvider (DooD) will not work."
-        exit 1
-    else
-        echo -e "${GREEN}✓ Docker socket: $KKOCLAW_DOCKER_SOCKET${NC}"
-    fi
-fi
 
 echo ""
 

@@ -410,7 +410,6 @@ _export_compose_env() {
     export KKOCLAW_HOME="${KKOCLAW_HOME:-$REPO_ROOT/backend/.kkoclaw}"
     export KKOCLAW_CONFIG_PATH="${KKOCLAW_CONFIG_PATH:-$REPO_ROOT/config.yaml}"
     export KKOCLAW_EXTENSIONS_CONFIG_PATH="${KKOCLAW_EXTENSIONS_CONFIG_PATH:-$REPO_ROOT/extensions_config.json}"
-    export KKOCLAW_DOCKER_SOCKET="${KKOCLAW_DOCKER_SOCKET:-/var/run/docker.sock}"
     export KKOCLAW_REPO_ROOT="$REPO_ROOT"
     export BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET:-placeholder}"
 }
@@ -438,7 +437,6 @@ stop_local_all() {
     stop_gateway
     stop_frontend
     rm -rf "$PID_DIR" 2>/dev/null || true
-    "$REPO_ROOT/scripts/cleanup-containers.sh" kkoclaw-sandbox 2>/dev/null || true
     _ok "所有本地服务已停止"
     echo ""
 }
@@ -655,10 +653,6 @@ clean_resources() {
 
         # 运行时用户数据（线程、内存等）
         _rm_report ".kkoclaw" "KKOCLAW 运行时数据"
-
-        # 沙箱容器清理
-        _info "清理沙箱容器..."
-        "$REPO_ROOT/scripts/cleanup-containers.sh" kkoclaw-sandbox 2>/dev/null || true
     fi
 
     # ── 汇总 ────────────────────────────────────────────────────────────────

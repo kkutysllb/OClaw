@@ -304,13 +304,6 @@ class TestCheckSandbox:
         results = doctor.check_sandbox(cfg)
         assert any(result.status == "warn" for result in results)
 
-    def test_container_sandbox_without_runtime_warns(self, tmp_path, monkeypatch):
-        cfg = tmp_path / "config.yaml"
-        cfg.write_text("config_version: 5\nsandbox:\n  use: kkoclaw.community.aio_sandbox:AioSandboxProvider\ntools: []\n")
-        monkeypatch.setattr(doctor.shutil, "which", lambda _name: None)
-        results = doctor.check_sandbox(cfg)
-        assert any(result.label == "container runtime available" and result.status == "warn" for result in results)
-
 
 # ---------------------------------------------------------------------------
 # main() exit code

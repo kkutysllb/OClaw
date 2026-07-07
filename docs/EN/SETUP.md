@@ -55,22 +55,6 @@ The backend searches for `config.yaml` in the following order:
 
 **Recommendation**: Place `config.yaml` in the project root (`kk-oclaw/config.yaml`)
 
-## Sandbox Setup (Optional but Recommended)
-
-If you plan to use Docker/container sandbox (configure `sandbox.use: kkoclaw.community.aio_sandbox:AioSandboxProvider` in `config.yaml`), it is strongly recommended to pull the container image in advance:
-
-```bash
-# Run from project root
-make setup-sandbox
-```
-
-**Why pull in advance?**
-- Sandbox images (~500MB+) are pulled on first use, causing a long wait
-- Pulling in advance shows clear progress indicators
-- Avoids confusion on first agent use
-
-If this step is skipped, the image will be automatically pulled on first agent execution, which may take several minutes depending on your network speed.
-
 ## Troubleshooting
 
 ### Configuration File Not Found

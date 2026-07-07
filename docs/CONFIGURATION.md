@@ -202,64 +202,15 @@ tools:
 
 ### 沙箱
 
-OClaw 支持多种沙箱执行模式。在 `config.yaml` 中配置首选模式：
+OClaw 直接在宿主机上运行沙箱代码（本地执行模式）。在 `config.yaml` 中配置：
 
-**本地执行**（直接在宿主机上运行沙箱代码）：
 ```yaml
 sandbox:
-   use: kkoclaw.sandbox.local:LocalSandboxProvider # 本地执行
+   use: kkoclaw.sandbox.local:LocalSandboxProvider
    allow_host_bash: false # 默认；除非显式重新启用，否则禁用主机 bash
 ```
 
-**Docker 执行**（在隔离的 Docker 容器中运行沙箱代码）：
-```yaml
-sandbox:
-   use: kkoclaw.community.aio_sandbox:AioSandboxProvider # 基于 Docker 的沙箱
-```
-
-**带 Kubernetes 的 Docker 执行**（通过 provisioner 服务在 Kubernetes pod 中运行沙箱代码）：
-
-此模式在**宿主机集群**的隔离 Kubernetes Pod 中运行每个沙箱。需要 Docker Desktop K8s、OrbStack 或类似的本地 K8s 设置。
-
-```yaml
-sandbox:
-   use: kkoclaw.community.aio_sandbox:AioSandboxProvider
-   provisioner_url: http://provisioner:8002
-```
-
-使用 Docker 开发（`make docker-start`）时，OClaw 仅在此 provisioner 模式已配置时启动 `provisioner` 服务。在本地或纯 Docker 沙箱模式下，会跳过 `provisioner`。
-
-参见 [Provisioner 设置指南](../../docker/provisioner/README.md) 了解详细配置、前提条件和故障排查。
-
-在本地执行或基于 Docker 的隔离之间选择：
-
-**选项 1：本地沙箱**（默认，设置更简单）：
-```yaml
-sandbox:
-  use: kkoclaw.sandbox.local:LocalSandboxProvider
-  allow_host_bash: false
-```
-
-`allow_host_bash` 默认为 `false` 是有意为之的。OClaw 的本地沙箱是宿主机端的便利模式，不是安全的 shell 隔离边界。如果你需要 `bash`，建议使用 `AioSandboxProvider`。仅对完全受信任的单用户本地工作流设置 `allow_host_bash: true`。
-
-**选项 2：Docker 沙箱**（隔离，更安全）：
-```yaml
-sandbox:
-  use: kkoclaw.community.aio_sandbox:AioSandboxProvider
-  port: 8080
-  auto_start: true
-  container_prefix: kkoclaw-sandbox
-
-  # 可选：额外挂载
-  mounts:
-    - host_path: /path/on/host
-      container_path: /path/in/container
-      read_only: false
-```
-
-当你配置 `sandbox.mounts` 时，OClaw 会在 agent 提示词中暴露这些 `container_path` 值，以便 agent 可以直接发现和操作挂载的目录，而不是假定所有内容都必须在 `/mnt/user-data` 下。
-
-对于使用 localhost 的裸机 Docker 沙箱运行，OClaw 默认将沙箱 HTTP 端口绑定到 `127.0.0.1`，使其不会暴露在所有主机接口上。通过 `host.docker.internal` 连接的 Docker-outside-of-Docker 部署保持广泛的传统绑定以实现兼容。如果你的部署需要不同的绑定地址，请显式设置 `OClaw_SANDBOX_BIND_HOST`。
+`allow_host_bash` 默认为 `false` 是有意为之的。OClaw 的本地沙箱是宿主机端的便利模式，不是安全的 shell 隔离边界。仅对完全受信任的单用户本地工作流设置 `allow_host_bash: true`。
 
 ### 技能
 
@@ -278,7 +229,7 @@ skills:
 - 技能存储在 `kk-oclaw/skills/{public,custom}/`
 - 每个技能有一个包含元数据的 `SKILL.md` 文件
 - 技能会被自动发现和加载
-- 通过路径映射在本地和 Docker 沙箱中均可用
+- 通过路径映射在本地沙箱中可用
 
 **按 Agent 的技能过滤**：
 自定义 agent 可以通过在其 `config.yaml`（位于 `workspace/agents/<agent_name>/config.yaml`）中定义 `skills` 字段来限制加载的技能：
@@ -348,7 +299,6 @@ OClaw 按此顺序搜索配置：
 3. **对环境变量使用环境变量** — 不要硬编码 API 密钥
 4. **保持 `config.example.yaml` 更新** — 记录所有新选项
 5. **在本地测试配置更改** — 然后再部署
-6. **在生产环境中使用 Docker 沙箱** — 更好的隔离和安全性
 
 ## 故障排查
 
@@ -365,11 +315,6 @@ OClaw 按此顺序搜索配置：
 - 检查 `kk-oclaw/skills/` 目录是否存在
 - 验证技能是否有有效的 `SKILL.md` 文件
 - 如果使用自定义路径，检查 `skills.path` 或 `OClaw_SKILLS_PATH`
-
-### "Docker 沙箱启动失败"
-- 确保 Docker 正在运行
-- 检查端口 8080（或配置的端口）是否可用
-- 验证 Docker 镜像是否可访问
 
 ## 示例
 

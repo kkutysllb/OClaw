@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from wizard.ui import ask_choice, ask_yes_no, print_header, print_info, print_warning
+from wizard.ui import ask_yes_no, print_header, print_info, print_warning
 
 LOCAL_SANDBOX = "kkoclaw.sandbox.local:LocalSandboxProvider"
-CONTAINER_SANDBOX = "kkoclaw.community.aio_sandbox:AioSandboxProvider"
 
 
 @dataclass
@@ -22,21 +21,13 @@ def run_execution_step(step_label: str = "Step 3/4") -> ExecutionStepResult:
     print_header(f"{step_label} · Execution & Safety")
     print_info("Choose how much execution power KKOCLAW should have in this workspace.")
 
-    options = [
-        "Local sandbox  —  fastest, uses host filesystem paths",
-        "Container sandbox  —  more isolated, requires Docker or Apple Container",
-    ]
-    sandbox_idx = ask_choice("Execution mode", options, default=0)
-    sandbox_use = LOCAL_SANDBOX if sandbox_idx == 0 else CONTAINER_SANDBOX
+    sandbox_use = LOCAL_SANDBOX
 
     print()
-    if sandbox_use == LOCAL_SANDBOX:
-        print_warning(
-            "Local sandbox is convenient but not a secure shell isolation boundary."
-        )
-        print_info("Keep host bash disabled unless this is a fully trusted local workflow.")
-    else:
-        print_info("Container sandbox isolates shell execution better than host-local mode.")
+    print_warning(
+        "Local sandbox is convenient but not a secure shell isolation boundary."
+    )
+    print_info("Keep host bash disabled unless this is a fully trusted local workflow.")
 
     include_bash_tool = ask_yes_no("Enable bash command execution?", default=False)
     include_write_tools = ask_yes_no(

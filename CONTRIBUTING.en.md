@@ -43,7 +43,6 @@ Docker provides a consistent, isolated environment with all dependencies pre-con
    ```bash
    make docker-start
    ```
-   `make docker-start` reads `config.yaml` and only starts the `provisioner` service in provisioner/Kubernetes sandbox mode.
 
    All services start with hot reload:
    - Frontend changes auto-refresh
@@ -58,9 +57,9 @@ Docker provides a consistent, isolated environment with all dependencies pre-con
 #### Docker Commands
 
 ```bash
-# Build custom k3s image (pre-cache sandbox image)
+# Verify the Docker environment is ready
 make docker-init
-# Start Docker services (mode-aware, localhost:9191)
+# Start Docker services (localhost:9191)
 make docker-start
 # Stop Docker development services
 make docker-stop
@@ -86,7 +85,7 @@ Below are practical starting references for development and review environments:
 | Scenario | Starting Config | Recommended Config | Notes |
 |---------|-----------|------------|-------|
 | `make dev` single-machine dev | 4 vCPU, 8 GB RAM | 8 vCPU, 16 GB RAM | Best with hosted model APIs. |
-| `make docker-start` review environment | 4 vCPU, 8 GB RAM | 8 vCPU, 16 GB RAM | Docker image builds and sandbox containers need more space. |
+| `make docker-start` review environment | 4 vCPU, 8 GB RAM | 8 vCPU, 16 GB RAM | Docker image builds need more space. |
 | Shared Linux test server | 8 vCPU, 16 GB RAM | 16 vCPU, 32 GB RAM | Suitable for heavier multi-agent runs or multi-reviewer scenarios. |
 
 `2 vCPU / 4 GB` environments typically cannot start reliably or become unresponsive under normal OClaw load.
@@ -134,7 +133,6 @@ Docker Compose (kkoclaw-dev)
   ├→ nginx (port 9191) ← reverse proxy
   ├→ frontend (port 9192) ← frontend, hot reload
   ├→ gateway (port 9193) ← gateway API, hot reload
-   └→ provisioner (optional, port 9194) ← only started in provisioner/K8s sandbox mode
 ```
 
 **Advantages of Docker development**:

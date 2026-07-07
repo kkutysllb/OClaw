@@ -193,64 +193,15 @@ tools:
 
 ### Sandbox
 
-OClaw supports multiple sandbox execution modes. Configure the preferred mode in `config.yaml`:
+OClaw runs sandbox code directly on the host (local execution mode). Configure it in `config.yaml`:
 
-**Local Execution** (run sandbox code directly on the host):
 ```yaml
 sandbox:
-   use: kkoclaw.sandbox.local:LocalSandboxProvider # Local execution
+   use: kkoclaw.sandbox.local:LocalSandboxProvider
    allow_host_bash: false # Default; disables host bash unless explicitly re-enabled
 ```
 
-**Docker Execution** (run sandbox code in isolated Docker containers):
-```yaml
-sandbox:
-   use: kkoclaw.community.aio_sandbox:AioSandboxProvider # Docker-based sandbox
-```
-
-**Docker Execution with Kubernetes** (run sandbox code in Kubernetes pods via the provisioner service):
-
-This mode runs each sandbox in an isolated Kubernetes Pod on the **host cluster**. Requires Docker Desktop K8s, OrbStack, or a similar local K8s setup.
-
-```yaml
-sandbox:
-   use: kkoclaw.community.aio_sandbox:AioSandboxProvider
-   provisioner_url: http://provisioner:8002
-```
-
-When using Docker development (`make docker-start`), OClaw only starts the `provisioner` service if this provisioner mode is configured. In local or plain Docker sandbox modes, `provisioner` is skipped.
-
-See the [Provisioner Setup Guide](../../docker/provisioner/README.md) for detailed configuration, prerequisites, and troubleshooting.
-
-Choosing between local execution or Docker-based isolation:
-
-**Option 1: Local Sandbox** (default, simpler setup):
-```yaml
-sandbox:
-  use: kkoclaw.sandbox.local:LocalSandboxProvider
-  allow_host_bash: false
-```
-
-`allow_host_bash` defaults to `false` intentionally. OClaw's local sandbox is a host-side convenience mode, not a secure shell isolation boundary. If you need `bash`, use `AioSandboxProvider` instead. Only set `allow_host_bash: true` for fully trusted single-user local workflows.
-
-**Option 2: Docker Sandbox** (isolated, more secure):
-```yaml
-sandbox:
-  use: kkoclaw.community.aio_sandbox:AioSandboxProvider
-  port: 8080
-  auto_start: true
-  container_prefix: kkoclaw-sandbox
-
-  # Optional: additional mounts
-  mounts:
-    - host_path: /path/on/host
-      container_path: /path/in/container
-      read_only: false
-```
-
-When you configure `sandbox.mounts`, OClaw exposes these `container_path` values in the agent prompt so the agent can directly discover and operate on mounted directories, rather than assuming everything must be under `/mnt/user-data`.
-
-For bare-metal Docker sandbox runs using localhost, OClaw defaults the sandbox HTTP port binding to `127.0.0.1` so it is not exposed on all host interfaces. Docker-outside-of-Docker deployments connecting via `host.docker.internal` keep the broader legacy binding for compatibility. If your deployment needs a different bind address, explicitly set `OClaw_SANDBOX_BIND_HOST`.
+`allow_host_bash` defaults to `false` intentionally. OClaw's local sandbox is a host-side convenience mode, not a secure shell isolation boundary. Only set `allow_host_bash: true` for fully trusted single-user local workflows.
 
 ### Skills
 
@@ -269,7 +220,7 @@ skills:
 - Skills are stored in `kk-oclaw/skills/{public,custom}/`
 - Each skill has a `SKILL.md` file containing metadata
 - Skills are automatically discovered and loaded
-- Available in both local and Docker sandboxes via path mapping
+- Available in the local sandbox via path mapping
 
 **Per-Agent Skill Filtering**:
 Custom agents can restrict loaded skills by defining a `skills` field in their `config.yaml` (located at `workspace/agents/<agent_name>/config.yaml`):
@@ -339,7 +290,6 @@ OClaw searches for configuration in this order:
 3. **Use environment variables for secrets** — don't hardcode API keys
 4. **Keep `config.example.yaml` up to date** — document all new options
 5. **Test configuration changes locally** — before deploying
-6. **Use Docker sandbox in production** — better isolation and security
 
 ## Troubleshooting
 
@@ -356,11 +306,6 @@ OClaw searches for configuration in this order:
 - Check if the `kk-oclaw/skills/` directory exists
 - Verify skills have valid `SKILL.md` files
 - If using a custom path, check `skills.path` or `OClaw_SKILLS_PATH`
-
-### "Docker sandbox fails to start"
-- Ensure Docker is running
-- Check if port 8080 (or configured port) is available
-- Verify Docker image is accessible
 
 ## Examples
 

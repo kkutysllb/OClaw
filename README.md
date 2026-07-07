@@ -322,10 +322,7 @@ Gateway production concurrency is controlled via `GATEWAY_WORKERS` in `.env`, de
 
 #### Sandbox Mode
 
-OClaw supports multiple sandbox execution modes:
-- **Local execution** (sandbox code runs directly on the host)
-- **Docker execution** (sandbox code runs in an isolated Docker container)
-- **Docker + Kubernetes execution** (sandbox code runs in a Kubernetes Pod via the provisioner service)
+OClaw runs sandbox code directly on the host (local execution mode).
 
 #### MCP Server
 
@@ -407,7 +404,7 @@ OClaw provides a cross-platform desktop client based on **Electron 33+** (macOS 
 | **Download installer** (recommended) | Regular users | Download the installer from [Releases](https://github.com/kkutysllb/kk_OClaw/releases) — works out of the box, no need to install Python / uv / Node.js dependencies |
 | **Build from source** | Developers | Clone the repo and build locally — suitable for customization and debugging |
 
-With the **download installer** option, the Python backend (Gateway + all dependencies) is packaged as a standalone executable (`oclaw-gateway`) via PyInstaller and embedded in the installer as `extraResources`; the frontend is statically exported via `next build --webpack` to `frontend/out/` and embedded during packaging. Users just download, install, and use it. Docker is only optionally installed when using the code sandbox feature.
+With the **download installer** option, the Python backend (Gateway + all dependencies) is packaged as a standalone executable (`oclaw-gateway`) via PyInstaller and embedded in the installer as `extraResources`; the frontend is statically exported via `next build --webpack` to `frontend/out/` and embedded during packaging. Users just download, install, and use it.
 
 When the desktop client launches, it automatically starts the embedded backend service (Gateway, default port `29987`); closing the window minimizes it to the system tray, and clicking the tray icon restores it.
 
@@ -602,7 +599,7 @@ This is also why OClaw can handle tasks ranging from a few minutes to several ho
 
 OClaw doesn't just "say it can do things" — it actually has its own "computer."
 
-Each task runs in an isolated Docker container with a complete file system, including skills, workspace, uploads, and outputs. The agent can read, write, and edit files; execute bash commands and code; and view images. The entire process happens within the sandbox — auditable and isolated.
+Each task runs in an isolated sandbox with a complete file system, including skills, workspace, uploads, and outputs. The agent can read, write, and edit files; execute bash commands and code; and view images. The entire process happens within the sandbox — auditable and isolated.
 
 ```text
 # Paths inside the sandbox container
