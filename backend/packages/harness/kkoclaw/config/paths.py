@@ -378,6 +378,9 @@ class Paths:
         Args:
             thread_id: The thread ID.
             path: Real host path (e.g. ``{base}/threads/{tid}/user-data/outputs/x.pdf``).
+                  Note: FastAPI's ``{path:path}`` route converter strips the
+                  leading ``/``, so a path that arrived as ``Users/...`` is
+                  re-prefixed here before validation.
             user_id: Optional user ID for user-scoped path resolution.
 
         Returns:
@@ -387,6 +390,11 @@ class Paths:
             ValueError: If the path is not absolute, is outside the thread's
                         user-data root, or a path-traversal attempt is detected.
         """
+        # FastAPI's {path:path} converter strips the leading slash from the
+        # captured segment. Re-prefix it so Path.is_absolute() works correctly.
+        if not path.startswith("/"):
+            path = "/" + path
+
         candidate = Path(path)
         if not candidate.is_absolute():
             raise ValueError(f"Artifact path must be absolute: {path}")

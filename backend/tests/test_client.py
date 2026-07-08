@@ -1604,8 +1604,9 @@ class TestArtifacts:
                     client.get_artifact("t1", str(outputs / "nope.txt"))
 
     def test_get_artifact_relative_path_rejected(self, client):
-        """Relative paths are rejected because artifact paths must be absolute."""
-        with pytest.raises(ValueError, match="must be absolute"):
+        """Relative paths are auto-prefixed with / (FastAPI strips it) but still
+        rejected because they fall outside the thread workspace."""
+        with pytest.raises(ValueError, match="outside the thread workspace"):
             client.get_artifact("t1", "bad/path/file.txt")
 
     def test_get_artifact_path_traversal(self, client):
@@ -3125,13 +3126,14 @@ class TestBugArtifactRelativePathRejected:
     """
 
     def test_relative_path_rejected(self, client):
-        """Relative paths are rejected because they are not absolute host paths."""
-        with pytest.raises(ValueError, match="must be absolute"):
+        """Relative paths are auto-prefixed with / (FastAPI strips it) but still
+        rejected because they fall outside the thread workspace."""
+        with pytest.raises(ValueError, match="outside the thread workspace"):
             client.get_artifact("t1", "mnt/user-data-evil/secret.txt")
 
     def test_bare_relative_path_rejected(self, client):
-        """A bare relative path is also rejected (must be absolute)."""
-        with pytest.raises(ValueError, match="must be absolute"):
+        """A bare relative path is also rejected (outside workspace)."""
+        with pytest.raises(ValueError, match="outside the thread workspace"):
             client.get_artifact("t1", "mnt/user-data")
 
 
