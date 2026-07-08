@@ -1,6 +1,22 @@
 import { getBackendBaseURL } from "../config";
 import type { AgentThread } from "../threads";
 
+/**
+ * Percent-encode a filesystem path for safe use in a URL path segment.
+ *
+ * Splits on ``/`` and encodes each segment individually with
+ * ``encodeURIComponent``, then rejoins with ``/``. This preserves path
+ * separators while encoding non-ASCII characters (Chinese, accented letters),
+ * spaces, and URL-significant characters (``#``, ``?``, ``&``) that would
+ * otherwise break the URL or be misinterpreted by the server.
+ */
+function encodeArtifactPath(path: string): string {
+  return path
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
 export function urlOfArtifact({
   filepath,
   threadId,
@@ -12,10 +28,11 @@ export function urlOfArtifact({
   download?: boolean;
   isMock?: boolean;
 }) {
+  const encodedPath = encodeArtifactPath(filepath);
   if (isMock) {
-    return `${getBackendBaseURL()}/mock/api/threads/${threadId}/artifacts${filepath}${download ? "?download=true" : ""}`;
+    return `${getBackendBaseURL()}/mock/api/threads/${threadId}/artifacts${encodedPath}${download ? "?download=true" : ""}`;
   }
-  return `${getBackendBaseURL()}/api/threads/${threadId}/artifacts${filepath}${download ? "?download=true" : ""}`;
+  return `${getBackendBaseURL()}/api/threads/${threadId}/artifacts${encodedPath}${download ? "?download=true" : ""}`;
 }
 
 export function extractArtifactsFromThread(thread: AgentThread) {
@@ -23,7 +40,7 @@ export function extractArtifactsFromThread(thread: AgentThread) {
 }
 
 export function resolveArtifactURL(absolutePath: string, threadId: string) {
-  return `${getBackendBaseURL()}/api/threads/${threadId}/artifacts${absolutePath}`;
+  return `${getBackendBaseURL()}/api/threads/${threadId}/artifacts${encodeArtifactPath(absolutePath)}`;
 }
 
 /**
