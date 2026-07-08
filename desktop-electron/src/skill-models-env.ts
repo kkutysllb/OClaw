@@ -137,20 +137,29 @@ const REDACTION_PREFIX = "***";
 /**
  * Parse a `.env` file into a key→value map.
  *
- * Minimal parser: supports `KEY=value`, `KEY="value"`, comments (`#`), and
- * blank lines. Quoted values have their surrounding quotes stripped. Lines
- * without `=` are ignored.
+ * Minimal parser: supports `KEY=value`, `KEY="value"`, `export KEY=value`
+ * (shell-style export prefix is stripped), comments (`#`), and blank lines.
+ * Quoted values have their surrounding quotes stripped. Lines without `=` are
+ * ignored.
+ *
+ * The `export` prefix tolerance matters because users often hand-edit the file
+ * with shell syntax (`export TUSHARE_TOKEN=xxx`); without stripping, the key
+ * would parse as `"export TUSHARE_TOKEN"` (contains a space) and silently fail
+ * to inject into the gateway environment — credentials appear present in the
+ * file but are unreachable at runtime.
  */
 export function parseEnvFile(content: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
+    // Strip optional `export ` prefix (shell-style .env syntax).
+    const deprefixed = line.startsWith("export ") ? line.slice(7).trimStart() : line;
+    const eq = deprefixed.indexOf("=");
     if (eq < 0) continue;
-    const key = line.slice(0, eq).trim();
+    const key = deprefixed.slice(0, eq).trim();
     if (!key) continue;
-    let value = line.slice(eq + 1).trim();
+    let value = deprefixed.slice(eq + 1).trim();
     // Strip matching surrounding quotes.
     if (
       (value.startsWith('"') && value.endsWith('"')) ||
