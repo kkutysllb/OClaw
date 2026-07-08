@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.2.0 - 2026-07-08
+
+Compare: `v0.1.9...v0.2.0`
+
+- fix(desktop): .env parser strips shell-style `export` prefix (a3400c7)
+- 当前项目发布版本自动更新新版本后点击重启更新，但是需要手动退出后才能完成，无法自动重启更新 (5d557e5)
+- refactor(sandbox): remove /mnt/user-data virtual path layer (phase 3) (d5d77e5)
+- refactor(sandbox): remove permission_scope + granted_paths auth (phase 2) (91a3434)
+- refactor(sandbox): remove Docker/AioSandbox container scheme (phase 1) (ad079c6)
+
 ## v0.1.9 - 2026-07-06
 
 Compare: `v0.1.8...v0.1.9`
