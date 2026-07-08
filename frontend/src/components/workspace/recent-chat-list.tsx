@@ -2,6 +2,8 @@
 
 import {
   Briefcase,
+  ChevronDown,
+  ChevronRight,
   Code2,
   Download,
   FileJson,
@@ -19,6 +21,11 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -302,8 +309,10 @@ export function RecentChatList() {
  * Render one work-mode bucket as a labelled ``SidebarGroup``.
  *
  * The label shows the mode icon, resolved display name (i18n or literal),
- * and a thread-count badge. Threads inside reuse the same rename/share/
- * export/delete menu that the old flat list had.
+ * a thread-count badge, and a chevron toggle. Each group can be collapsed
+ * or expanded independently via a ``Collapsible`` wrapper.
+ * Threads inside reuse the same rename/share/export/delete menu that the
+ * old flat list had.
  */
 function ThreadModeGroup({
   group,
@@ -321,112 +330,129 @@ function ThreadModeGroup({
     onDelete: (threadId: string) => void;
   };
 }) {
+  const [isOpen, setIsOpen] = useState(true);
   const Icon = GROUP_ICON_MAP[group.workMode.icon] ?? Briefcase;
   const displayName = resolveModeName(group.workMode.name, t);
   const count = group.threads.length;
 
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>
-        <Icon className="mr-1.5 size-3.5 text-muted-foreground" />
-        <span className="truncate">{displayName}</span>
-        <span className="ml-auto rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-          {count}
-        </span>
-      </SidebarGroupLabel>
-      <SidebarGroupContent className="group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0">
-        <SidebarMenu>
-          <div className="flex w-full flex-col gap-1">
-            {group.threads.map((thread) => {
-              const isActive = pathOfThread(thread) === pathname;
-              return (
-                <SidebarMenuItem
-                  key={thread.thread_id}
-                  className="group/side-menu-item"
-                >
-                  <SidebarMenuButton isActive={isActive} asChild>
-                    <div>
-                      <Link
-                        className="text-muted-foreground block w-full whitespace-nowrap group-hover/side-menu-item:overflow-hidden"
-                        href={pathOfThread(thread)}
-                      >
-                        {titleOfThread(thread)}
-                      </Link>
-                      {env.NEXT_PUBLIC_STATIC_WEBSITE_ONLY !== "true" && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <SidebarMenuAction
-                              showOnHover
-                              className="bg-background/50 hover:bg-background"
-                            >
-                              <MoreHorizontal />
-                              <span className="sr-only">{t.common.more}</span>
-                            </SidebarMenuAction>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            className="w-48 rounded-lg"
-                            side={"right"}
-                            align={"start"}
+    <Collapsible
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      className="group/collapsible"
+    >
+      <SidebarGroup>
+        <SidebarGroupLabel asChild>
+          <CollapsibleTrigger className="w-full">
+            <Icon className="mr-1.5 size-3.5 text-muted-foreground" />
+            <span className="truncate">{displayName}</span>
+            <span className="ml-auto rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {count}
+            </span>
+            <span className="ml-1.5 text-muted-foreground group-data-[state=open]/collapsible:hidden">
+              <ChevronRight className="size-3.5" />
+            </span>
+            <span className="ml-1.5 text-muted-foreground group-data-[state=closed]/collapsible:hidden">
+              <ChevronDown className="size-3.5" />
+            </span>
+          </CollapsibleTrigger>
+        </SidebarGroupLabel>
+        <CollapsibleContent>
+          <SidebarGroupContent className="group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0">
+            <SidebarMenu>
+              <div className="flex w-full flex-col gap-1">
+                {group.threads.map((thread) => {
+                  const isActive = pathOfThread(thread) === pathname;
+                  return (
+                    <SidebarMenuItem
+                      key={thread.thread_id}
+                      className="group/side-menu-item"
+                    >
+                      <SidebarMenuButton isActive={isActive} asChild>
+                        <div>
+                          <Link
+                            className="text-muted-foreground block w-full whitespace-nowrap group-hover/side-menu-item:overflow-hidden"
+                            href={pathOfThread(thread)}
                           >
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                actions.onRename(
-                                  thread.thread_id,
-                                  titleOfThread(thread),
-                                )
-                              }
-                            >
-                              <Pencil className="text-blue-500" />
-                              <span>{t.common.rename}</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={() => actions.onShare(thread)}
-                            >
-                              <Share2 className="text-emerald-500" />
-                              <span>{t.common.share}</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuSub>
-                              <DropdownMenuSubTrigger>
-                                <Download className="text-violet-500" />
-                                <span>{t.common.export}</span>
-                              </DropdownMenuSubTrigger>
-                              <DropdownMenuSubContent>
+                            {titleOfThread(thread)}
+                          </Link>
+                          {env.NEXT_PUBLIC_STATIC_WEBSITE_ONLY !== "true" && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <SidebarMenuAction
+                                  showOnHover
+                                  className="bg-background/50 hover:bg-background"
+                                >
+                                  <MoreHorizontal />
+                                  <span className="sr-only">{t.common.more}</span>
+                                </SidebarMenuAction>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent
+                                className="w-48 rounded-lg"
+                                side={"right"}
+                                align={"start"}
+                              >
                                 <DropdownMenuItem
                                   onSelect={() =>
-                                    actions.onExport(thread, "markdown")
+                                    actions.onRename(
+                                      thread.thread_id,
+                                      titleOfThread(thread),
+                                    )
                                   }
                                 >
-                                  <FileText className="text-cyan-500" />
-                                  <span>{t.common.exportAsMarkdown}</span>
+                                  <Pencil className="text-blue-500" />
+                                  <span>{t.common.rename}</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onSelect={() =>
-                                    actions.onExport(thread, "json")
-                                  }
+                                  onSelect={() => actions.onShare(thread)}
                                 >
-                                  <FileJson className="text-amber-500" />
-                                  <span>{t.common.exportAsJSON}</span>
+                                  <Share2 className="text-emerald-500" />
+                                  <span>{t.common.share}</span>
                                 </DropdownMenuItem>
-                              </DropdownMenuSubContent>
-                            </DropdownMenuSub>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onSelect={() => actions.onDelete(thread.thread_id)}
-                            >
-                              <Trash2 className="text-rose-500" />
-                              <span>{t.common.delete}</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              );
-            })}
-          </div>
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger>
+                                    <Download className="text-violet-500" />
+                                    <span>{t.common.export}</span>
+                                  </DropdownMenuSubTrigger>
+                                  <DropdownMenuSubContent>
+                                    <DropdownMenuItem
+                                      onSelect={() =>
+                                        actions.onExport(thread, "markdown")
+                                      }
+                                    >
+                                      <FileText className="text-cyan-500" />
+                                      <span>{t.common.exportAsMarkdown}</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onSelect={() =>
+                                        actions.onExport(thread, "json")
+                                      }
+                                    >
+                                      <FileJson className="text-amber-500" />
+                                      <span>{t.common.exportAsJSON}</span>
+                                    </DropdownMenuItem>
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onSelect={() => actions.onDelete(thread.thread_id)}
+                                >
+                                  <Trash2 className="text-rose-500" />
+                                  <span>{t.common.delete}</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </div>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </CollapsibleContent>
+      </SidebarGroup>
+    </Collapsible>
   );
 }

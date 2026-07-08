@@ -31,7 +31,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 import { BackendManager, type BackendStatus } from "./backend.js";
 import { getFrontendURLPath } from "./frontend-protocol.js";
 import { registerIpc } from "./ipc.js";
-import { registerUpdater } from "./updater.js";
+import { isUpdateInstallInProgress, registerUpdater } from "./updater.js";
 import { getFrontendDistDir, getLogsDir, REPO_ROOT } from "./paths.js";
 import { stopBackendWithTimeout } from "./shutdown.js";
 import { appendRendererLog, log } from "./logger.js";
@@ -652,6 +652,25 @@ app.on("activate", () => {
 let isShuttingDown = false;
 app.on("before-quit", async (e) => {
   if (isShuttingDown) return;
+
+  // Update-triggered quit: clean up the gateway subprocess but let the
+  // normal quit lifecycle proceed. We must NOT call app.exit(0) here
+  // because it terminates the process immediately, skipping the
+  // will-quit / quit events that Squirrel.Mac needs to swap in the new
+  // .app bundle and relaunch. Instead we fire-and-forget the backend
+  // teardown (short timeout) and return without preventDefault so
+  // app.quit()'s default behavior runs to completion.
+  if (isUpdateInstallInProgress) {
+    isShuttingDown = true;
+    isQuitting = true;
+    destroyTray();
+    closeWindowsForQuit();
+    // Best-effort: stop gateway without blocking the quit for long. If it
+    // doesn't die in time the OS reaps it when the main process exits.
+    void stopBackendWithTimeout(backend, 2000);
+    return; // ← do NOT preventDefault; let Squirrel finish the install
+  }
+
   if (backend?.getStatus().status === "stopped") return;
   e.preventDefault();
   await forceQuitApp();

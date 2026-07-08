@@ -26,6 +26,30 @@ export interface UpdateInfo {
 }
 
 /**
+ * Set to ``true`` immediately before ``quitAndInstall()`` so the app's
+ * ``before-quit`` handler can distinguish an update-triggered quit from a
+ * normal user quit.
+ *
+ * Why this matters: ``quitAndInstall()`` internally calls ``app.quit()``,
+ * which fires ``before-quit``. The default ``before-quit`` handler in
+ * ``main.ts`` calls ``e.preventDefault()`` + ``app.exit(0)`` to force-clean
+ * the gateway subprocess. But ``app.exit()`` terminates the process
+ * *immediately*, skipping ``will-quit`` / ``quit`` events — and on macOS
+ * that also skips the Squirrel.Mac install hooks that swap in the new
+ * ``.app`` bundle and relaunch. The result: the update never applies and
+ * the user must quit/reopen manually.
+ *
+ * When this flag is true, ``before-quit`` cleans up the gateway but then
+ * *returns without preventing default*, letting the normal quit lifecycle
+ * proceed so Squirrel can finish the install.
+ */
+export let isUpdateInstallInProgress = false;
+
+function markUpdateInstallInProgress(): void {
+  isUpdateInstallInProgress = true;
+}
+
+/**
  * Default GitHub release mirror for users in regions where raw
  * ``github.com`` is slow (e.g. mainland China). The mirror proxies the
  * request and typically delivers 10–500× higher throughput (measured
@@ -349,6 +373,10 @@ export async function registerUpdater(): Promise<void> {
       // background download finished.
       await autoUpdater.downloadUpdate();
       log.info("[updater] install requested — quitting and installing");
+      // Mark this *before* quitAndInstall() so the before-quit handler in
+      // main.ts lets the normal quit lifecycle proceed (instead of calling
+      // app.exit(0), which would skip the Squirrel install hooks).
+      markUpdateInstallInProgress();
       // quitAndInstall() restarts the app and installs the update. On macOS
       // it's a synchronous relaunch; on Windows/Linux the app quits and
       // the installer runs on next launch.
