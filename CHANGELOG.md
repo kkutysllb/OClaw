@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.2 - 2026-07-08
+
+Compare: `v0.2.1...v0.2.2`
+
+- fix(artifacts): percent-encode artifact URLs to fix non-ASCII filenames (ef88e12)
+
 ## v0.2.1 - 2026-07-08
 
 Compare: `v0.2.0...v0.2.1`
