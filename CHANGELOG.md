@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.1 - 2026-07-08
+
+Compare: `v0.2.0...v0.2.1`
+
+- feat(settings): remove data import / web-to-desktop migration feature (c1016bc)
+- feat(sidebar): prefetch thread state on hover to eliminate switch flicker (0d3a9fa)
+- fix(artifacts): restore leading slash stripped by FastAPI path converter (8317829)
+
 ## v0.2.0 - 2026-07-08
 
 Compare: `v0.1.9...v0.2.0`
