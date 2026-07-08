@@ -115,62 +115,6 @@ export interface SkillModelVar {
   isSecret: boolean;
 }
 
-// ── Web-to-desktop migration ──────────────────────────────────────────────
-
-export type MigrationCategory =
-  | "skills"
-  | "extensions"
-  | "credentials"
-  | "memory"
-  | "agents";
-
-export interface MigrationOptions {
-  skills: boolean;
-  extensions: boolean;
-  credentials: boolean;
-  memory: boolean;
-  agents: boolean;
-}
-
-export interface MigrationSourceCategory {
-  available: boolean;
-  count: number;
-  description: string;
-  paths: string[];
-}
-
-export interface MigrationScanResult {
-  sourceRepoRoot: string;
-  categories: {
-    skills: MigrationSourceCategory;
-    extensions: MigrationSourceCategory;
-    credentials: MigrationSourceCategory;
-    memory: MigrationSourceCategory;
-    agents: MigrationSourceCategory;
-  };
-}
-
-export interface MigrationCategoryResult {
-  category: MigrationCategory;
-  copied: number;
-  skipped: number;
-  merged: number;
-  error?: string;
-}
-
-export interface MigrationResult {
-  success: boolean;
-  results: MigrationCategoryResult[];
-  targetHome: string;
-}
-
-export interface DetectedSource {
-  path: string;
-  label: string;
-  exists: boolean;
-  hasData: boolean;
-}
-
 export interface SkillModelsConfig {
   providers: SkillModelProvider[];
   vars: SkillModelVar[];
@@ -264,21 +208,6 @@ export interface DesktopBridge {
   getSkillModels(): Promise<SkillModelsConfig>;
   /** Merge updates into the `.env` (redaction placeholders are preserved). */
   setSkillModels(updates: Record<string, string>): Promise<SkillModelsConfig>;
-
-  // ── Web-to-desktop migration ─────────────────────────────────────────
-  /** Detect web-deployment project roots that have migratable data. */
-  detectMigrationSources(): Promise<DetectedSource[]>;
-  /** Scan a specific web project root and report what can be imported. */
-  scanMigrationSource(sourcePath?: string): Promise<MigrationScanResult>;
-  /** Execute the migration (copy/merge per category). */
-  executeMigration(params: {
-    sourceRepoRoot: string;
-    options: MigrationOptions;
-  }): Promise<MigrationResult>;
-  /** Subscribe to the one-shot "migration available" signal sent on first launch. */
-  onMigrationAvailable(
-    handler: (sources: DetectedSource[]) => void,
-  ): () => void;
 }
 
 declare global {

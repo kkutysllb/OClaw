@@ -22,12 +22,6 @@ import {
   type SkillModelsConfig,
 } from "./skill-models-env.js";
 import { isAllowedExternalUrl } from "./url-policy.js";
-import { getKkoclawHome, REPO_ROOT } from "./paths.js";
-import {
-  detectMigrationSources as detectSources,
-  executeMigration as runMigration,
-  scanMigrationSources as scanSources,
-} from "./migration.js";
 
 // ── Shared payload types (mirrors frontend `core/desktop/types.ts`) ───────
 
@@ -425,34 +419,6 @@ export function registerIpc(): BackendManager {
     "skill-models:set",
     (_evt, updates: Record<string, string>): SkillModelsConfig =>
       writeSkillModelsEnv(updates),
-  );
-
-  // ── Web-to-desktop migration ────────────────────────────────────────────
-  // The source is a web project repo root (NOT a user home). The web app
-  // stores data in a scattered layout inside the repo.
-  ipcMain.handle("migration:detect-sources", async () => {
-    return detectSources(REPO_ROOT);
-  });
-
-  ipcMain.handle(
-    "migration:scan",
-    async (_evt, sourcePath?: string) => {
-      const source = sourcePath && sourcePath.trim() ? sourcePath : REPO_ROOT;
-      return scanSources(source);
-    },
-  );
-
-  ipcMain.handle(
-    "migration:execute",
-    async (
-      _evt,
-      params: {
-        sourceRepoRoot: string;
-        options: import("./migration.js").MigrationOptions;
-      },
-    ) => {
-      return runMigration(params.sourceRepoRoot, getKkoclawHome(), params.options);
-    },
   );
 
   return manager;

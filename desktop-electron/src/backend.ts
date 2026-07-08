@@ -47,7 +47,6 @@ import {
   REPO_ROOT,
 } from "./paths.js";
 import { migrateDesktopConfigYaml } from "./config-migration.js";
-import { detectMigrationSources } from "./migration.js";
 import { initSkillModelsEnv, parseEnvFile } from "./skill-models-env.js";
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -143,11 +142,6 @@ export class BackendManager extends EventEmitter {
     this.initSkillModelsEnv();
     this.initSkills();
     this.openLogStream();
-
-    // First-launch detection: if this is a brand-new desktop install AND a
-    // web deployment exists on the machine, notify the renderer so it can
-    // prompt the user to import. Guarded by a marker so we only ask once.
-    this.notifyMigrationIfAvailable();
 
     const cmd = this.resolveCommand(port);
     if (!cmd) {
@@ -608,57 +602,6 @@ export class BackendManager extends EventEmitter {
     } catch {
       // Non-fatal — we'll just re-prompt next launch if the marker is missing.
     }
-  }
-
-  /**
-   * Detect whether a web deployment's data exists and notify the renderer.
-   *
-   * Fires the one-shot `migration:available` IPC event to every BrowserWindow
-   * so the renderer can show a prompt. Guarded by a `.migration_prompted`
-   * marker so the user is only asked once per machine (matching the pattern
-   * used by `migrateLegacyUserData`). The renderer is still free to open the
-   * wizard manually from the settings panel afterwards.
-   */
-  private notifyMigrationIfAvailable(): void {
-    const home = getKkoclawHome();
-    const marker = join(home, ".migration_prompted");
-    if (existsSync(marker)) return;
-
-    const sources = detectMigrationSources(REPO_ROOT).filter(
-      (s) => s.hasData,
-    );
-    if (sources.length === 0) {
-      // Nothing to import — write the marker so we never scan again.
-      try {
-        mkdirSync(home, { recursive: true });
-        writeFileSync(marker, "no-source\n", "utf8");
-      } catch {
-        // ignore
-      }
-      return;
-    }
-
-    // Defer the broadcast until the renderer is ready. The launch() call site
-    // runs before any window necessarily exists, so we wait for the next tick
-    // — windows created later still receive the event because we don't write
-    // the marker until the broadcast actually happens.
-    setImmediate(() => {
-      try {
-        for (const win of BrowserWindow.getAllWindows()) {
-          win.webContents.send("migration:available", sources);
-        }
-        // Mark as prompted so we don't keep firing on every relaunch.
-        mkdirSync(home, { recursive: true });
-        writeFileSync(marker, "prompted\n", "utf8");
-        this.appendLog(
-          `[backend] migration sources detected: ${sources.map((s) => s.path).join(", ")}`,
-        );
-      } catch (e) {
-        this.appendLog(
-          `[backend] WARNING: failed to notify migration: ${e instanceof Error ? e.message : String(e)}`,
-        );
-      }
-    });
   }
 
   private ensureDataDirs(): void {

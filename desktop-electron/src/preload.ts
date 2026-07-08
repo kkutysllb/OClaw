@@ -50,23 +50,6 @@ interface EmbeddedTerminalSession {
   promptLabel: string;
 }
 
-// ── Web-to-desktop migration ──────────────────────────────────────────────
-
-interface MigrationOptions {
-  skills: boolean;
-  extensions: boolean;
-  credentials: boolean;
-  memory: boolean;
-  agents: boolean;
-}
-
-interface DetectedSource {
-  path: string;
-  label: string;
-  exists: boolean;
-  hasData: boolean;
-}
-
 // ── Skill model credentials (mirrors skill-models-env.ts shapes) ──────────
 
 interface SkillModelField {
@@ -236,28 +219,4 @@ contextBridge.exposeInMainWorld("oclawDesktop", {
     updates: Record<string, string>,
   ): Promise<SkillModelsConfig> =>
     ipcRenderer.invoke("skill-models:set", updates),
-
-  // ── Web-to-desktop migration ───────────────────────────────────────
-  detectMigrationSources: (): Promise<DetectedSource[]> =>
-    ipcRenderer.invoke("migration:detect-sources"),
-  scanMigrationSource: (sourcePath?: string): Promise<unknown> =>
-    ipcRenderer.invoke("migration:scan", sourcePath),
-  executeMigration: (params: {
-    sourceRepoRoot: string;
-    options: MigrationOptions;
-  }): Promise<unknown> => ipcRenderer.invoke("migration:execute", params),
-  onMigrationAvailable: (
-    handler: (sources: DetectedSource[]) => void,
-  ): (() => void) => {
-    const listener = (
-      _evt: IpcRendererEvent,
-      sources: DetectedSource[],
-    ): void => {
-      handler(sources);
-    };
-    ipcRenderer.on("migration:available", listener);
-    return () => {
-      ipcRenderer.removeListener("migration:available", listener);
-    };
-  },
 });
