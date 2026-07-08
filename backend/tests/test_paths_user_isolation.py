@@ -169,3 +169,38 @@ class TestResolveThreadArtifactPathWithUserId:
         result = paths.resolve_thread_artifact_path("t1", str(host_path))
         expected_base = paths.sandbox_user_data_dir("t1").resolve()
         assert str(result).startswith(str(expected_base))
+
+    def test_resolve_thread_artifact_path_accepts_extra_allowed_root(self, paths: Paths, tmp_path):
+        """When the user selected a workspace directory, ``outputs_path`` is
+        redirected there. Artifacts written into that directory must be
+        resolvable via ``extra_allowed_roots`` even though it's outside the
+        thread's sandbox user-data root.
+        """
+        user_workspace = tmp_path / "user-project"
+        user_workspace.mkdir()
+        artifact = user_workspace / "report.md"
+        artifact.write_text("hello", encoding="utf-8")
+
+        result = paths.resolve_thread_artifact_path(
+            "t1",
+            str(artifact),
+            extra_allowed_roots=[str(user_workspace)],
+        )
+        assert result.resolve() == artifact.resolve()
+
+    def test_resolve_thread_artifact_path_rejects_path_outside_all_roots(self, paths: Paths, tmp_path):
+        """A path outside both the sandbox user-data root and any extra
+        allowed roots is rejected.
+        """
+        outside = tmp_path / "elsewhere" / "secret.txt"
+        outside.parent.mkdir(parents=True)
+        outside.write_text("nope", encoding="utf-8")
+
+        import pytest
+
+        with pytest.raises(ValueError, match="outside the thread workspace"):
+            paths.resolve_thread_artifact_path(
+                "t1",
+                str(outside),
+                extra_allowed_roots=[str(tmp_path / "user-project")],
+            )

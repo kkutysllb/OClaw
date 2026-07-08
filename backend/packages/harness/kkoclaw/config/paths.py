@@ -368,12 +368,24 @@ class Paths:
         if thread_dir.exists():
             shutil.rmtree(thread_dir)
 
-    def resolve_thread_artifact_path(self, thread_id: str, path: str, *, user_id: str | None = None) -> Path:
+    def resolve_thread_artifact_path(
+        self,
+        thread_id: str,
+        path: str,
+        *,
+        user_id: str | None = None,
+        extra_allowed_roots: list[str] | None = None,
+    ) -> Path:
         """Resolve an artifact path to the actual host filesystem path.
 
         Phase 3: paths are real host absolute paths. This method validates that
         *path* resolves to a location inside the thread's user-data root
         (workspace/uploads/outputs) and returns the resolved host path.
+
+        When *extra_allowed_roots* is provided (e.g. a user-selected workspace
+        directory that ``outputs_path`` was redirected to), paths resolving
+        inside any of those roots are also accepted. This lets the artifacts
+        endpoint serve files the agent wrote into a user-chosen workspace.
 
         Args:
             thread_id: The thread ID.
@@ -381,14 +393,18 @@ class Paths:
                   Note: FastAPI's ``{path:path}`` route converter strips the
                   leading ``/``, so a path that arrived as ``Users/...`` is
                   re-prefixed here before validation.
-            user_id: Optional user ID for user-scoped path resolution.
+            user_id: Optional user ID for per-user path resolution.
+            extra_allowed_roots: Optional additional absolute host directories
+                (e.g. ``user_workspace_path`` / redirected ``outputs_path``)
+                that artifacts may be served from.
 
         Returns:
             The resolved absolute host filesystem path.
 
         Raises:
             ValueError: If the path is not absolute, is outside the thread's
-                        user-data root, or a path-traversal attempt is detected.
+                        user-data root (and any extra allowed roots), or a
+                        path-traversal attempt is detected.
         """
         # FastAPI's {path:path} converter strips the leading slash from the
         # captured segment. Re-prefix it so Path.is_absolute() works correctly.
@@ -402,12 +418,18 @@ class Paths:
         _reject_traversal_segments(path)
         resolved = candidate.resolve()
 
-        base = self.sandbox_user_data_dir(thread_id, user_id=user_id).resolve()
-        try:
-            resolved.relative_to(base)
-        except ValueError:
-            raise ValueError("Access denied: path is outside the thread workspace")
-        return resolved
+        allowed_roots: list[Path] = [self.sandbox_user_data_dir(thread_id, user_id=user_id).resolve()]
+        for root in extra_allowed_roots or []:
+            if root:
+                allowed_roots.append(Path(root).expanduser().resolve())
+
+        for base in allowed_roots:
+            try:
+                resolved.relative_to(base)
+                return resolved
+            except ValueError:
+                continue
+        raise ValueError("Access denied: path is outside the thread workspace")
 
 
 def _reject_traversal_segments(path: str) -> None:

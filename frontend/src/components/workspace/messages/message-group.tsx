@@ -389,6 +389,7 @@ function ToolCall({
           <CodeBlock
             className="mx-0 cursor-pointer border-none px-0"
             showLineNumbers={false}
+            wrapLines
             language="bash"
             code={command}
           />

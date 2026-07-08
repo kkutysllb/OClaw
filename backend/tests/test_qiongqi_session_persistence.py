@@ -96,6 +96,44 @@ def test_qiongqi_session_store_rejects_missing_or_unsafe_thread_ids(tmp_path, mo
         QiongqiSessionStore.from_home().persist_session(session)
 
 
+def test_qiongqi_session_store_delete_session_removes_directory(tmp_path, monkeypatch):
+    """``delete_session`` removes the per-thread session directory and is
+    idempotent for missing directories — mirroring
+    ``Paths.delete_thread_dir`` behaviour.
+    """
+    import json
+
+    from kkoclaw.coding_core.context import CodingRuntimeContext
+    from kkoclaw.coding_core.qiongqi import QiongqiSession
+    from kkoclaw.coding_core.session_store import QiongqiSessionStore
+
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    store = QiongqiSessionStore.from_home()
+
+    session = QiongqiSession(
+        context=CodingRuntimeContext.from_runtime(project_root=None, thread_id="thread-delete"),
+        skills=[],
+    )
+    snapshot = store.persist_session(session)
+    session_dir = snapshot.session_dir
+    (session_dir / "events.jsonl").write_text(
+        json.dumps({"seq": 1, "thread_id": "thread-delete", "event_type": "x", "payload": {}, "created_at": "t"}) + "\n",
+        encoding="utf-8",
+    )
+
+    assert session_dir.exists()
+    assert (session_dir / "session.json").is_file()
+    assert (session_dir / "events.jsonl").is_file()
+
+    store.delete_session("thread-delete")
+
+    assert not session_dir.exists()
+    # Idempotent: deleting again must not raise.
+    store.delete_session("thread-delete")
+    assert not session_dir.exists()
+
+
 def test_qiongqi_engine_can_persist_runtime_session(tmp_path, monkeypatch):
     from kkoclaw.coding_core.qiongqi import QiongqiEngine
     from kkoclaw.coding_core.session_store import QiongqiSessionStore

@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 
 from app.gateway.authz import require_permission
-from app.gateway.path_utils import resolve_thread_artifact_path
+from app.gateway.path_utils import resolve_thread_artifact_path_async
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +142,7 @@ async def get_artifact(thread_id: str, path: str, request: Request, download: bo
         skill_file_path = path[: marker_pos + len(".skill")]  # e.g., the thread outputs path + /my-skill.skill
         internal_path = path[marker_pos + len(skill_marker) :]  # e.g., "SKILL.md"
 
-        actual_skill_path = resolve_thread_artifact_path(thread_id, skill_file_path)
+        actual_skill_path = await resolve_thread_artifact_path_async(thread_id, skill_file_path, request)
 
         if not actual_skill_path.exists():
             raise HTTPException(status_code=404, detail=f"Skill file not found: {skill_file_path}")
@@ -172,7 +172,7 @@ async def get_artifact(thread_id: str, path: str, request: Request, download: bo
         except UnicodeDecodeError:
             return Response(content=content, media_type=mime_type or "application/octet-stream", headers=cache_headers)
 
-    actual_path = resolve_thread_artifact_path(thread_id, path)
+    actual_path = await resolve_thread_artifact_path_async(thread_id, path, request)
 
     logger.info(f"Resolving artifact path: thread_id={thread_id}, requested_path={path}, actual_path={actual_path}")
 

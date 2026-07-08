@@ -229,8 +229,10 @@ async def delete_thread_data(thread_id: str, request: Request) -> ThreadDeleteRe
     """Delete local persisted filesystem data for a thread.
 
     Cleans KKOCLAW-managed thread directories, removes checkpoint data,
-    and removes the thread_meta row from the configured ThreadMetaStore
-    (sqlite or memory).
+    removes the thread_meta row from the configured ThreadMetaStore
+    (sqlite or memory), and removes the Coding Agent session directory
+    (``~/.oclaw-coding[-desktop]/{thread_id}/``) so deleting a task also
+    purges its Coding session records.
     """
     from app.gateway.deps import get_thread_store
 
@@ -253,6 +255,15 @@ async def delete_thread_data(thread_id: str, request: Request) -> ThreadDeleteRe
         await thread_store.delete(thread_id)
     except Exception:
         logger.debug("Could not delete thread_meta for %s (not critical)", sanitize_log_param(thread_id))
+
+    # Remove Coding Agent session records (~/.oclaw-coding[-desktop]/{thread_id}/)
+    # so session.json / events.jsonl / changes.jsonl / reviews are not orphaned.
+    try:
+        from kkoclaw.coding_core.session_store import QiongqiSessionStore
+
+        QiongqiSessionStore.from_home().delete_session(thread_id)
+    except Exception:
+        logger.debug("Could not delete coding session for %s (not critical)", sanitize_log_param(thread_id))
 
     return response
 

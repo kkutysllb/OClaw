@@ -21,6 +21,15 @@ def _make_request(query_string: bytes = b"") -> Request:
     return Request({"type": "http", "method": "GET", "path": "/", "headers": [], "query_string": query_string})
 
 
+def _mock_resolve(artifact_path: Path):
+    """Return an async mock matching resolve_thread_artifact_path_async's signature."""
+
+    async def _resolve(_thread_id, _path, _request):
+        return artifact_path
+
+    return _resolve
+
+
 def test_get_artifact_reads_utf8_text_file_on_windows_locale(tmp_path, monkeypatch) -> None:
     artifact_path = tmp_path / "note.txt"
     text = "Curly quotes: \u201cutf8\u201d"
@@ -33,7 +42,7 @@ def test_get_artifact_reads_utf8_text_file_on_windows_locale(tmp_path, monkeypat
         return original_read_text(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "read_text", read_text_with_gbk_default)
-    monkeypatch.setattr(artifacts_router, "resolve_thread_artifact_path", lambda _thread_id, _path: artifact_path)
+    monkeypatch.setattr(artifacts_router, "resolve_thread_artifact_path_async", _mock_resolve(artifact_path))
 
     request = _make_request()
     response = asyncio.run(call_unwrapped(artifacts_router.get_artifact, "thread-1", str(artifact_path), request))
@@ -47,7 +56,7 @@ def test_get_artifact_forces_download_for_active_content(tmp_path, monkeypatch, 
     artifact_path = tmp_path / filename
     artifact_path.write_text(content, encoding="utf-8")
 
-    monkeypatch.setattr(artifacts_router, "resolve_thread_artifact_path", lambda _thread_id, _path: artifact_path)
+    monkeypatch.setattr(artifacts_router, "resolve_thread_artifact_path_async", _mock_resolve(artifact_path))
 
     response = asyncio.run(call_unwrapped(artifacts_router.get_artifact, "thread-1", str(artifact_path), _make_request()))
 
@@ -61,7 +70,7 @@ def test_get_artifact_forces_download_for_active_content_in_skill_archive(tmp_pa
     with zipfile.ZipFile(skill_path, "w") as zip_ref:
         zip_ref.writestr(filename, content)
 
-    monkeypatch.setattr(artifacts_router, "resolve_thread_artifact_path", lambda _thread_id, _path: skill_path)
+    monkeypatch.setattr(artifacts_router, "resolve_thread_artifact_path_async", _mock_resolve(skill_path))
 
     response = asyncio.run(call_unwrapped(artifacts_router.get_artifact, "thread-1", f"{skill_path}/{filename}", _make_request()))
 
@@ -73,7 +82,7 @@ def test_get_artifact_download_false_does_not_force_attachment(tmp_path, monkeyp
     artifact_path = tmp_path / "note.txt"
     artifact_path.write_text("hello", encoding="utf-8")
 
-    monkeypatch.setattr(artifacts_router, "resolve_thread_artifact_path", lambda _thread_id, _path: artifact_path)
+    monkeypatch.setattr(artifacts_router, "resolve_thread_artifact_path_async", _mock_resolve(artifact_path))
 
     app = make_authed_test_app()
     app.include_router(artifacts_router.router)
@@ -91,7 +100,7 @@ def test_get_artifact_download_true_forces_attachment_for_skill_archive(tmp_path
     with zipfile.ZipFile(skill_path, "w") as zip_ref:
         zip_ref.writestr("notes.txt", "hello")
 
-    monkeypatch.setattr(artifacts_router, "resolve_thread_artifact_path", lambda _thread_id, _path: skill_path)
+    monkeypatch.setattr(artifacts_router, "resolve_thread_artifact_path_async", _mock_resolve(skill_path))
 
     app = make_authed_test_app()
     app.include_router(artifacts_router.router)

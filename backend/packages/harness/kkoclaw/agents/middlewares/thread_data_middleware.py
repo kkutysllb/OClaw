@@ -146,12 +146,22 @@ class ThreadDataMiddleware(AgentMiddleware[ThreadDataMiddlewareState]):
         # so the sandbox can grant bash/read/write access to it. Stored under
         # a distinct key (``user_workspace_path``) to avoid clobbering the
         # internal sandbox ``workspace_path``.
+        #
+        # When set, the agent's final deliverables are written directly into
+        # this directory (overriding the default sandbox ``outputs`` subdir)
+        # so the user sees task output in their chosen workspace rather than
+        # under ``~/.kkoclaw[-desktop]/threads/{tid}/user-data/outputs/``.
+        # ``workspace_path``/``uploads_path`` stay on the internal sandbox
+        # dirs so temporary scratch files and user uploads don't pollute the
+        # user's project directory.
         user_workspace_path = (
             context.get("user_workspace_path")
             or configurable.get("user_workspace_path")
         )
         if user_workspace_path:
-            paths["user_workspace_path"] = str(user_workspace_path)
+            user_workspace_path = str(user_workspace_path)
+            paths["user_workspace_path"] = user_workspace_path
+            paths["outputs_path"] = user_workspace_path
 
         if last_message and isinstance(last_message, HumanMessage):
             messages[-1] = HumanMessage(

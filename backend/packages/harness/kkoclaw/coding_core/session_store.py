@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -206,6 +207,18 @@ class QiongqiSessionStore:
 
     def session_dir(self, thread_id: str | None) -> Path:
         return self.root / _validate_thread_id(thread_id)
+
+    def delete_session(self, thread_id: str | None) -> None:
+        """Delete all persisted Coding session data for a thread.
+
+        Removes the per-thread session directory (``session.json``,
+        ``events.jsonl``, ``changes.jsonl``, ``roi_telemetry.jsonl``,
+        ``reviews/``). Idempotent: a missing directory is silently ignored,
+        mirroring :meth:`kkoclaw.config.paths.Paths.delete_thread_dir`.
+        """
+        session_dir = self.session_dir(thread_id)
+        if session_dir.exists():
+            shutil.rmtree(session_dir, ignore_errors=True)
 
 
 def _validate_thread_id(thread_id: str | None) -> str:
