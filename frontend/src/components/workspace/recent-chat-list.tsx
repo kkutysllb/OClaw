@@ -66,6 +66,7 @@ import {
   useRenameThread,
   useThreads,
 } from "@/core/threads/hooks";
+import { prefetchThreadState } from "@/core/threads/prefetch";
 import type { AgentThread, AgentThreadState } from "@/core/threads/types";
 import { pathOfThread, titleOfThread } from "@/core/threads/utils";
 import { useWorkModes } from "@/core/work-modes/hooks";
@@ -373,6 +374,8 @@ function ThreadModeGroup({
                           <Link
                             className="text-muted-foreground block w-full whitespace-nowrap group-hover/side-menu-item:overflow-hidden"
                             href={pathOfThread(thread)}
+                            onMouseEnter={() => void prefetchThreadState(thread.thread_id)}
+                            onFocus={() => void prefetchThreadState(thread.thread_id)}
                           >
                             {titleOfThread(thread)}
                           </Link>
