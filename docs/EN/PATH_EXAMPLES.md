@@ -1,72 +1,66 @@
 # File Path Usage Examples
 
-## Three Path Types
+## Two Path Types
 
-OClaw's file upload system returns three different path types, each for different scenarios:
+OClaw's file upload system returns two different path types, each for different scenarios:
 
-### 1. Actual Filesystem Path (path)
+### 1. Real Host Path (path)
 
 ```
-.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf
+/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf
 ```
 
 **Purpose:**
-- Actual file location on the server filesystem
-- Relative to `backend/` directory
+- The real absolute location of the file on the host filesystem (under `{KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/`, where `KKOCLAW_HOME` defaults to `~/.kkoclaw`)
+- Agents, tools, and APIs now use this real path directly (the `/mnt/user-data` virtual path layer was removed in sandbox refactor phase 3)
 - Used for direct filesystem access, backup, debugging, etc.
 
 **Example:**
 ```python
 # Direct access in Python code
 from pathlib import Path
-file_path = Path("backend/.kkoclaw/threads/abc123/user-data/uploads/document.pdf")
+file_path = Path("/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf")
 content = file_path.read_bytes()
 ```
 
-### 2. Virtual Path (virtual_path)
-
-```
-/mnt/user-data/uploads/document.pdf
-```
-
-**Purpose:**
-- Path used by Agent in the sandbox environment
-- Sandbox system automatically maps to the actual path
-- All Agent file operation tools use this path
-
-**Example:**
-Agent usage in conversation:
+The Agent also uses the same real path in conversation:
 ```python
 # Agent uses the read_file tool
-read_file(path="/mnt/user-data/uploads/document.pdf")
+read_file(path="/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf")
 
 # Agent uses the bash tool
-bash(command="cat /mnt/user-data/uploads/document.pdf")
+bash(command="cat /home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf")
 ```
 
-### 3. HTTP Access URL (artifact_url)
+> Prompts (lead_agent prompt, subagent prompts) no longer hardcode concrete paths; real paths are injected at runtime by workspace_path_middleware.
+
+### 2. HTTP Access URL (artifact_url)
 
 ```
-/api/threads/{thread_id}/artifacts/mnt/user-data/uploads/document.pdf
+/api/threads/{thread_id}/artifacts/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf
 ```
+
+The `artifact_url` is built by concatenating `/api/threads/{thread_id}/artifacts` with the real host absolute path (the filename is percent-encoded).
 
 **Purpose:**
 - Frontend accesses files via HTTP
 - Used for downloading and previewing files
 - Can be opened directly in the browser
+- The server validates that the path falls inside the current thread's `user-data/` root
 
 **Example:**
 ```typescript
 // Frontend TypeScript/JavaScript code
 const threadId = 'abc123';
-const filename = 'document.pdf';
+const realPath = '/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf';
+const base = `/api/threads/${threadId}/artifacts`;
 
 // Download file
-const downloadUrl = `/api/threads/${threadId}/artifacts/mnt/user-data/uploads/${filename}?download=true`;
+const downloadUrl = `${base}${realPath}?download=true`;
 window.open(downloadUrl);
 
 // Preview in new window
-const viewUrl = `/api/threads/${threadId}/artifacts/mnt/user-data/uploads/${filename}`;
+const viewUrl = `${base}${realPath}`;
 window.open(viewUrl, '_blank');
 
 // Fetch using fetch API
@@ -99,21 +93,19 @@ async function uploadAndProcess(threadId: string, file: File) {
   console.log('File info:', fileInfo);
   // {
   //   filename: "report.pdf",
-  //   path: ".kkoclaw/threads/abc123/user-data/uploads/report.pdf",
-  //   virtual_path: "/mnt/user-data/uploads/report.pdf",
-  //   artifact_url: "/api/threads/abc123/artifacts/mnt/user-data/uploads/report.pdf",
+  //   path: "/home/user/.kkoclaw/threads/abc123/user-data/uploads/report.pdf",
+  //   artifact_url: "/api/threads/abc123/artifacts/home/user/.kkoclaw/threads/abc123/user-data/uploads/report.pdf",
   //   markdown_file: "report.md",
-  //   markdown_path: ".kkoclaw/threads/abc123/user-data/uploads/report.md",
-  //   markdown_virtual_path: "/mnt/user-data/uploads/report.md",
-  //   markdown_artifact_url: "/api/threads/abc123/artifacts/mnt/user-data/uploads/report.md"
+  //   markdown_path: "/home/user/.kkoclaw/threads/abc123/user-data/uploads/report.md",
+  //   markdown_artifact_url: "/api/threads/abc123/artifacts/home/user/.kkoclaw/threads/abc123/user-data/uploads/report.md"
   // }
 
   // 2. Send message to Agent
   await sendMessage(threadId, "Please analyze the just-uploaded PDF file");
 
   // Agent will automatically see the file list including:
-  // - report.pdf (virtual path: /mnt/user-data/uploads/report.pdf)
-  // - report.md (virtual path: /mnt/user-data/uploads/report.md)
+  // - report.pdf (real host path: /home/user/.kkoclaw/threads/abc123/user-data/uploads/report.pdf)
+  // - report.md (real host path: /home/user/.kkoclaw/threads/abc123/user-data/uploads/report.md)
 
   // 3. Frontend can directly access the converted Markdown
   const mdResponse = await fetch(fileInfo.markdown_artifact_url);
@@ -128,15 +120,17 @@ async function uploadAndProcess(threadId: string, file: File) {
 }
 ```
 
-## Path Conversion Table
+## Path Usage Table
+
+After the sandbox refactor there is no virtual path; the relationship between the paths used by the Agent, backend, and frontend is:
 
 | Scenario | Path Type Used | Example |
 |------|---------------|------|
-| Server backend direct access | `path` | `.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
-| Agent tool calls | `virtual_path` | `/mnt/user-data/uploads/file.pdf` |
-| Frontend download/preview | `artifact_url` | `/api/threads/abc123/artifacts/mnt/user-data/uploads/file.pdf` |
-| Backup scripts | `path` | `.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
-| Logging | `path` | `.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
+| Agent tool calls | `path` (real host path) | `/home/user/.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
+| Server backend direct access | `path` | `/home/user/.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
+| Frontend download/preview | `artifact_url` | `/api/threads/abc123/artifacts/home/user/.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
+| Backup scripts | `path` | `/home/user/.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
+| Logging | `path` | `/home/user/.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
 
 ## Code Example Collection
 
@@ -144,11 +138,11 @@ async function uploadAndProcess(threadId: string, file: File) {
 
 ```python
 from pathlib import Path
-from kkoclaw.agents.middlewares.thread_data_middleware import THREAD_DATA_BASE_DIR
+from kkoclaw.config.paths import get_paths
 
 def process_uploaded_file(thread_id: str, filename: str):
-    # Use actual path
-    base_dir = Path.cwd() / THREAD_DATA_BASE_DIR / thread_id / "user-data" / "uploads"
+    # Use the real host path (Paths exposes the thread's uploads directory)
+    base_dir = get_paths().sandbox_uploads_dir(thread_id)
     file_path = base_dir / filename
 
     # Read directly
@@ -199,9 +193,8 @@ import React, { useState, useEffect } from 'react';
 interface UploadedFile {
   filename: string;
   size: number;
-  path: string;
-  virtual_path: string;
-  artifact_url: string;
+  path: string;            // real host absolute path
+  artifact_url: string;    // HTTP URL embedding the same real path
   extension: string;
   modified: number;
   markdown_artifact_url?: string;
@@ -274,9 +267,9 @@ function FileUploadList({ threadId }: { threadId: string }) {
    - The frontend should not use `path` directly, but use `artifact_url`
 
 2. **Agent Usage**
-   - Agent only sees and uses `virtual_path`
-   - The sandbox system automatically maps to actual paths
-   - Agent does not need to know the actual filesystem structure
+   - The Agent sees and uses the real host path (`path`) directly
+   - After the sandbox refactor there is no virtual path layer; the Agent and backend use the same path
+   - The server still validates that the path falls inside the current thread's `user-data/` root
 
 3. **Frontend Integration**
    - Always use `artifact_url` to access files

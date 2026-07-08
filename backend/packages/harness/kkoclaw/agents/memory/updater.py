@@ -236,7 +236,6 @@ _UPLOAD_SENTENCE_RE = re.compile(
     r"[^.!?]*\b(?:"
     r"upload(?:ed|ing)?(?:\s+\w+){0,3}\s+(?:file|files?|document|documents?|attachment|attachments?)"
     r"|file\s+upload"
-    r"|/mnt/user-data/uploads/"
     r"|<uploaded_files>"
     r")[^.!?]*[.!?]?\s*",
     re.IGNORECASE,

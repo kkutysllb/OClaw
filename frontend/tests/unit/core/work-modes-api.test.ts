@@ -197,7 +197,7 @@ describe("work-modes api", () => {
 
     await installSkill({
       thread_id: "thread-1",
-      path: "mnt/user-data/outputs/coding-helper.skill",
+      path: "/home/user/.kkoclaw/threads/thread-1/user-data/outputs/coding-helper.skill",
       work_modes: ["coding"],
     });
 
@@ -205,7 +205,7 @@ describe("work-modes api", () => {
     expect(init?.method).toBe("POST");
     expect(JSON.parse(requestBodyText(init?.body))).toEqual({
       thread_id: "thread-1",
-      path: "mnt/user-data/outputs/coding-helper.skill",
+      path: "/home/user/.kkoclaw/threads/thread-1/user-data/outputs/coding-helper.skill",
       work_modes: ["coding"],
     });
   });

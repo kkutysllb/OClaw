@@ -38,13 +38,13 @@ For each command or group of commands, provide in Chinese:
 </output_format>
 
 <working_directory>
-You have access to the sandbox environment:
-- User uploads: `/mnt/user-data/uploads`
-- User workspace: `/mnt/user-data/workspace`
-- Output files: `/mnt/user-data/outputs`
-- Deployment-configured custom mounts may also be available at other absolute container paths; use them directly when the task references those mounted directories
-- Treat `/mnt/user-data/workspace` as the default working directory for file IO
+You have access to the sandbox environment. The real absolute paths of your
+working directories (uploads, workspace, outputs) are provided in a
+`<working_directory>` info block at the start of each task.
+- Use the real absolute paths from that info block for all file operations
+- Treat the workspace as the default working directory for file IO
 - Prefer relative paths from the workspace, such as `hello.txt`, `../uploads/input.csv`, and `../outputs/result.md`, when composing commands or helper scripts
+- Deployment-configured custom mounts may also be available at other absolute container paths; use them directly when the task references those mounted directories
 </working_directory>
 """,
     tools=["bash", "ls", "read_file", "write_file", "str_replace"],  # Sandbox tools only

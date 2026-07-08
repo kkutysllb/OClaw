@@ -125,8 +125,8 @@ class ThreadState(AgentState):
 
     # OClaw extensions
     sandbox: dict             # Sandbox environment info
-    artifacts: list[str]      # Generated file paths
-    thread_data: dict         # {workspace, uploads, outputs} paths
+    artifacts: list[str]      # Generated file paths (real host absolute paths)
+    thread_data: dict         # {workspace, uploads, outputs} real host paths
     title: str | None         # Auto-generated conversation title
     todos: list[dict]         # Task tracking (plan mode)
     viewed_images: dict       # Vision model image data
@@ -144,14 +144,25 @@ class ThreadState(AgentState):
 └─────────────────────────┘
 ```
 
-**Virtual Path Mapping**:
+**Path Layout**:
 
-| Virtual Path | Physical Path |
+After the sandbox refactor (phase 3), the `/mnt/user-data/{workspace,uploads,outputs}` virtual path layer was removed. Agents, tools, and APIs now use real host absolute paths directly. The thread data root is `{KKOCLAW_HOME}/threads/{thread_id}/user-data/` (or `{KKOCLAW_HOME}/users/{user_id}/threads/{thread_id}/user-data/` with user isolation enabled), where `KKOCLAW_HOME` resolves to `~/.kkoclaw` by default.
+
+| Category | Real Host Path |
 |---------|---------|
-| `/mnt/user-data/workspace` | `backend/.kkoclaw/threads/{thread_id}/user-data/workspace` |
-| `/mnt/user-data/uploads` | `backend/.kkoclaw/threads/{thread_id}/user-data/uploads` |
-| `/mnt/user-data/outputs` | `backend/.kkoclaw/threads/{thread_id}/user-data/outputs` |
-| `/mnt/skills` | `kk-oclaw/skills/` |
+| Workspace | `{KKOCLAW_HOME}/threads/{thread_id}/user-data/workspace/` |
+| Uploaded files | `{KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/` |
+| Generated artifacts | `{KKOCLAW_HOME}/threads/{thread_id}/user-data/outputs/` |
+
+`ThreadState.artifacts` now stores these real host absolute paths directly (e.g. `/home/user/.kkoclaw/threads/abc/user-data/outputs/report.pdf`), and `Paths.resolve_thread_artifact_path` validates that a path falls inside the thread's `user-data/` root.
+
+Directories that remain virtual paths:
+
+| Virtual Path | Physical Path | Description |
+|---------|---------|---------|
+| `/mnt/skills` | `kk-oclaw/skills/` | Global read-only skill library |
+| `/mnt/acp-workspace` | `{KKOCLAW_HOME}/threads/{thread_id}/acp-workspace/` | ACP subagent workspace (per-thread isolated) |
+| `/mnt/xxx` (custom) | configured in `config.yaml` | Custom mounts configured via config |
 
 ### Tool System
 
@@ -196,9 +207,9 @@ skills/
 
 ### Data Flows
 
-**File Upload**: Client POST → Gateway validates → store to `.kkoclaw/.../uploads/` → optional Markdown conversion → return paths → next Agent run auto-lists files via UploadsMiddleware.
+**File Upload**: Client POST → Gateway validates → store to `{KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/` → optional Markdown conversion → return real host path + artifact URL → next Agent run auto-lists files via UploadsMiddleware. The Agent accesses files directly via the real host path (no virtual path layer).
 
-**Thread Cleanup**: DELETE LangGraph thread → Web UI calls Gateway cleanup → remove `.kkoclaw/threads/{thread_id}/`.
+**Thread Cleanup**: DELETE LangGraph thread → Web UI calls Gateway cleanup → remove `{KKOCLAW_HOME}/threads/{thread_id}/`.
 
 **Config Reload**: PUT MCP config → Gateway writes `extensions_config.json` → MCP manager detects mtime change → reinitialize client → next Agent run uses new tools.
 

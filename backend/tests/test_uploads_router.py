@@ -8,6 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from _router_auth_helpers import call_unwrapped, make_authed_test_app
+
+from kkoclaw.config.paths import get_paths
+from kkoclaw.runtime.user_context import get_effective_user_id
 from fastapi import HTTPException, UploadFile
 from fastapi.testclient import TestClient
 
@@ -144,8 +147,9 @@ def test_upload_files_syncs_non_local_sandbox_and_marks_markdown_file(tmp_path):
     assert (thread_uploads_dir / "report.pdf").read_bytes() == b"pdf-bytes"
     assert (thread_uploads_dir / "report.md").read_text(encoding="utf-8") == "converted"
 
-    sandbox.update_file.assert_any_call("/mnt/user-data/uploads/report.pdf", b"pdf-bytes")
-    sandbox.update_file.assert_any_call("/mnt/user-data/uploads/report.md", b"converted")
+    sandbox_uploads = get_paths().sandbox_uploads_dir("thread-aio", user_id=get_effective_user_id())
+    sandbox.update_file.assert_any_call(str(sandbox_uploads / "report.pdf"), b"pdf-bytes")
+    sandbox.update_file.assert_any_call(str(sandbox_uploads / "report.md"), b"converted")
 
 
 def test_upload_files_makes_non_local_files_sandbox_writable(tmp_path):
@@ -226,7 +230,8 @@ def test_upload_files_acquires_non_local_sandbox_before_writing(tmp_path):
 
     assert result.success is True
     provider.acquire.assert_called_once_with("thread-aio")
-    sandbox.update_file.assert_called_once_with("/mnt/user-data/uploads/notes.txt", b"hello uploads")
+    sandbox_uploads = get_paths().sandbox_uploads_dir("thread-aio", user_id=get_effective_user_id())
+    sandbox.update_file.assert_called_once_with(str(sandbox_uploads / "notes.txt"), b"hello uploads")
 
 
 def test_upload_files_fails_before_writing_when_non_local_sandbox_unavailable(tmp_path):

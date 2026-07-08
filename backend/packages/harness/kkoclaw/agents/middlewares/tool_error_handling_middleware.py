@@ -127,10 +127,16 @@ def _build_runtime_middlewares(
         SandboxMiddleware(lazy_init=lazy_init),
     ]
 
+    # WorkspacePathMiddleware injects real working-directory paths into each
+    # turn (phase 3: no more /mnt/user-data virtual paths in the prompt).
+    from kkoclaw.agents.middlewares.workspace_path_middleware import WorkspacePathMiddleware
+
+    middlewares.insert(1, WorkspacePathMiddleware())
+
     if include_uploads:
         from kkoclaw.agents.middlewares.uploads_middleware import UploadsMiddleware
 
-        middlewares.insert(1, UploadsMiddleware())
+        middlewares.insert(2, UploadsMiddleware())
 
     if include_dangling_tool_call_patch:
         from kkoclaw.agents.middlewares.dangling_tool_call_middleware import DanglingToolCallMiddleware

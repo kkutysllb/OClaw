@@ -89,7 +89,7 @@ def test_apply_prompt_template_includes_relative_path_guidance(monkeypatch):
 
     prompt = prompt_module.apply_prompt_template()
 
-    assert "Treat `/mnt/user-data/workspace` as your default current working directory" in prompt
+    assert "**workspace** — Working directory for temporary files (your default current directory)" in prompt
     assert "`hello.txt`, `../uploads/data.csv`, and `../outputs/report.md`" in prompt
 
 

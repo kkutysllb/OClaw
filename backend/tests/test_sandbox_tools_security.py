@@ -6,7 +6,6 @@ from unittest.mock import patch
 import pytest
 
 from kkoclaw.sandbox.tools import (
-    VIRTUAL_PATH_PREFIX,
     _apply_cwd_prefix,
     _get_custom_mount_for_path,
     _get_custom_mounts,
@@ -19,7 +18,6 @@ from kkoclaw.sandbox.tools import (
     _resolve_skills_path,
     bash_tool,
     mask_local_paths_in_output,
-    replace_virtual_path,
     replace_virtual_paths_in_command,
     str_replace_tool,
     validate_local_bash_command_paths,
@@ -34,70 +32,16 @@ _THREAD_DATA = {
 }
 
 
-# ---------- replace_virtual_path ----------
-
-
-def test_replace_virtual_path_maps_virtual_root_and_subpaths() -> None:
-    assert Path(replace_virtual_path("/mnt/user-data/workspace/a.txt", _THREAD_DATA)).as_posix() == "/tmp/kkoclaw/threads/t1/user-data/workspace/a.txt"
-    assert Path(replace_virtual_path("/mnt/user-data", _THREAD_DATA)).as_posix() == "/tmp/kkoclaw/threads/t1/user-data"
-
-
-def test_replace_virtual_path_preserves_trailing_slash() -> None:
-    """Trailing slash must survive virtual-to-actual path replacement.
-
-    Regression: '/mnt/user-data/workspace/' was previously returned without
-    the trailing slash, causing string concatenations like
-    output_dir + 'file.txt' to produce a missing-separator path.
-    """
-    result = replace_virtual_path("/mnt/user-data/workspace/", _THREAD_DATA)
-    assert result.endswith("/"), f"Expected trailing slash, got: {result!r}"
-    assert result == "/tmp/kkoclaw/threads/t1/user-data/workspace/"
-
-
-def test_replace_virtual_path_preserves_trailing_slash_windows_style() -> None:
-    """Trailing slash must be preserved as backslash when actual_base is Windows-style.
-
-    If actual_base uses backslash separators, appending '/' would produce a
-    mixed-separator path.  The separator must match the style of actual_base.
-    """
-    win_thread_data = {
-        "workspace_path": r"C:\kkoclaw\threads\t1\user-data\workspace",
-        "uploads_path": r"C:\kkoclaw\threads\t1\user-data\uploads",
-        "outputs_path": r"C:\kkoclaw\threads\t1\user-data\outputs",
-    }
-    result = replace_virtual_path("/mnt/user-data/workspace/", win_thread_data)
-    assert result.endswith("\\"), f"Expected trailing backslash for Windows path, got: {result!r}"
-    assert "/" not in result, f"Mixed separators in Windows path: {result!r}"
-
-
-def test_replace_virtual_path_preserves_windows_style_for_nested_subdir_trailing_slash() -> None:
-    """Nested Windows-style subdirectories must keep backslashes throughout."""
-    win_thread_data = {
-        "workspace_path": r"C:\kkoclaw\threads\t1\user-data\workspace",
-        "uploads_path": r"C:\kkoclaw\threads\t1\user-data\uploads",
-        "outputs_path": r"C:\kkoclaw\threads\t1\user-data\outputs",
-    }
-    result = replace_virtual_path("/mnt/user-data/workspace/subdir/", win_thread_data)
-    assert result == "C:\\kkoclaw\\threads\\t1\\user-data\\workspace\\subdir\\"
-    assert "/" not in result, f"Mixed separators in Windows path: {result!r}"
-
-
-def test_replace_virtual_paths_in_command_preserves_trailing_slash() -> None:
-    """Trailing slash on a virtual path inside a command must be preserved."""
-    cmd = """python -c "output_dir = '/mnt/user-data/workspace/'; print(output_dir + 'some_file.txt')\""""
-    result = replace_virtual_paths_in_command(cmd, _THREAD_DATA)
-    assert "/tmp/kkoclaw/threads/t1/user-data/workspace/" in result, f"Trailing slash lost in: {result!r}"
-
-
 # ---------- mask_local_paths_in_output ----------
 
 
-def test_mask_local_paths_in_output_hides_host_paths() -> None:
+def test_mask_local_paths_in_output_keeps_user_data_host_paths() -> None:
+    """Phase 3: per-thread user-data host paths are no longer masked."""
     output = "Created: /tmp/kkoclaw/threads/t1/user-data/workspace/result.txt"
     masked = mask_local_paths_in_output(output, _THREAD_DATA)
 
-    assert "/tmp/kkoclaw/threads/t1/user-data" not in masked
-    assert "/mnt/user-data/workspace/result.txt" in masked
+    # user-data paths pass through unchanged
+    assert masked == output
 
 
 def test_mask_local_paths_in_output_hides_skills_host_paths() -> None:
@@ -118,7 +62,7 @@ def test_mask_local_paths_in_output_hides_skills_host_paths() -> None:
 
 def test_reject_path_traversal_blocks_dotdot() -> None:
     with pytest.raises(PermissionError, match="path traversal"):
-        _reject_path_traversal("/mnt/user-data/workspace/../../etc/passwd")
+        _reject_path_traversal("/tmp/kkoclaw/threads/t1/user-data/workspace/../../etc/passwd")
 
 
 def test_reject_path_traversal_blocks_dotdot_at_start() -> None:
@@ -128,59 +72,55 @@ def test_reject_path_traversal_blocks_dotdot_at_start() -> None:
 
 def test_reject_path_traversal_blocks_backslash_dotdot() -> None:
     with pytest.raises(PermissionError, match="path traversal"):
-        _reject_path_traversal("/mnt/user-data/workspace\\..\\..\\etc\\passwd")
+        _reject_path_traversal("/tmp/kkoclaw/threads/t1/user-data/workspace\\..\\..\\etc\\passwd")
 
 
 def test_reject_path_traversal_allows_normal_paths() -> None:
     # Should not raise
-    _reject_path_traversal("/mnt/user-data/workspace/file.txt")
+    _reject_path_traversal("/tmp/kkoclaw/threads/t1/user-data/workspace/file.txt")
     _reject_path_traversal("/mnt/skills/public/bootstrap/SKILL.md")
-    _reject_path_traversal("/mnt/user-data/workspace/sub/dir/file.py")
+    _reject_path_traversal("/tmp/kkoclaw/threads/t1/user-data/workspace/sub/dir/file.py")
 
 
 # ---------- validate_local_tool_path ----------
 
 
-def test_validate_local_tool_path_rejects_non_virtual_path() -> None:
-    with pytest.raises(PermissionError, match="Only paths under"):
+def test_validate_local_tool_path_rejects_path_outside_allowed_roots() -> None:
+    with pytest.raises(PermissionError, match="Only real absolute paths"):
         validate_local_tool_path("/Users/someone/config.yaml", _THREAD_DATA)
 
 
-def test_validate_local_tool_path_rejects_non_virtual_path_mentions_configured_mounts() -> None:
+def test_validate_local_tool_path_rejects_path_outside_allowed_roots_mentions_mounts() -> None:
     with pytest.raises(PermissionError, match="configured mount paths"):
         validate_local_tool_path("/Users/someone/config.yaml", _THREAD_DATA)
 
 
-def test_validate_local_tool_path_prioritizes_user_data_before_custom_mounts() -> None:
+def test_validate_local_tool_path_user_data_roots_precede_custom_mounts() -> None:
+    """Per-thread user-data roots are always allowed even with conflicting mounts."""
     from kkoclaw.config.sandbox_config import VolumeMountConfig
 
     mounts = [
-        VolumeMountConfig(host_path="/tmp/host-user-data", container_path=VIRTUAL_PATH_PREFIX, read_only=False),
+        VolumeMountConfig(host_path="/tmp/host-user-data", container_path="/mnt/override", read_only=False),
     ]
     with patch("kkoclaw.sandbox.tools._get_custom_mounts", return_value=mounts):
-        validate_local_tool_path(f"{VIRTUAL_PATH_PREFIX}/workspace/file.txt", _THREAD_DATA, read_only=True)
+        # Real workspace path is allowed regardless of custom mounts
+        validate_local_tool_path(f"{_THREAD_DATA['workspace_path']}/file.txt", _THREAD_DATA, read_only=True)
 
     with patch("kkoclaw.sandbox.tools._get_custom_mounts", return_value=mounts):
         with pytest.raises(PermissionError, match="path traversal"):
-            validate_local_tool_path(f"{VIRTUAL_PATH_PREFIX}/workspace/../../etc/passwd", _THREAD_DATA, read_only=True)
-
-
-def test_validate_local_tool_path_rejects_bare_virtual_root() -> None:
-    """The bare /mnt/user-data root without trailing slash is not a valid sub-path."""
-    with pytest.raises(PermissionError, match="Only paths under"):
-        validate_local_tool_path(VIRTUAL_PATH_PREFIX, _THREAD_DATA)
+            validate_local_tool_path(f"{_THREAD_DATA['workspace_path']}/../../etc/passwd", _THREAD_DATA, read_only=True)
 
 
 def test_validate_local_tool_path_allows_user_data_paths() -> None:
-    # Should not raise — user-data paths are always allowed
-    validate_local_tool_path(f"{VIRTUAL_PATH_PREFIX}/workspace/file.txt", _THREAD_DATA)
-    validate_local_tool_path(f"{VIRTUAL_PATH_PREFIX}/uploads/doc.pdf", _THREAD_DATA)
-    validate_local_tool_path(f"{VIRTUAL_PATH_PREFIX}/outputs/result.csv", _THREAD_DATA)
+    # Should not raise — real user-data root paths are always allowed
+    validate_local_tool_path(f"{_THREAD_DATA['workspace_path']}/file.txt", _THREAD_DATA)
+    validate_local_tool_path(f"{_THREAD_DATA['uploads_path']}/doc.pdf", _THREAD_DATA)
+    validate_local_tool_path(f"{_THREAD_DATA['outputs_path']}/result.csv", _THREAD_DATA)
 
 
 def test_validate_local_tool_path_allows_user_data_write() -> None:
     # read_only=False (default) should still work for user-data paths
-    validate_local_tool_path(f"{VIRTUAL_PATH_PREFIX}/workspace/file.txt", _THREAD_DATA, read_only=False)
+    validate_local_tool_path(f"{_THREAD_DATA['workspace_path']}/file.txt", _THREAD_DATA, read_only=False)
 
 
 def test_validate_local_tool_path_allows_coding_project_root_absolute_path() -> None:
@@ -206,7 +146,7 @@ def test_validate_local_tool_path_blocks_absolute_path_outside_coding_project_ro
 def test_validate_local_tool_path_rejects_traversal_in_user_data() -> None:
     """Path traversal via .. in user-data paths must be rejected."""
     with pytest.raises(PermissionError, match="path traversal"):
-        validate_local_tool_path(f"{VIRTUAL_PATH_PREFIX}/workspace/../../etc/passwd", _THREAD_DATA)
+        validate_local_tool_path(f"{_THREAD_DATA['workspace_path']}/../../etc/passwd", _THREAD_DATA)
 
 
 def test_validate_local_tool_path_rejects_traversal_in_skills() -> None:
@@ -221,7 +161,7 @@ def test_validate_local_tool_path_rejects_none_thread_data() -> None:
     from kkoclaw.sandbox.exceptions import SandboxRuntimeError
 
     with pytest.raises(SandboxRuntimeError):
-        validate_local_tool_path(f"{VIRTUAL_PATH_PREFIX}/workspace/file.txt", None)
+        validate_local_tool_path(f"{_THREAD_DATA['workspace_path']}/file.txt", None)
 
 
 # ---------- _resolve_skills_path ----------
@@ -269,7 +209,7 @@ def test_resolve_and_validate_user_data_path_resolves_correctly(tmp_path: Path) 
         "uploads_path": str(tmp_path / "uploads"),
         "outputs_path": str(tmp_path / "outputs"),
     }
-    resolved = _resolve_and_validate_user_data_path("/mnt/user-data/workspace/hello.txt", thread_data)
+    resolved = _resolve_and_validate_user_data_path(str(workspace / "hello.txt"), thread_data)
     assert resolved == str(workspace / "hello.txt")
 
 
@@ -284,7 +224,7 @@ def test_resolve_and_validate_user_data_path_blocks_traversal(tmp_path: Path) ->
     }
     # This path resolves outside the allowed roots
     with pytest.raises(PermissionError):
-        _resolve_and_validate_user_data_path("/mnt/user-data/workspace/../../../etc/passwd", thread_data)
+        _resolve_and_validate_user_data_path(str(workspace / ".." / ".." / "etc" / "passwd"), thread_data)
 
 
 def test_resolve_and_validate_user_data_path_allows_coding_project_root_absolute_path(tmp_path: Path) -> None:
@@ -334,17 +274,17 @@ def test_replace_virtual_paths_in_command_replaces_skills_paths() -> None:
         assert "/home/user/kkoclaw/skills/public/bootstrap/SKILL.md" in result
 
 
-def test_replace_virtual_paths_in_command_replaces_both() -> None:
-    """Both user-data and skills paths should be replaced in the same command."""
+def test_replace_virtual_paths_in_command_replaces_skills_keeps_user_data() -> None:
+    """Phase 3: skills virtual paths are replaced; user-data real paths pass through."""
     with (
         patch("kkoclaw.sandbox.tools._get_skills_container_path", return_value="/mnt/skills"),
         patch("kkoclaw.sandbox.tools._get_skills_host_path", return_value="/home/user/skills"),
     ):
-        cmd = "cat /mnt/skills/public/SKILL.md > /mnt/user-data/workspace/out.txt"
+        cmd = "cat /mnt/skills/public/SKILL.md > /tmp/kkoclaw/threads/t1/user-data/workspace/out.txt"
         result = replace_virtual_paths_in_command(cmd, _THREAD_DATA)
         assert "/mnt/skills" not in result
-        assert "/mnt/user-data" not in result
         assert "/home/user/skills/public/SKILL.md" in result
+        # user-data real paths are unchanged (no longer translated)
         assert "/tmp/kkoclaw/threads/t1/user-data/workspace/out.txt" in result
 
 
@@ -359,7 +299,7 @@ def test_validate_local_bash_command_paths_blocks_host_paths() -> None:
 def test_validate_local_bash_command_paths_allows_https_urls() -> None:
     """URLs like https://github.com/... must not be flagged as unsafe absolute paths."""
     validate_local_bash_command_paths(
-        "cd /mnt/user-data/workspace && git clone https://github.com/CherryHQ/cherry-studio.git",
+        "cd /tmp/kkoclaw/threads/t1/user-data/workspace && git clone https://github.com/CherryHQ/cherry-studio.git",
         _THREAD_DATA,
     )
 
@@ -367,14 +307,14 @@ def test_validate_local_bash_command_paths_allows_https_urls() -> None:
 def test_validate_local_bash_command_paths_allows_http_urls() -> None:
     """HTTP URLs must not be flagged as unsafe absolute paths."""
     validate_local_bash_command_paths(
-        "curl http://example.com/file.tar.gz -o /mnt/user-data/workspace/file.tar.gz",
+        "curl http://example.com/file.tar.gz -o /tmp/kkoclaw/threads/t1/user-data/workspace/file.tar.gz",
         _THREAD_DATA,
     )
 
 
 def test_validate_local_bash_command_paths_allows_virtual_and_system_paths() -> None:
     validate_local_bash_command_paths(
-        "/bin/echo ok > /mnt/user-data/workspace/out.txt && cat /dev/null",
+        "/bin/echo ok > /tmp/kkoclaw/threads/t1/user-data/workspace/out.txt && cat /dev/null",
         _THREAD_DATA,
     )
 
@@ -396,7 +336,7 @@ def test_validate_local_bash_command_paths_blocks_traversal_in_user_data() -> No
     """Bash commands with traversal in user-data paths should be blocked."""
     with pytest.raises(PermissionError, match="path traversal"):
         validate_local_bash_command_paths(
-            "cat /mnt/user-data/workspace/../../etc/passwd",
+            "cat /tmp/kkoclaw/threads/t1/user-data/workspace/../../etc/passwd",
             _THREAD_DATA,
         )
 
@@ -493,18 +433,18 @@ def test_validate_local_bash_command_paths_allows_workspace_relative_paths() -> 
 
 def test_validate_local_bash_command_paths_allows_cd_virtual_workspace_with_relative_paths() -> None:
     validate_local_bash_command_paths(
-        "cd /mnt/user-data/workspace && cat data/input.csv > reports/out.txt",
+        "cd /tmp/kkoclaw/threads/t1/user-data/workspace && cat data/input.csv > reports/out.txt",
         _THREAD_DATA,
     )
 
 
 def test_validate_local_bash_command_paths_allows_http_url_dotdot_segments() -> None:
     validate_local_bash_command_paths(
-        "curl https://example.com/packages/../archive.tar.gz -o /mnt/user-data/workspace/archive.tar.gz",
+        "curl https://example.com/packages/../archive.tar.gz -o /tmp/kkoclaw/threads/t1/user-data/workspace/archive.tar.gz",
         _THREAD_DATA,
     )
     validate_local_bash_command_paths(
-        "curl http://example.com/packages/../archive.tar.gz -o /mnt/user-data/workspace/archive.tar.gz",
+        "curl http://example.com/packages/../archive.tar.gz -o /tmp/kkoclaw/threads/t1/user-data/workspace/archive.tar.gz",
         _THREAD_DATA,
     )
 
@@ -560,7 +500,7 @@ def test_is_skills_path_recognises_default_prefix() -> None:
         assert _is_skills_path("/mnt/skills") is True
         assert _is_skills_path("/mnt/skills/public/bootstrap/SKILL.md") is True
         assert _is_skills_path("/mnt/skills-extra/foo") is False
-        assert _is_skills_path("/mnt/user-data/workspace") is False
+        assert _is_skills_path("/tmp/kkoclaw/threads/t1/user-data/workspace") is False
 
 
 def test_validate_local_tool_path_allows_skills_read_only() -> None:
@@ -618,7 +558,7 @@ def test_validate_local_bash_command_paths_allows_urls() -> None:
     )
     # URL mixed with valid virtual path
     validate_local_bash_command_paths(
-        "curl https://example.com/data -o /mnt/user-data/workspace/data.json",
+        "curl https://example.com/data -o /tmp/kkoclaw/threads/t1/user-data/workspace/data.json",
         _THREAD_DATA,
     )
 
@@ -639,7 +579,7 @@ def test_validate_local_bash_command_paths_blocks_file_urls_mixed_with_valid() -
     """file:// URLs should be blocked even when mixed with valid paths."""
     with pytest.raises(PermissionError):
         validate_local_bash_command_paths(
-            "curl file:///etc/passwd -o /mnt/user-data/workspace/out.txt",
+            "curl file:///etc/passwd -o /tmp/kkoclaw/threads/t1/user-data/workspace/out.txt",
             _THREAD_DATA,
         )
 
@@ -662,7 +602,7 @@ def test_validate_local_tool_path_skills_custom_container_path() -> None:
         )
 
         # The default /mnt/skills should not match since container path is /custom/skills
-        with pytest.raises(PermissionError, match="Only paths under"):
+        with pytest.raises(PermissionError, match="Only real absolute paths"):
             validate_local_tool_path(
                 "/mnt/skills/public/bootstrap/SKILL.md",
                 _THREAD_DATA,
@@ -677,7 +617,7 @@ def test_is_acp_workspace_path_recognises_prefix() -> None:
     assert _is_acp_workspace_path("/mnt/acp-workspace") is True
     assert _is_acp_workspace_path("/mnt/acp-workspace/hello.py") is True
     assert _is_acp_workspace_path("/mnt/acp-workspace-extra/foo") is False
-    assert _is_acp_workspace_path("/mnt/user-data/workspace") is False
+    assert _is_acp_workspace_path("/tmp/kkoclaw/threads/t1/user-data/workspace") is False
 
 
 def test_validate_local_tool_path_allows_acp_workspace_read_only() -> None:
@@ -702,7 +642,7 @@ def test_validate_local_tool_path_blocks_acp_workspace_write() -> None:
 def test_validate_local_bash_command_paths_allows_acp_workspace() -> None:
     """bash commands referencing /mnt/acp-workspace should be allowed."""
     validate_local_bash_command_paths(
-        "cp /mnt/acp-workspace/hello_world.py /mnt/user-data/outputs/hello_world.py",
+        "cp /mnt/acp-workspace/hello_world.py /tmp/kkoclaw/threads/t1/user-data/outputs/hello_world.py",
         _THREAD_DATA,
     )
 
@@ -754,7 +694,7 @@ def test_replace_virtual_paths_in_command_replaces_acp_workspace() -> None:
     """ACP workspace virtual paths in commands should be resolved to host paths."""
     acp_host = "/home/user/.kkoclaw/acp-workspace"
     with patch("kkoclaw.sandbox.tools._get_acp_workspace_host_path", return_value=acp_host):
-        cmd = "cp /mnt/acp-workspace/hello.py /mnt/user-data/outputs/hello.py"
+        cmd = "cp /mnt/acp-workspace/hello.py /tmp/kkoclaw/threads/t1/user-data/outputs/hello.py"
         result = replace_virtual_paths_in_command(cmd, _THREAD_DATA)
         assert "/mnt/acp-workspace" not in result
         assert f"{acp_host}/hello.py" in result
@@ -1028,7 +968,7 @@ def test_str_replace_parallel_updates_should_preserve_both_edits(monkeypatch) ->
             result = str_replace_tool.func(
                 runtime=runtime,
                 description="并发替换同一文件",
-                path="/mnt/user-data/workspace/shared.txt",
+                path="/tmp/kkoclaw/threads/t1/user-data/workspace/shared.txt",
                 old_str=old_str,
                 new_str=new_str,
             )
@@ -1107,7 +1047,7 @@ def test_str_replace_parallel_updates_in_isolated_sandboxes_should_not_share_pat
             result = str_replace_tool.func(
                 runtime=runtime,
                 description="隔离 sandbox 并发替换同一路径",
-                path="/mnt/user-data/workspace/shared.txt",
+                path="/tmp/kkoclaw/threads/t1/user-data/workspace/shared.txt",
                 old_str=old_str,
                 new_str=new_str,
             )
@@ -1171,7 +1111,7 @@ def test_str_replace_and_append_on_same_path_should_preserve_both_updates(monkey
             result = str_replace_tool.func(
                 runtime=runtimes[0],
                 description="替换旧内容",
-                path="/mnt/user-data/workspace/shared.txt",
+                path="/tmp/kkoclaw/threads/t1/user-data/workspace/shared.txt",
                 old_str="alpha",
                 new_str="ALPHA",
             )
@@ -1185,7 +1125,7 @@ def test_str_replace_and_append_on_same_path_should_preserve_both_updates(monkey
             result = write_file_tool.func(
                 runtime=runtimes[1],
                 description="追加新内容",
-                path="/mnt/user-data/workspace/shared.txt",
+                path="/tmp/kkoclaw/threads/t1/user-data/workspace/shared.txt",
                 content="tail\n",
                 append=True,
             )

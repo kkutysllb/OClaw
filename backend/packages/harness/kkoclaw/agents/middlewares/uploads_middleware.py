@@ -103,7 +103,7 @@ class UploadsMiddleware(AgentMiddleware[UploadsMiddlewareState]):
                 lines.append("  No structural headings detected. Document begins with:")
                 for text in preview:
                     lines.append(f"    > {text}")
-            lines.append("  Use `grep` to search for keywords (e.g. `grep(pattern='keyword', path='/mnt/user-data/uploads/')`).")
+            lines.append("  Use `grep` to search for keywords (e.g. `grep(pattern='keyword', path='<uploads dir>')`). The uploads directory path is listed in the <working_directory> block.")
         lines.append("")
 
     def _create_files_message(self, new_files: list[dict], historical_files: list[dict]) -> str:
@@ -138,9 +138,9 @@ class UploadsMiddleware(AgentMiddleware[UploadsMiddlewareState]):
         lines.append("To work with these files:")
         lines.append("- Read from the file first — use the outline line numbers and `read_file` to locate relevant sections.")
         lines.append("- Use `grep` to search for keywords when you are not sure which section to look at")
-        lines.append("  (e.g. `grep(pattern='revenue', path='/mnt/user-data/uploads/')`).")
+        lines.append("  (e.g. `grep(pattern='revenue', path='<uploads dir>')`). The uploads directory path is listed in the <working_directory> block.")
         lines.append("- Use `glob` to find files by name pattern")
-        lines.append("  (e.g. `glob(pattern='**/*.md', path='/mnt/user-data/uploads/')`).")
+        lines.append("  (e.g. `glob(pattern='**/*.md', path='<uploads dir>')`).")
         lines.append("- Only fall back to web search if the file content is clearly insufficient to answer the question.")
         lines.append("</uploaded_files>")
 
@@ -159,7 +159,7 @@ class UploadsMiddleware(AgentMiddleware[UploadsMiddlewareState]):
                          When provided, entries whose files no longer exist are skipped.
 
         Returns:
-            List of file dicts with virtual paths, or None if the field is absent or empty.
+            List of file dicts with real upload paths, or None if the field is absent or empty.
         """
         kwargs_files = (message.additional_kwargs or {}).get("files")
         if not isinstance(kwargs_files, list) or not kwargs_files:
@@ -178,7 +178,7 @@ class UploadsMiddleware(AgentMiddleware[UploadsMiddlewareState]):
                 {
                     "filename": filename,
                     "size": int(f.get("size") or 0),
-                    "path": f"/mnt/user-data/uploads/{filename}",
+                    "path": str(uploads_dir / filename) if uploads_dir else filename,
                     "extension": Path(filename).suffix,
                 }
             )
@@ -239,7 +239,7 @@ class UploadsMiddleware(AgentMiddleware[UploadsMiddlewareState]):
                         {
                             "filename": file_path.name,
                             "size": stat.st_size,
-                            "path": f"/mnt/user-data/uploads/{file_path.name}",
+                            "path": str(file_path),
                             "extension": file_path.suffix,
                             "outline": outline,
                             "outline_preview": preview,

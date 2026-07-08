@@ -1585,7 +1585,7 @@ class TestArtifacts:
             (outputs / "result.txt").write_text("artifact content")
 
             with patch("kkoclaw.client.get_paths", return_value=paths):
-                content, mime = client.get_artifact("t1", "mnt/user-data/outputs/result.txt")
+                content, mime = client.get_artifact("t1", str(outputs / "result.txt"))
 
             assert content == b"artifact content"
             assert "text" in mime
@@ -1596,14 +1596,16 @@ class TestArtifacts:
         with tempfile.TemporaryDirectory() as tmp:
             paths = Paths(base_dir=tmp)
             user_id = get_effective_user_id()
-            paths.sandbox_outputs_dir("t1", user_id=user_id).mkdir(parents=True)
+            outputs = paths.sandbox_outputs_dir("t1", user_id=user_id)
+            outputs.mkdir(parents=True)
 
             with patch("kkoclaw.client.get_paths", return_value=paths):
                 with pytest.raises(FileNotFoundError):
-                    client.get_artifact("t1", "mnt/user-data/outputs/nope.txt")
+                    client.get_artifact("t1", str(outputs / "nope.txt"))
 
-    def test_get_artifact_bad_prefix(self, client):
-        with pytest.raises(ValueError, match="must start with"):
+    def test_get_artifact_relative_path_rejected(self, client):
+        """Relative paths are rejected because artifact paths must be absolute."""
+        with pytest.raises(ValueError, match="must be absolute"):
             client.get_artifact("t1", "bad/path/file.txt")
 
     def test_get_artifact_path_traversal(self, client):
@@ -1612,11 +1614,12 @@ class TestArtifacts:
         with tempfile.TemporaryDirectory() as tmp:
             paths = Paths(base_dir=tmp)
             user_id = get_effective_user_id()
-            paths.sandbox_outputs_dir("t1", user_id=user_id).mkdir(parents=True)
+            outputs = paths.sandbox_outputs_dir("t1", user_id=user_id)
+            outputs.mkdir(parents=True)
 
             with patch("kkoclaw.client.get_paths", return_value=paths):
                 with pytest.raises(PathTraversalError):
-                    client.get_artifact("t1", "mnt/user-data/../../../etc/passwd")
+                    client.get_artifact("t1", str(outputs / ".." / ".." / ".." / "etc" / "passwd"))
 
 
 # ===========================================================================
@@ -1712,7 +1715,7 @@ class TestScenarioToolChain:
             content="",
             id="ai-1",
             tool_calls=[
-                {"name": "bash", "args": {"cmd": "ls /mnt/user-data/workspace"}, "id": "tc-1"},
+                {"name": "bash", "args": {"cmd": "ls /tmp/kkoclaw/threads/t-chain/user-data/workspace"}, "id": "tc-1"},
             ],
         )
         bash_result = ToolMessage(content="README.md\nsrc/", id="tm-1", tool_call_id="tc-1", name="bash")
@@ -1720,7 +1723,7 @@ class TestScenarioToolChain:
             content="",
             id="ai-2",
             tool_calls=[
-                {"name": "write_file", "args": {"path": "/mnt/user-data/outputs/listing.txt", "content": "README.md\nsrc/"}, "id": "tc-2"},
+                {"name": "write_file", "args": {"path": "/tmp/kkoclaw/threads/t-chain/user-data/outputs/listing.txt", "content": "README.md\nsrc/"}, "id": "tc-2"},
             ],
         )
         write_result = ToolMessage(content="File written successfully.", id="tm-2", tool_call_id="tc-2", name="write_file")
@@ -1783,7 +1786,7 @@ class TestScenarioFileLifecycle:
                 # Step 2: List
                 listed = client.list_uploads("t-lifecycle")
                 assert listed["count"] == 2
-                assert all("virtual_path" in f for f in listed["files"])
+                assert all("path" in f for f in listed["files"])
 
                 # Step 3: Delete one
                 del_result = client.delete_upload("t-lifecycle", "report.txt")
@@ -1821,7 +1824,7 @@ class TestScenarioFileLifecycle:
 
             # Retrieve artifact
             with patch("kkoclaw.client.get_paths", return_value=paths):
-                content, mime = client.get_artifact("t-artifact", "mnt/user-data/outputs/analysis.json")
+                content, mime = client.get_artifact("t-artifact", str(outputs_dir / "analysis.json"))
 
             assert json.loads(content) == {"result": "processed"}
             assert "json" in mime
@@ -2062,15 +2065,16 @@ class TestScenarioThreadIsolation:
             user_id = get_effective_user_id()
             outputs_a = paths.sandbox_outputs_dir("thread-a", user_id=user_id)
             outputs_a.mkdir(parents=True)
-            paths.sandbox_outputs_dir("thread-b", user_id=user_id).mkdir(parents=True)
+            outputs_b = paths.sandbox_outputs_dir("thread-b", user_id=user_id)
+            outputs_b.mkdir(parents=True)
             (outputs_a / "result.txt").write_text("thread-a artifact")
 
             with patch("kkoclaw.client.get_paths", return_value=paths):
-                content, _ = client.get_artifact("thread-a", "mnt/user-data/outputs/result.txt")
+                content, _ = client.get_artifact("thread-a", str(outputs_a / "result.txt"))
                 assert content == b"thread-a artifact"
 
                 with pytest.raises(FileNotFoundError):
-                    client.get_artifact("thread-b", "mnt/user-data/outputs/result.txt")
+                    client.get_artifact("thread-b", str(outputs_b / "result.txt"))
 
 
 class TestScenarioMemoryWorkflow:
@@ -3002,10 +3006,10 @@ class TestArtifactHardening:
 
             with patch("kkoclaw.client.get_paths", return_value=paths):
                 with pytest.raises(ValueError, match="not a file"):
-                    client.get_artifact("t1", "mnt/user-data/outputs/subdir")
+                    client.get_artifact("t1", str(subdir))
 
-    def test_artifact_leading_slash_stripped(self, client):
-        """Paths with leading slash are handled correctly."""
+    def test_artifact_absolute_path_handled(self, client):
+        """Absolute host paths are handled correctly."""
         from kkoclaw.runtime.user_context import get_effective_user_id
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -3016,7 +3020,7 @@ class TestArtifactHardening:
             (outputs / "file.txt").write_text("content")
 
             with patch("kkoclaw.client.get_paths", return_value=paths):
-                content, _mime = client.get_artifact("t1", "/mnt/user-data/outputs/file.txt")
+                content, _mime = client.get_artifact("t1", str(outputs / "file.txt"))
 
             assert content == b"content"
 
@@ -3111,31 +3115,24 @@ class TestUploadDuplicateFilenames:
             assert len(list(uploads_dir.iterdir())) == 2
 
 
-class TestBugArtifactPrefixMatchTooLoose:
-    """Regression: get_artifact must reject paths like ``mnt/user-data-evil/...``.
+class TestBugArtifactRelativePathRejected:
+    """Phase 3: artifact paths must be real host absolute paths.
 
-    Previously ``startswith("mnt/user-data")`` matched ``"mnt/user-data-evil"``
-    because it was a string prefix, not a path-segment check.
+    Previously paths were matched against the ``/mnt/user-data`` virtual prefix
+    via a string ``startswith`` check (which matched ``"mnt/user-data-evil"``).
+    Phase 3 removed that virtual layer entirely; artifact paths are now real
+    host paths and must be absolute. Any relative path is rejected up-front.
     """
 
-    def test_non_canonical_prefix_rejected(self, client):
-        """Paths that share a string prefix but differ at segment boundary are rejected."""
-        with pytest.raises(ValueError, match="must start with"):
+    def test_relative_path_rejected(self, client):
+        """Relative paths are rejected because they are not absolute host paths."""
+        with pytest.raises(ValueError, match="must be absolute"):
             client.get_artifact("t1", "mnt/user-data-evil/secret.txt")
 
-    def test_exact_prefix_without_subpath_accepted(self, client):
-        """Bare 'mnt/user-data' is accepted (will later fail as directory, not at prefix)."""
-        from kkoclaw.runtime.user_context import get_effective_user_id
-
-        with tempfile.TemporaryDirectory() as tmp:
-            paths = Paths(base_dir=tmp)
-            user_id = get_effective_user_id()
-            paths.sandbox_outputs_dir("t1", user_id=user_id).mkdir(parents=True)
-
-            with patch("kkoclaw.client.get_paths", return_value=paths):
-                # Accepted at prefix check, but fails because it's a directory.
-                with pytest.raises(ValueError, match="not a file"):
-                    client.get_artifact("t1", "mnt/user-data")
+    def test_bare_relative_path_rejected(self, client):
+        """A bare relative path is also rejected (must be absolute)."""
+        with pytest.raises(ValueError, match="must be absolute"):
+            client.get_artifact("t1", "mnt/user-data")
 
 
 class TestBugListUploadsDeadCode:

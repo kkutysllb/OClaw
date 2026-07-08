@@ -32,13 +32,11 @@ POST /api/threads/{thread_id}/uploads
     {
       "filename": "document.pdf",
       "size": 1234567,
-      "path": ".kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf",
-      "virtual_path": "/mnt/user-data/uploads/document.pdf",
-      "artifact_url": "/api/threads/{thread_id}/artifacts/mnt/user-data/uploads/document.pdf",
+      "path": "/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf",
+      "artifact_url": "/api/threads/{thread_id}/artifacts/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf",
       "markdown_file": "document.md",
-      "markdown_path": ".kkoclaw/threads/{thread_id}/user-data/uploads/document.md",
-      "markdown_virtual_path": "/mnt/user-data/uploads/document.md",
-      "markdown_artifact_url": "/api/threads/{thread_id}/artifacts/mnt/user-data/uploads/document.md"
+      "markdown_path": "/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.md",
+      "markdown_artifact_url": "/api/threads/{thread_id}/artifacts/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.md"
     }
   ],
   "message": "Successfully uploaded 1 file(s)"
@@ -46,9 +44,9 @@ POST /api/threads/{thread_id}/uploads
 ```
 
 **路径说明：**
-- `path`: 实际文件系统路径（相对于 `backend/` 目录）
-- `virtual_path`: Agent 在沙箱中使用的虚拟路径
-- `artifact_url`: 前端通过 HTTP 访问文件的 URL
+- `path`: 真实主机绝对路径（位于 `{KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/` 下）
+- `artifact_url`: 前端通过 HTTP 访问文件的 URL，URL 内嵌同一真实主机路径
+- Agent、工具、API 现在直接使用真实主机路径；不再有 `virtual_path` / `markdown_virtual_path` 字段
 
 ### 2. 查询上传限制
 ```
@@ -78,9 +76,8 @@ GET /api/threads/{thread_id}/uploads/list
     {
       "filename": "document.pdf",
       "size": 1234567,
-      "path": ".kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf",
-      "virtual_path": "/mnt/user-data/uploads/document.pdf",
-      "artifact_url": "/api/threads/{thread_id}/artifacts/mnt/user-data/uploads/document.pdf",
+      "path": "/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf",
+      "artifact_url": "/api/threads/{thread_id}/artifacts/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf",
       "extension": ".pdf",
       "modified": 1705997600.0
     }
@@ -118,17 +115,17 @@ DELETE /api/threads/{thread_id}/uploads/{filename}
 
 ### 自动文件列举
 
-Agent 在每次请求时会自动收到已上传文件的列表，格式如下：
+Agent 在每次请求时会自动收到已上传文件的列表，格式如下（路径为真实主机绝对路径，由 workspace_path_middleware 在运行时注入）：
 
 ```xml
 <uploaded_files>
 The following files have been uploaded and are available for use:
 
 - document.pdf (1.2 MB)
-  Path: /mnt/user-data/uploads/document.pdf
+  Path: /home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf
 
 - document.md (45.3 KB)
-  Path: /mnt/user-data/uploads/document.md
+  Path: /home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.md
 
 You can read these files using the `read_file` tool with the paths shown above.
 </uploaded_files>
@@ -136,25 +133,27 @@ You can read these files using the `read_file` tool with the paths shown above.
 
 ### 使用上传的文件
 
-Agent 在沙箱中运行，使用虚拟路径访问文件。Agent 可以直接使用 `read_file` 工具读取上传的文件：
+Agent 直接使用真实主机绝对路径访问文件，不再经过虚拟路径层。Agent 可以直接使用 `read_file` 工具读取上传的文件：
 
 ```python
 # 读取原始 PDF（如果支持）
-read_file(path="/mnt/user-data/uploads/document.pdf")
+read_file(path="/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf")
 
 # 读取转换后的 Markdown（推荐）
-read_file(path="/mnt/user-data/uploads/document.md")
+read_file(path="/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.md")
 ```
 
-**路径映射关系：**
-- Agent 使用：`/mnt/user-data/uploads/document.pdf`（虚拟路径）
-- 实际存储：`backend/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf`
-- 前端访问：`/api/threads/{thread_id}/artifacts/mnt/user-data/uploads/document.pdf`（HTTP URL）
+**路径说明（沙箱重构后）：**
+- Agent 使用：真实主机绝对路径（如 `/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf`）
+- 实际存储：同一真实路径（`{KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/document.pdf`）
+- 前端访问：`/api/threads/{thread_id}/artifacts` + 真实主机路径（HTTP URL）
+
+提示词（lead_agent prompt、subagent prompts）不再硬编码 `/mnt/user-data` 路径；真实路径由 workspace_path_middleware 在运行时注入。
 
 上传流程采用“线程目录优先”策略：
-- 先写入 `backend/.kkoclaw/threads/{thread_id}/user-data/uploads/` 作为权威存储
+- 先写入 `{KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/` 作为权威存储
 - 本地沙箱（`sandbox_id=local`）直接使用线程目录内容
-- 非本地沙箱会额外同步到 `/mnt/user-data/uploads/*`，确保运行时可见
+- 非本地沙箱会额外同步到沙箱容器内的挂载点，确保运行时可见
 
 ## 测试示例
 
@@ -211,7 +210,7 @@ print(response.json())
 ## 文件存储结构
 
 ```
-backend/.kkoclaw/threads/
+{KKOCLAW_HOME}/threads/        # KKOCLAW_HOME 默认为 ~/.kkoclaw
 └── {thread_id}/
     └── user-data/
         └── uploads/
@@ -269,7 +268,7 @@ backend/.kkoclaw/threads/
 
 1. 确认 UploadsMiddleware 已在 agent.py 中注册
 2. 检查 thread_id 是否正确
-3. 确认文件确实已上传到 `backend/.kkoclaw/threads/{thread_id}/user-data/uploads/`
+3. 确认文件确实已上传到 `{KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/`
 4. 非本地沙箱场景下，确认上传接口没有报错（需要成功完成 sandbox 同步）
 
 ## 开发建议

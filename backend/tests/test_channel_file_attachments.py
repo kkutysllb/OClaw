@@ -31,7 +31,7 @@ class TestResolvedAttachment:
         f.write_bytes(b"PDF content")
 
         att = ResolvedAttachment(
-            virtual_path="/mnt/user-data/outputs/test.pdf",
+            virtual_path=str(f),
             actual_path=f,
             filename="test.pdf",
             mime_type="application/pdf",
@@ -47,7 +47,7 @@ class TestResolvedAttachment:
         f.write_bytes(b"\x89PNG")
 
         att = ResolvedAttachment(
-            virtual_path="/mnt/user-data/outputs/photo.png",
+            virtual_path=str(f),
             actual_path=f,
             filename="photo.png",
             mime_type="image/png",
@@ -77,7 +77,7 @@ class TestOutboundMessageAttachments:
         f.write_text("content")
 
         att = ResolvedAttachment(
-            virtual_path="/mnt/user-data/outputs/file.txt",
+            virtual_path=str(f),
             actual_path=f,
             filename="file.txt",
             mime_type="text/plain",
@@ -102,7 +102,7 @@ class TestOutboundMessageAttachments:
 
 class TestResolveAttachments:
     def test_resolves_existing_file(self, tmp_path):
-        """Successfully resolves a virtual path to an existing file."""
+        """Successfully resolves a real host path to an existing file."""
         from app.channels.manager import _resolve_attachments
 
         # Create the directory structure: threads/{thread_id}/user-data/outputs/
@@ -113,11 +113,11 @@ class TestResolveAttachments:
         test_file.write_bytes(b"%PDF-1.4 fake content")
 
         mock_paths = MagicMock()
-        mock_paths.resolve_virtual_path.return_value = test_file
+        mock_paths.resolve_thread_artifact_path.return_value = test_file
         mock_paths.sandbox_outputs_dir.return_value = outputs_dir
 
         with patch("kkoclaw.config.paths.get_paths", return_value=mock_paths):
-            result = _resolve_attachments(thread_id, ["/mnt/user-data/outputs/report.pdf"])
+            result = _resolve_attachments(thread_id, [str(test_file)])
 
         assert len(result) == 1
         assert result[0].filename == "report.pdf"
@@ -136,11 +136,11 @@ class TestResolveAttachments:
         img.write_bytes(b"\x89PNG fake image")
 
         mock_paths = MagicMock()
-        mock_paths.resolve_virtual_path.return_value = img
+        mock_paths.resolve_thread_artifact_path.return_value = img
         mock_paths.sandbox_outputs_dir.return_value = outputs_dir
 
         with patch("kkoclaw.config.paths.get_paths", return_value=mock_paths):
-            result = _resolve_attachments(thread_id, ["/mnt/user-data/outputs/chart.png"])
+            result = _resolve_attachments(thread_id, [str(img)])
 
         assert len(result) == 1
         assert result[0].is_image is True
@@ -154,11 +154,11 @@ class TestResolveAttachments:
         outputs_dir.mkdir()
 
         mock_paths = MagicMock()
-        mock_paths.resolve_virtual_path.return_value = outputs_dir / "nonexistent.txt"
+        mock_paths.resolve_thread_artifact_path.return_value = outputs_dir / "nonexistent.txt"
         mock_paths.sandbox_outputs_dir.return_value = outputs_dir
 
         with patch("kkoclaw.config.paths.get_paths", return_value=mock_paths):
-            result = _resolve_attachments("t1", ["/mnt/user-data/outputs/nonexistent.txt"])
+            result = _resolve_attachments("t1", [str(outputs_dir / "nonexistent.txt")])
 
         assert result == []
 
@@ -167,36 +167,52 @@ class TestResolveAttachments:
         from app.channels.manager import _resolve_attachments
 
         mock_paths = MagicMock()
-        mock_paths.resolve_virtual_path.side_effect = ValueError("bad path")
+        mock_paths.resolve_thread_artifact_path.side_effect = ValueError("bad path")
 
         with patch("kkoclaw.config.paths.get_paths", return_value=mock_paths):
             result = _resolve_attachments("t1", ["/invalid/path"])
 
         assert result == []
 
-    def test_rejects_uploads_path(self):
-        """Paths under /mnt/user-data/uploads/ are rejected (security)."""
+    def test_rejects_uploads_path(self, tmp_path):
+        """Paths under the uploads directory are rejected (security)."""
         from app.channels.manager import _resolve_attachments
 
+        thread_id = "t1"
+        outputs_dir = tmp_path / "threads" / thread_id / "user-data" / "outputs"
+        outputs_dir.mkdir(parents=True)
+        uploads_file = tmp_path / "threads" / thread_id / "user-data" / "uploads" / "secret.pdf"
+        uploads_file.parent.mkdir(parents=True, exist_ok=True)
+        uploads_file.write_text("secret")
+
         mock_paths = MagicMock()
+        mock_paths.resolve_thread_artifact_path.return_value = uploads_file
+        mock_paths.sandbox_outputs_dir.return_value = outputs_dir
 
         with patch("kkoclaw.config.paths.get_paths", return_value=mock_paths):
-            result = _resolve_attachments("t1", ["/mnt/user-data/uploads/secret.pdf"])
+            result = _resolve_attachments(thread_id, [str(uploads_file)])
 
         assert result == []
-        mock_paths.resolve_virtual_path.assert_not_called()
 
-    def test_rejects_workspace_path(self):
-        """Paths under /mnt/user-data/workspace/ are rejected (security)."""
+    def test_rejects_workspace_path(self, tmp_path):
+        """Paths under the workspace directory are rejected (security)."""
         from app.channels.manager import _resolve_attachments
 
+        thread_id = "t1"
+        outputs_dir = tmp_path / "threads" / thread_id / "user-data" / "outputs"
+        outputs_dir.mkdir(parents=True)
+        workspace_file = tmp_path / "threads" / thread_id / "user-data" / "workspace" / "config.py"
+        workspace_file.parent.mkdir(parents=True, exist_ok=True)
+        workspace_file.write_text("config")
+
         mock_paths = MagicMock()
+        mock_paths.resolve_thread_artifact_path.return_value = workspace_file
+        mock_paths.sandbox_outputs_dir.return_value = outputs_dir
 
         with patch("kkoclaw.config.paths.get_paths", return_value=mock_paths):
-            result = _resolve_attachments("t1", ["/mnt/user-data/workspace/config.py"])
+            result = _resolve_attachments(thread_id, [str(workspace_file)])
 
         assert result == []
-        mock_paths.resolve_virtual_path.assert_not_called()
 
     def test_rejects_path_traversal_escape(self, tmp_path):
         """Paths that escape the outputs directory after resolution are rejected."""
@@ -211,11 +227,11 @@ class TestResolveAttachments:
         escaped_file.write_text("sensitive")
 
         mock_paths = MagicMock()
-        mock_paths.resolve_virtual_path.return_value = escaped_file
+        mock_paths.resolve_thread_artifact_path.return_value = escaped_file
         mock_paths.sandbox_outputs_dir.return_value = outputs_dir
 
         with patch("kkoclaw.config.paths.get_paths", return_value=mock_paths):
-            result = _resolve_attachments(thread_id, ["/mnt/user-data/outputs/../uploads/stolen.txt"])
+            result = _resolve_attachments(thread_id, [str(escaped_file)])
 
         assert result == []
 
@@ -232,17 +248,17 @@ class TestResolveAttachments:
         mock_paths = MagicMock()
         mock_paths.sandbox_outputs_dir.return_value = outputs_dir
 
-        def resolve_side_effect(tid, vpath, *, user_id=None):
-            if "data.csv" in vpath:
+        def resolve_side_effect(tid, path, *, user_id=None):
+            if "data.csv" in path:
                 return good_file
             return tmp_path / "missing.txt"
 
-        mock_paths.resolve_virtual_path.side_effect = resolve_side_effect
+        mock_paths.resolve_thread_artifact_path.side_effect = resolve_side_effect
 
         with patch("kkoclaw.config.paths.get_paths", return_value=mock_paths):
             result = _resolve_attachments(
                 thread_id,
-                ["/mnt/user-data/outputs/data.csv", "/mnt/user-data/outputs/missing.txt"],
+                [str(outputs_dir / "data.csv"), str(outputs_dir / "missing.txt")],
             )
 
         assert len(result) == 1
@@ -343,7 +359,7 @@ class TestInboundFileIngestion:
             {
                 "filename": "victim_1.txt",
                 "size": len(b"new attachment data"),
-                "path": "/mnt/user-data/uploads/victim_1.txt",
+                "path": str(uploads_dir / "victim_1.txt"),
                 "is_image": False,
             }
         ]
@@ -415,8 +431,8 @@ class TestBaseChannelOnOutbound:
         f2 = tmp_path / "b.png"
         f2.write_bytes(b"\x89PNG")
 
-        att1 = ResolvedAttachment("/mnt/user-data/outputs/a.txt", f1, "a.txt", "text/plain", 3, False)
-        att2 = ResolvedAttachment("/mnt/user-data/outputs/b.png", f2, "b.png", "image/png", 4, True)
+        att1 = ResolvedAttachment(str(f1), f1, "a.txt", "text/plain", 3, False)
+        att2 = ResolvedAttachment(str(f2), f2, "b.png", "image/png", 4, True)
 
         msg = OutboundMessage(
             channel_name="dummy",
@@ -473,8 +489,8 @@ class TestBaseChannelOnOutbound:
         f2 = tmp_path / "ok.txt"
         f2.write_text("y")
 
-        att1 = ResolvedAttachment("/mnt/user-data/outputs/fail.txt", f1, "fail.txt", "text/plain", 1, False)
-        att2 = ResolvedAttachment("/mnt/user-data/outputs/ok.txt", f2, "ok.txt", "text/plain", 1, False)
+        att1 = ResolvedAttachment(str(f1), f1, "fail.txt", "text/plain", 1, False)
+        att2 = ResolvedAttachment(str(f2), f2, "ok.txt", "text/plain", 1, False)
 
         msg = OutboundMessage(
             channel_name="dummy",
@@ -502,7 +518,7 @@ class TestBaseChannelOnOutbound:
 
         f = tmp_path / "a.pdf"
         f.write_bytes(b"%PDF")
-        att = ResolvedAttachment("/mnt/user-data/outputs/a.pdf", f, "a.pdf", "application/pdf", 4, False)
+        att = ResolvedAttachment(str(f), f, "a.pdf", "application/pdf", 4, False)
         msg = OutboundMessage(
             channel_name="dummy",
             chat_id="c1",
@@ -558,7 +574,7 @@ class TestManagerArtifactResolution:
         """_format_artifact_text produces expected output."""
         from app.channels.manager import _format_artifact_text
 
-        assert "report.pdf" in _format_artifact_text(["/mnt/user-data/outputs/report.pdf"])
-        result = _format_artifact_text(["/mnt/user-data/outputs/a.txt", "/mnt/user-data/outputs/b.txt"])
+        assert "report.pdf" in _format_artifact_text(["/tmp/kkoclaw/threads/t1/user-data/outputs/report.pdf"])
+        result = _format_artifact_text(["/tmp/kkoclaw/threads/t1/user-data/outputs/a.txt", "/tmp/kkoclaw/threads/t1/user-data/outputs/b.txt"])
         assert "a.txt" in result
         assert "b.txt" in result

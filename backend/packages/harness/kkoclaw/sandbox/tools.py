@@ -13,7 +13,6 @@ from langchain.tools import tool
 
 from kkoclaw.agents.thread_state import ThreadDataState
 from kkoclaw.config import get_app_config
-from kkoclaw.config.paths import VIRTUAL_PATH_PREFIX
 from kkoclaw.coding_core.change_tracking import record_runtime_file_change
 from kkoclaw.coding_core.paths import coding_home
 from kkoclaw.sandbox.exceptions import (
@@ -44,6 +43,10 @@ _LOCAL_BASH_SYSTEM_PATH_PREFIXES = (
 
 
 logger = logging.getLogger(__name__)
+
+# Phase 3 hint used in path-validation error messages. Agents operate on real
+# host paths; this directs them to the per-thread workspace directories.
+_ALLOWED_PATH_HINT = "Use paths under the thread workspace/uploads/outputs directories"
 
 
 @lru_cache(maxsize=1)
@@ -515,76 +518,13 @@ def _format_write_file_error(
     return f"{header}: {_truncate_write_file_error_detail(detail, detail_budget)}"
 
 
-def replace_virtual_path(path: str, thread_data: ThreadDataState | None) -> str:
-    """Replace virtual /mnt/user-data paths with actual thread data paths.
-
-    Mapping:
-        /mnt/user-data/workspace/* -> thread_data['workspace_path']/*
-        /mnt/user-data/uploads/* -> thread_data['uploads_path']/*
-        /mnt/user-data/outputs/* -> thread_data['outputs_path']/*
-
-    Args:
-        path: The path that may contain virtual path prefix.
-        thread_data: The thread data containing actual paths.
-
-    Returns:
-        The path with virtual prefix replaced by actual path.
-    """
-    if thread_data is None:
-        return path
-
-    mappings = _thread_virtual_to_actual_mappings(thread_data)
-    if not mappings:
-        return path
-
-    # Longest-prefix-first replacement with segment-boundary checks.
-    for virtual_base, actual_base in sorted(mappings.items(), key=lambda item: len(item[0]), reverse=True):
-        if path == virtual_base:
-            return actual_base
-        if path.startswith(f"{virtual_base}/"):
-            rest = path[len(virtual_base) :].lstrip("/")
-            result = _join_path_preserving_style(actual_base, rest)
-            if path.endswith("/") and not result.endswith(("/", "\\")):
-                result += _path_separator_for_style(actual_base)
-            return result
-
-    return path
-
-
-def _thread_virtual_to_actual_mappings(thread_data: ThreadDataState) -> dict[str, str]:
-    """Build virtual-to-actual path mappings for a thread."""
-    mappings: dict[str, str] = {}
-
-    workspace = thread_data.get("workspace_path")
-    uploads = thread_data.get("uploads_path")
-    outputs = thread_data.get("outputs_path")
-
-    if workspace:
-        mappings[f"{VIRTUAL_PATH_PREFIX}/workspace"] = workspace
-    if uploads:
-        mappings[f"{VIRTUAL_PATH_PREFIX}/uploads"] = uploads
-    if outputs:
-        mappings[f"{VIRTUAL_PATH_PREFIX}/outputs"] = outputs
-
-    # Also map the virtual root when all known dirs share the same parent.
-    actual_dirs = [Path(p) for p in (workspace, uploads, outputs) if p]
-    if actual_dirs:
-        common_parent = str(Path(actual_dirs[0]).parent)
-        if all(str(path.parent) == common_parent for path in actual_dirs):
-            mappings[VIRTUAL_PATH_PREFIX] = common_parent
-
-    return mappings
-
-
-def _thread_actual_to_virtual_mappings(thread_data: ThreadDataState) -> dict[str, str]:
-    """Build actual-to-virtual mappings for output masking."""
-    return {actual: virtual for virtual, actual in _thread_virtual_to_actual_mappings(thread_data).items()}
-
-
 def mask_local_paths_in_output(output: str, thread_data: ThreadDataState | None) -> str:
-    """Mask host absolute paths from local sandbox output using virtual paths.
+    """Mask sensitive host absolute paths from local sandbox output.
 
-    Handles user-data paths (per-thread), skills paths, and ACP workspace paths (global).
+    Phase 3: per-thread user-data paths are no longer masked (agents operate on
+    real paths by design). Only skills and ACP workspace host paths — which are
+    configuration-sensitive — are masked back to their container equivalents.
+    Custom mount host paths are masked by ``LocalSandbox._reverse_resolve_paths_in_output``.
     """
     result = output
 
@@ -627,31 +567,6 @@ def mask_local_paths_in_output(output: str, thread_data: ThreadDataState | None)
             result = pattern.sub(replace_acp, result)
 
     # Custom mount host paths are masked by LocalSandbox._reverse_resolve_paths_in_output()
-
-    # Mask user-data host paths
-    if thread_data is None:
-        return result
-
-    mappings = _thread_actual_to_virtual_mappings(thread_data)
-    if not mappings:
-        return result
-
-    for actual_base, virtual_base in sorted(mappings.items(), key=lambda item: len(item[0]), reverse=True):
-        raw_base = str(Path(actual_base))
-        resolved_base = str(Path(actual_base).resolve())
-        for base in _path_variants(raw_base) | _path_variants(resolved_base):
-            escaped_actual = re.escape(base).replace(r"\\", r"[/\\]")
-            pattern = re.compile(escaped_actual + r"(?:[/\\][^\s\"';&|<>()]*)?")
-
-            def replace_match(match: re.Match, _base: str = base, _virtual: str = virtual_base) -> str:
-                matched_path = match.group(0)
-                if matched_path == _base:
-                    return _virtual
-                relative = matched_path[len(_base) :].lstrip("/\\")
-                return f"{_virtual}/{relative}" if relative else _virtual
-
-            result = pattern.sub(replace_match, result)
-
     return result
 
 
@@ -665,21 +580,23 @@ def _reject_path_traversal(path: str) -> None:
 
 
 def validate_local_tool_path(path: str, thread_data: ThreadDataState | None, *, read_only: bool = False) -> None:
-    """Validate that a virtual path is allowed for local-sandbox access.
+    """Validate that a path is allowed for local-sandbox access.
 
     This function is a security gate — it checks whether *path* may be
-    accessed and raises on violation.  It does **not** resolve the virtual
-    path to a host path; callers are responsible for resolution via
-    ``resolve_and_validate_user_data_path`` or ``_resolve_skills_path``.
+    accessed and raises on violation.
 
-    Allowed virtual-path families:
-      - ``/mnt/user-data/*``  — always allowed (read + write)
+    Phase 3: agents operate on real host paths. Allowed path families:
+      - Per-thread user-data roots (workspace/uploads/outputs) — always allowed (read + write)
       - ``/mnt/skills/*``     — allowed only when *read_only* is True
       - ``/mnt/acp-workspace/*`` — allowed only when *read_only* is True
       - Custom mount paths (from config.yaml) — respects per-mount ``read_only`` flag
+      - Other real absolute paths checked against a tiered allow-list:
+        1. project_root  (set by ThreadDataMiddleware for coding runs)
+        2. User-selected workspace path (per-thread, set via WorkspaceSelector)
+        3. Default roots: KKOCLAW_HOME, coding home, system temp
 
     Args:
-        path: The virtual path to validate.
+        path: The path to validate (real host path, or skills/acp virtual path).
         thread_data: Thread data (must be present for local sandbox).
         read_only: When True, skills and ACP workspace paths are permitted.
 
@@ -704,10 +621,6 @@ def validate_local_tool_path(path: str, thread_data: ThreadDataState | None, *, 
             raise PermissionError(f"Write access to ACP workspace is not allowed: {path}")
         return
 
-    # User-data paths
-    if path.startswith(f"{VIRTUAL_PATH_PREFIX}/"):
-        return
-
     # Custom mount paths — respect read_only config
     if _is_custom_mount_path(path):
         mount = _get_custom_mount_for_path(path)
@@ -715,27 +628,27 @@ def validate_local_tool_path(path: str, thread_data: ThreadDataState | None, *, 
             raise PermissionError(f"Write access to read-only mount is not allowed: {path}")
         return
 
-    # ── Real absolute paths (Coding Agent project files, app home, etc.) ──
-    #
-    # Virtual paths have been exhausted above. What remains are real host
-    # absolute paths — typically from Coding Agent tool calls (read_file,
-    # bash, etc.). These are checked against a tiered allow-list:
-    #
-    #   1. project_root  (set by ThreadDataMiddleware for coding runs)
-    #   2. User-selected workspace path (per-thread, set via WorkspaceSelector)
-    #   3. Default roots: KKOCLAW_HOME, coding home, system temp
-    # Paths outside these roots are hard-rejected (no authorization dialog).
+    # ── Real absolute paths (per-thread user-data, Coding Agent project files, etc.) ──
     if not Path(path).is_absolute():
         raise PermissionError(
-            f"Only paths under {VIRTUAL_PATH_PREFIX}/, "
-            f"{_get_skills_container_path()}/, {_ACP_WORKSPACE_VIRTUAL_PATH}/, "
-            f"or configured mount paths are allowed"
+            f"Only real absolute paths, {_get_skills_container_path()}/, "
+            f"{_ACP_WORKSPACE_VIRTUAL_PATH}/, or configured mount paths are allowed"
         )
 
     _reject_path_traversal(path)
     resolved = Path(path).expanduser().resolve()
     project_root = thread_data.get("project_root")
     user_workspace_path = thread_data.get("user_workspace_path")
+
+    # 0. Per-thread user-data roots (workspace/uploads/outputs) — always allowed
+    for key in ("workspace_path", "uploads_path", "outputs_path"):
+        root = thread_data.get(key)
+        if root:
+            try:
+                resolved.relative_to(Path(root).expanduser().resolve())
+                return
+            except ValueError:
+                continue
 
     # 1. Project root
     if project_root:
@@ -766,7 +679,7 @@ def validate_local_tool_path(path: str, thread_data: ThreadDataState | None, *, 
             f"Access denied: path is outside the project root ({project_root})"
         )
     raise PermissionError(
-        f"Only paths under {VIRTUAL_PATH_PREFIX}/, "
+        f"Only real absolute paths under the thread workspace/uploads/outputs, "
         f"{_get_skills_container_path()}/, {_ACP_WORKSPACE_VIRTUAL_PATH}/, "
         f"or configured mount paths are allowed"
     )
@@ -812,13 +725,14 @@ def _validate_resolved_project_root_path(resolved: Path, thread_data: ThreadData
 
 
 def _resolve_and_validate_user_data_path(path: str, thread_data: ThreadDataState) -> str:
-    """Resolve a /mnt/user-data virtual path and validate it stays in bounds.
+    """Resolve a real host path and validate it stays in bounds.
 
-    Returns the resolved host path string.
+    Phase 3: *path* is already a real host path (no virtual translation). This
+    validates it is inside the per-thread user-data roots (workspace/uploads/outputs)
+    or the project root, then returns the resolved host path string.
     """
-    resolved_str = replace_virtual_path(path, thread_data)
-    resolved = Path(resolved_str).resolve()
-    if Path(path).is_absolute() and _validate_resolved_project_root_path(resolved, thread_data):
+    resolved = Path(path).resolve()
+    if _validate_resolved_project_root_path(resolved, thread_data):
         return str(resolved)
     _validate_resolved_user_data_path(resolved, thread_data)
     return str(resolved)
@@ -884,14 +798,14 @@ def _is_shell_assignment(token: str) -> bool:
 
 
 def _is_allowed_local_bash_absolute_path(path: str, allowed_paths: list[str], *, allow_system_paths: bool) -> bool:
-    # Check for MCP filesystem server allowed paths
-    if any(path.startswith(allowed_path) or path == allowed_path.rstrip("/") for allowed_path in allowed_paths):
-        _reject_path_traversal(path)
-        return True
-
-    if path == VIRTUAL_PATH_PREFIX or path.startswith(f"{VIRTUAL_PATH_PREFIX}/"):
-        _reject_path_traversal(path)
-        return True
+    # Check for MCP filesystem server allowed paths and per-thread user-data roots
+    # (workspace/uploads/outputs are passed in via allowed_paths by the caller).
+    # Compare both the raw path and its resolved form (macOS /tmp -> /private/tmp).
+    resolved_path = str(Path(path).resolve())
+    for allowed_path in allowed_paths:
+        if path.startswith(allowed_path) or path == allowed_path.rstrip("/") or resolved_path.startswith(allowed_path) or resolved_path == allowed_path.rstrip("/"):
+            _reject_path_traversal(path)
+            return True
 
     # Allow skills container path (resolved by tools.py before passing to sandbox)
     if _is_skills_path(path):
@@ -938,15 +852,15 @@ def _next_cd_target(tokens: list[str], start_index: int) -> tuple[str | None, in
 
 def _validate_local_bash_cwd_target(command_name: str, target: str | None, allowed_paths: list[str]) -> None:
     if target is None or target == "-":
-        raise PermissionError(f"Unsafe working directory change in command: {command_name}. Use paths under {VIRTUAL_PATH_PREFIX}")
+        raise PermissionError(f"Unsafe working directory change in command: {command_name}. {_ALLOWED_PATH_HINT}")
     if target.startswith(("$", "`")):
-        raise PermissionError(f"Unsafe working directory change in command: {command_name} {target}. Use paths under {VIRTUAL_PATH_PREFIX}")
+        raise PermissionError(f"Unsafe working directory change in command: {command_name} {target}. {_ALLOWED_PATH_HINT}")
     if target.startswith("~"):
-        raise PermissionError(f"Unsafe working directory change in command: {command_name} {target}. Use paths under {VIRTUAL_PATH_PREFIX}")
+        raise PermissionError(f"Unsafe working directory change in command: {command_name} {target}. {_ALLOWED_PATH_HINT}")
     if target.startswith("/"):
         _reject_path_traversal(target)
         if not _is_allowed_local_bash_absolute_path(target, allowed_paths, allow_system_paths=False):
-            raise PermissionError(f"Unsafe working directory change in command: {command_name} {target}. Use paths under {VIRTUAL_PATH_PREFIX}")
+            raise PermissionError(f"Unsafe working directory change in command: {command_name} {target}. {_ALLOWED_PATH_HINT}")
 
 
 def _looks_like_unsafe_cwd_target(target: str | None) -> bool:
@@ -968,14 +882,14 @@ def _validate_local_bash_root_path_args(command_name: str, tokens: list[str], st
             index += 2
             continue
         if token == "/" and not _is_non_file_url_token(token):
-            raise PermissionError(f"Unsafe absolute paths in command: /. Use paths under {VIRTUAL_PATH_PREFIX}")
+            raise PermissionError(f"Unsafe absolute paths in command: /. {_ALLOWED_PATH_HINT}")
         index += 1
 
 
 def _validate_local_bash_shell_tokens(command: str, allowed_paths: list[str]) -> None:
     """Conservatively reject relative path escapes missed by absolute-path scanning."""
     if re.search(r"\$\([^)]*\b(?:cd|pushd)\b", command):
-        raise PermissionError(f"Unsafe working directory change in command substitution. Use paths under {VIRTUAL_PATH_PREFIX}")
+        raise PermissionError(f"Unsafe working directory change in command substitution. {_ALLOWED_PATH_HINT}")
 
     tokens = _split_shell_tokens(command)
 
@@ -1033,7 +947,7 @@ def _validate_local_bash_shell_tokens(command: str, allowed_paths: list[str]) ->
 
 
 def resolve_and_validate_user_data_path(path: str, thread_data: ThreadDataState) -> str:
-    """Resolve a /mnt/user-data virtual path and validate it stays in bounds."""
+    """Resolve a real host path and validate it stays in the thread's user-data roots."""
     return _resolve_and_validate_user_data_path(path, thread_data)
 
 
@@ -1044,13 +958,12 @@ def validate_local_bash_command_paths(command: str, thread_data: ThreadDataState
     ``sandbox.allow_host_bash: true`` opt-in. It is not a secure sandbox
     boundary and must not be treated as isolation from the host filesystem.
 
-    In local mode, commands must use virtual paths under /mnt/user-data for
-    user data access. Skills paths under /mnt/skills, ACP workspace paths
-    under /mnt/acp-workspace, and custom mount container paths (configured in
-    config.yaml) are allowed (path-traversal checks only; write prevention
-    for bash commands is not enforced here).
-    A small allowlist of common system path prefixes is kept for executable
-    and device references (e.g. /bin/sh, /dev/null).
+    Phase 3: commands use real host paths. Allowed absolute paths are the
+    per-thread user-data roots (workspace/uploads/outputs), the project root,
+    the user-selected workspace, MCP filesystem allowed paths, skills paths
+    under /mnt/skills, ACP workspace paths under /mnt/acp-workspace, custom
+    mount container paths (configured in config.yaml), and a small allowlist
+    of common system path prefixes (e.g. /bin/sh, /dev/null).
     """
     if thread_data is None:
         raise SandboxRuntimeError("Thread data not available for local sandbox")
@@ -1058,10 +971,15 @@ def validate_local_bash_command_paths(command: str, thread_data: ThreadDataState
     # Block file:// URLs which bypass the absolute-path regex but allow local file exfiltration
     file_url_match = _FILE_URL_PATTERN.search(command)
     if file_url_match:
-        raise PermissionError(f"Unsafe file:// URL in command: {file_url_match.group()}. Use paths under {VIRTUAL_PATH_PREFIX}")
+        raise PermissionError(f"Unsafe file:// URL in command: {file_url_match.group()}. {_ALLOWED_PATH_HINT}")
 
     unsafe_paths: list[str] = []
     allowed_paths = _get_mcp_allowed_paths()
+    # Per-thread user-data roots (workspace/uploads/outputs) are always allowed.
+    for key in ("workspace_path", "uploads_path", "outputs_path"):
+        root = thread_data.get(key)
+        if root:
+            allowed_paths.append(str(Path(root).resolve()) + "/")
     project_root = thread_data.get("project_root")
     if project_root:
         allowed_paths.append(str(Path(project_root).resolve()) + "/")
@@ -1082,18 +1000,23 @@ def validate_local_bash_command_paths(command: str, thread_data: ThreadDataState
 
     if unsafe_paths:
         unsafe = ", ".join(sorted(dict.fromkeys(unsafe_paths)))
-        raise PermissionError(f"Unsafe absolute paths in command: {unsafe}. Use paths under {VIRTUAL_PATH_PREFIX}")
+        raise PermissionError(f"Unsafe absolute paths in command: {unsafe}. {_ALLOWED_PATH_HINT}")
 
 
 def replace_virtual_paths_in_command(command: str, thread_data: ThreadDataState | None) -> str:
-    """Replace all virtual paths (/mnt/user-data, /mnt/skills, /mnt/acp-workspace) in a command string.
+    """Replace remaining virtual paths (/mnt/skills, /mnt/acp-workspace) in a command string.
+
+    Phase 3: per-thread user-data virtual paths no longer exist — commands use
+    real host paths directly. Only skills and ACP workspace virtual paths (which
+    are mapped via PathMapping inside LocalSandbox) are translated here so that
+    subprocess shells receive resolvable host paths.
 
     Args:
         command: The command string that may contain virtual paths.
         thread_data: The thread data containing actual paths.
 
     Returns:
-        The command with all virtual paths replaced.
+        The command with skills/ACP virtual paths replaced by host paths.
     """
     result = command
 
@@ -1120,16 +1043,6 @@ def replace_virtual_paths_in_command(command: str, thread_data: ThreadDataState 
         result = acp_pattern.sub(replace_acp_match, result)
 
     # Custom mount paths are resolved by LocalSandbox._resolve_paths_in_command()
-
-    # Replace user-data paths
-    if VIRTUAL_PATH_PREFIX in result and thread_data is not None:
-        pattern = re.compile(rf"{re.escape(VIRTUAL_PATH_PREFIX)}(/[^\s\"';&|<>()]*)?")
-
-        def replace_user_data_match(match: re.Match) -> str:
-            return replace_virtual_path(match.group(0), thread_data)
-
-        result = pattern.sub(replace_user_data_match, result)
-
     return result
 
 
@@ -1471,7 +1384,7 @@ def bash_tool(runtime: Runtime, description: str, command: str) -> str:
 
 
     - Use `python` to run Python code.
-    - Prefer a thread-local virtual environment in `/mnt/user-data/workspace/.venv`.
+    - Prefer a thread-local virtual environment in the workspace `.venv` directory.
     - Use `python -m pip` (inside the virtual environment) to install Python packages.
 
     Args:

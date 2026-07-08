@@ -32,13 +32,11 @@ The gateway enforces upload size limits at the application layer, by default max
     {
       "filename": "document.pdf",
       "size": 1234567,
-      "path": ".kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf",
-      "virtual_path": "/mnt/user-data/uploads/document.pdf",
-      "artifact_url": "/api/threads/{thread_id}/artifacts/mnt/user-data/uploads/document.pdf",
+      "path": "/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf",
+      "artifact_url": "/api/threads/{thread_id}/artifacts/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf",
       "markdown_file": "document.md",
-      "markdown_path": ".kkoclaw/threads/{thread_id}/user-data/uploads/document.md",
-      "markdown_virtual_path": "/mnt/user-data/uploads/document.md",
-      "markdown_artifact_url": "/api/threads/{thread_id}/artifacts/mnt/user-data/uploads/document.md"
+      "markdown_path": "/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.md",
+      "markdown_artifact_url": "/api/threads/{thread_id}/artifacts/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.md"
     }
   ],
   "message": "Successfully uploaded 1 file(s)"
@@ -46,9 +44,9 @@ The gateway enforces upload size limits at the application layer, by default max
 ```
 
 **Path Descriptions:**
-- `path`: Actual filesystem path (relative to `backend/` directory)
-- `virtual_path`: Virtual path used by Agent within the sandbox
-- `artifact_url`: URL for frontend HTTP access to the file
+- `path`: Real host absolute path (under `{KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/`)
+- `artifact_url`: URL for frontend HTTP access to the file; it embeds the same real host path
+- Agents, tools, and APIs now use real host paths directly; the `virtual_path` / `markdown_virtual_path` fields were removed in the sandbox refactor (phase 3)
 
 ### 2. Query Upload Limits
 ```
@@ -78,9 +76,8 @@ GET /api/threads/{thread_id}/uploads/list
     {
       "filename": "document.pdf",
       "size": 1234567,
-      "path": ".kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf",
-      "virtual_path": "/mnt/user-data/uploads/document.pdf",
-      "artifact_url": "/api/threads/{thread_id}/artifacts/mnt/user-data/uploads/document.pdf",
+      "path": "/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf",
+      "artifact_url": "/api/threads/{thread_id}/artifacts/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf",
       "extension": ".pdf",
       "modified": 1705997600.0
     }
@@ -118,17 +115,17 @@ By default, auto-conversion is disabled to avoid parsing untrusted Office/PDF up
 
 ### Automatic File Listing
 
-The Agent automatically receives a list of uploaded files on each request, formatted as follows:
+The Agent automatically receives a list of uploaded files on each request, formatted as follows (paths are real host absolute paths, injected at runtime by workspace_path_middleware):
 
 ```xml
 <uploaded_files>
 The following files have been uploaded and are available for use:
 
 - document.pdf (1.2 MB)
-  Path: /mnt/user-data/uploads/document.pdf
+  Path: /home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf
 
 - document.md (45.3 KB)
-  Path: /mnt/user-data/uploads/document.md
+  Path: /home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.md
 
 You can read these files using the `read_file` tool with the paths shown above.
 </uploaded_files>
@@ -136,25 +133,27 @@ You can read these files using the `read_file` tool with the paths shown above.
 
 ### Using Uploaded Files
 
-The Agent runs in a sandbox and accesses files via virtual paths. The Agent can directly use the `read_file` tool to read uploaded files:
+The Agent accesses files via real host absolute paths directly — no virtual path layer. The Agent can directly use the `read_file` tool to read uploaded files:
 
 ```python
 # Read original PDF (if supported)
-read_file(path="/mnt/user-data/uploads/document.pdf")
+read_file(path="/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf")
 
 # Read converted Markdown (recommended)
-read_file(path="/mnt/user-data/uploads/document.md")
+read_file(path="/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.md")
 ```
 
-**Path mapping:**
-- Agent uses: `/mnt/user-data/uploads/document.pdf` (virtual path)
-- Actual storage: `backend/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf`
-- Frontend access: `/api/threads/{thread_id}/artifacts/mnt/user-data/uploads/document.pdf` (HTTP URL)
+**Path notes (after the sandbox refactor):**
+- Agent uses: a real host absolute path (e.g. `/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf`)
+- Actual storage: the same real path (`{KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/document.pdf`)
+- Frontend access: `/api/threads/{thread_id}/artifacts` + the real host path (HTTP URL)
+
+Prompts (lead_agent prompt, subagent prompts) no longer hardcode `/mnt/user-data` paths; real paths are injected at runtime by workspace_path_middleware.
 
 The upload flow follows a "thread directory first" strategy:
-- First writes to `backend/.kkoclaw/threads/{thread_id}/user-data/uploads/` as authoritative storage
+- First writes to `{KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/` as authoritative storage
 - Local sandbox (`sandbox_id=local`) directly uses thread directory contents
-- Non-local sandboxes additionally sync to `/mnt/user-data/uploads/*`, ensuring runtime visibility
+- Non-local sandboxes additionally sync to the sandbox container's mount point, ensuring runtime visibility
 
 ## Test Examples
 
@@ -211,7 +210,7 @@ print(response.json())
 ## File Storage Structure
 
 ```
-backend/.kkoclaw/threads/
+{KKOCLAW_HOME}/threads/        # KKOCLAW_HOME defaults to ~/.kkoclaw
 └── {thread_id}/
     └── user-data/
         └── uploads/
@@ -269,7 +268,7 @@ backend/.kkoclaw/threads/
 
 1. Confirm UploadsMiddleware is registered in agent.py
 2. Verify the thread_id is correct
-3. Confirm files are actually uploaded to `backend/.kkoclaw/threads/{thread_id}/user-data/uploads/`
+3. Confirm files are actually uploaded to `{KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/`
 4. For non-local sandbox scenarios, confirm the upload endpoint reported no errors (sandbox sync must complete successfully)
 
 ## Development Suggestions

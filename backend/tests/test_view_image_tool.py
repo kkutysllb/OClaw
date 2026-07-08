@@ -51,23 +51,23 @@ def test_view_image_rejects_external_absolute_path(tmp_path: Path) -> None:
         tool_call_id="tc-external",
     )
 
-    assert "Only image paths under /mnt/user-data" in _message_content(result)
+    assert "Only image paths under the thread workspace/uploads/outputs" in _message_content(result)
     assert "viewed_images" not in result.update
 
 
-def test_view_image_reads_virtual_uploads_path(tmp_path: Path) -> None:
+def test_view_image_reads_uploads_host_path(tmp_path: Path) -> None:
     thread_data = _make_thread_data(tmp_path)
     image_path = Path(thread_data["uploads_path"]) / "sample.png"
     image_path.write_bytes(PNG_BYTES)
 
     result = view_image_tool.func(
         runtime=_make_runtime(thread_data),
-        image_path="/mnt/user-data/uploads/sample.png",
+        image_path=str(image_path),
         tool_call_id="tc-uploads",
     )
 
     assert _message_content(result) == "Successfully read image"
-    viewed_image = result.update["viewed_images"]["/mnt/user-data/uploads/sample.png"]
+    viewed_image = result.update["viewed_images"][str(image_path)]
     assert viewed_image["base64"] == base64.b64encode(PNG_BYTES).decode("utf-8")
     assert viewed_image["mime_type"] == "image/png"
 
@@ -79,7 +79,7 @@ def test_view_image_rejects_spoofed_extension(tmp_path: Path) -> None:
 
     result = view_image_tool.func(
         runtime=_make_runtime(thread_data),
-        image_path="/mnt/user-data/uploads/not-really.png",
+        image_path=str(image_path),
         tool_call_id="tc-spoofed",
     )
 
@@ -94,7 +94,7 @@ def test_view_image_rejects_mismatched_magic_bytes(tmp_path: Path) -> None:
 
     result = view_image_tool.func(
         runtime=_make_runtime(thread_data),
-        image_path="/mnt/user-data/uploads/jpeg-named-png.png",
+        image_path=str(image_path),
         tool_call_id="tc-mismatch",
     )
 
@@ -110,7 +110,7 @@ def test_view_image_rejects_oversized_image(tmp_path: Path, monkeypatch: pytest.
 
     result = view_image_tool.func(
         runtime=_make_runtime(thread_data),
-        image_path="/mnt/user-data/uploads/sample.png",
+        image_path=str(image_path),
         tool_call_id="tc-oversized",
     )
 
@@ -118,7 +118,9 @@ def test_view_image_rejects_oversized_image(tmp_path: Path, monkeypatch: pytest.
     assert "viewed_images" not in result.update
 
 
-def test_view_image_sanitizes_read_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_view_image_reports_read_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Phase 3: per-thread user-data paths are no longer masked in error output;
+    the read error is reported with the real host path intact."""
     thread_data = _make_thread_data(tmp_path)
     image_path = Path(thread_data["uploads_path"]) / "sample.png"
     image_path.write_bytes(PNG_BYTES)
@@ -130,15 +132,13 @@ def test_view_image_sanitizes_read_errors(tmp_path: Path, monkeypatch: pytest.Mo
 
     result = view_image_tool.func(
         runtime=_make_runtime(thread_data),
-        image_path="/mnt/user-data/uploads/sample.png",
+        image_path=str(image_path),
         tool_call_id="tc-read-error",
     )
 
     message = _message_content(result)
     assert "Error reading image file" in message
-    assert str(image_path) not in message
-    assert str(Path(thread_data["uploads_path"])) not in message
-    assert "/mnt/user-data/uploads/sample.png" in message
+    assert str(image_path) in message
     assert "viewed_images" not in result.update
 
 
@@ -156,9 +156,12 @@ def test_view_image_rejects_uploads_symlink_escape(tmp_path: Path) -> None:
 
     result = view_image_tool.func(
         runtime=_make_runtime(thread_data),
-        image_path="/mnt/user-data/uploads/escape.png",
+        image_path=str(link_path),
         tool_call_id="tc-symlink",
     )
 
-    assert "path traversal" in _message_content(result)
+    # The symlink resolves outside the uploads root, so it is rejected (either as
+    # an out-of-bounds path or a traversal attempt, depending on the check order).
+    message = _message_content(result)
+    assert "path traversal" in message or "Only image paths under the thread" in message
     assert "viewed_images" not in result.update

@@ -50,7 +50,6 @@ from kkoclaw.uploads.manager import (
     get_uploads_dir,
     list_files_in_dir,
     upload_artifact_url,
-    upload_virtual_path,
 )
 
 logger = logging.getLogger(__name__)
@@ -1094,8 +1093,7 @@ class KKOCLAWClient:
                     "filename": dest_name,
                     "size": str(dest.stat().st_size),
                     "path": str(dest),
-                    "virtual_path": upload_virtual_path(dest_name),
-                    "artifact_url": upload_artifact_url(thread_id, dest_name),
+                    "artifact_url": upload_artifact_url(thread_id, dest_name, str(uploads_dir)),
                 }
                 if dest_name != src_path.name:
                     info["original_filename"] = src_path.name
@@ -1117,8 +1115,7 @@ class KKOCLAWClient:
                     if md_path is not None:
                         info["markdown_file"] = md_path.name
                         info["markdown_path"] = str(uploads_dir / md_path.name)
-                        info["markdown_virtual_path"] = upload_virtual_path(md_path.name)
-                        info["markdown_artifact_url"] = upload_artifact_url(thread_id, md_path.name)
+                        info["markdown_artifact_url"] = upload_artifact_url(thread_id, md_path.name, str(uploads_dir))
 
                 uploaded_files.append(info)
         finally:
@@ -1143,7 +1140,7 @@ class KKOCLAWClient:
         """
         uploads_dir = get_uploads_dir(thread_id)
         result = list_files_in_dir(uploads_dir)
-        return enrich_file_listing(result, thread_id)
+        return enrich_file_listing(result, thread_id, str(uploads_dir))
 
     def delete_upload(self, thread_id: str, filename: str) -> dict:
         """Delete a file from a thread's uploads directory.
@@ -1174,7 +1171,7 @@ class KKOCLAWClient:
 
         Args:
             thread_id: Thread ID.
-            path: Virtual path (e.g. "mnt/user-data/outputs/file.txt").
+            path: Real host artifact path (e.g. "/home/u/.kkoclaw/threads/abc/user-data/outputs/file.txt").
 
         Returns:
             Tuple of (file_bytes, mime_type).
@@ -1184,7 +1181,7 @@ class KKOCLAWClient:
             ValueError: If the path is invalid.
         """
         try:
-            actual = get_paths().resolve_virtual_path(thread_id, path, user_id=get_effective_user_id())
+            actual = get_paths().resolve_thread_artifact_path(thread_id, path, user_id=get_effective_user_id())
         except ValueError as exc:
             if "traversal" in str(exc):
                 from kkoclaw.uploads.manager import PathTraversalError

@@ -192,7 +192,7 @@ Skip simple one-off tasks.
   (action=create / edit / patch / delete). `skill_manage` writes atomically to
   `skills/custom/<name>/SKILL.md` and binds the skill to the current work mode.
 - NEVER use `write_file` to create a SKILL.md. Files written to
-  `/mnt/user-data/outputs/` (or any sandbox path) are NOT recognised by the
+  the outputs directory (or any other sandbox path) are NOT recognised by the
   skill system, will not appear in the management UI, and are discarded when
   the thread is cleaned up.
 - If `skill_manage` is not in your tool list, the deployment has disabled
@@ -252,7 +252,7 @@ def _build_subagent_section(max_concurrent: int, *, app_config: AppConfig | None
     direct_execution_example = (
         '# User asks: "Run the tests"\n# Thinking: Cannot decompose into parallel sub-tasks\n# → Execute directly\n\nbash("npm test")  # Direct execution, not task()'
         if bash_available
-        else '# User asks: "Read the README"\n# Thinking: Single straightforward file read\n# → Execute directly\n\nread_file("/mnt/user-data/workspace/README.md")  # Direct execution, not task()'
+        else '# User asks: "Read the README"\n# Thinking: Single straightforward file read\n# → Execute directly\n\nread_file("/workspace/README.md")  # Direct execution, not task()'
     )
     return f"""<subagent_system>
 **🚀 SUBAGENT MODE ACTIVE - DECOMPOSE, DELEGATE, SYNTHESIZE**
@@ -475,19 +475,18 @@ You: "Deploying to staging..." [proceed]
 {subagent_section}
 
 <working_directory existed="true">
-- User uploads: `/mnt/user-data/uploads` - Files uploaded by the user (automatically listed in context)
-- User workspace: `/mnt/user-data/workspace` - Working directory for temporary files
-- Output files: `/mnt/user-data/outputs` - Final deliverables must be saved here
+Your working directories (real absolute paths, provided at the start of each task in a `<working_directory>` info block):
+- **uploads** — Files uploaded by the user (automatically listed in context)
+- **workspace** — Working directory for temporary files (your default current directory)
+- **outputs** — Final deliverables must be saved here
 
 **File Management:**
 - Uploaded files are automatically listed in the <uploaded_files> section before each request
-- Use `read_file` tool to read uploaded files using their paths from the list
+- Use `read_file` tool to read uploaded files using their real paths from the list
 - For PDF, PPT, Excel, and Word files, converted Markdown versions (*.md) are available alongside originals
-- All temporary work happens in `/mnt/user-data/workspace`
-- Treat `/mnt/user-data/workspace` as your default current working directory for coding and file-editing tasks
-- When writing scripts or commands that create/read files from the workspace, prefer relative paths such as `hello.txt`, `../uploads/data.csv`, and `../outputs/report.md`
-- Avoid hardcoding `/mnt/user-data/...` inside generated scripts when a relative path from the workspace is enough
-- Final deliverables must be copied to `/mnt/user-data/outputs` and presented using `present_files` tool
+- Use the real absolute paths given in the `<working_directory>` info block for all file operations
+- When writing scripts or commands, prefer relative paths such as `hello.txt`, `../uploads/data.csv`, and `../outputs/report.md` when the workspace is the current directory
+- Final deliverables must be copied to the **outputs** directory and presented using `present_files` tool
 {acp_section}
 </working_directory>
 
@@ -565,7 +564,7 @@ combined with a FastAPI gateway for REST API access [citation:FastAPI](https://f
 - **Clarification First**: ALWAYS clarify unclear/missing/ambiguous requirements BEFORE starting work - never assume or guess
 {subagent_reminder}- Skill First: Always load the relevant skill before starting **complex** tasks.
 - Progressive Loading: Load resources incrementally as referenced in skills
-- Output Files: Final deliverables must be in `/mnt/user-data/outputs`
+- Output Files: Final deliverables must be in the **outputs** directory
 - Clarity: Be direct and helpful, avoid unnecessary meta-commentary
 - Including Images and Mermaid: Images and Mermaid diagrams are always welcomed in the Markdown format, and you're encouraged to use `![Image Description](image_path)\n\n` or "```mermaid" to display images in response or Markdown files
 - Multi-task: Better utilize parallel tool calling to call multiple tools at one time for better performance
@@ -992,10 +991,10 @@ def _build_acp_section(*, app_config: AppConfig | None = None) -> str:
 
     return (
         "\n**ACP Agent Tasks (invoke_acp_agent):**\n"
-        "- ACP agents (e.g. codex, claude_code) run in their own independent workspace — NOT in `/mnt/user-data/`\n"
-        "- When writing prompts for ACP agents, describe the task only — do NOT reference `/mnt/user-data` paths\n"
+        "- ACP agents (e.g. codex, claude_code) run in their own independent workspace — NOT in your workspace\n"
+        "- When writing prompts for ACP agents, describe the task only — do NOT reference your workspace paths\n"
         "- ACP agent results are accessible at `/mnt/acp-workspace/` (read-only) — use `ls`, `read_file`, or `bash cp` to retrieve output files\n"
-        "- To deliver ACP output to the user: copy from `/mnt/acp-workspace/<file>` to `/mnt/user-data/outputs/<file>`, then use `present_files`"
+        "- To deliver ACP output to the user: copy from `/mnt/acp-workspace/<file>` to the **outputs** directory, then use `present_files`"
     )
 
 
@@ -1023,7 +1022,7 @@ def _build_custom_mounts_section(*, app_config: AppConfig | None = None) -> str:
         lines.append(f"- Custom mount: `{mount.container_path}` - Host directory mapped into the sandbox ({access})")
 
     mounts_list = "\n".join(lines)
-    return f"\n**Custom Mounted Directories:**\n{mounts_list}\n- If the user needs files outside `/mnt/user-data`, use these absolute container paths directly when they match the requested directory"
+    return f"\n**Custom Mounted Directories:**\n{mounts_list}\n- If the user needs files outside your workspace, use these absolute container paths directly when they match the requested directory"
 
 
 def apply_prompt_template(

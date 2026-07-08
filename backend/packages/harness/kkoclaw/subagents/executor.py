@@ -273,12 +273,10 @@ def _filter_tools(
     effective_disallowed: set[str] = set(disallowed or [])
 
     # Automatically exclude Filesystem MCP tools from subagents.
-    # Subagent system prompts reference sandbox virtual paths (/mnt/user-data/*)
-    # which are correctly handled by bash/sandbox tools via
-    # ``replace_virtual_paths_in_command``.  The Filesystem MCP server
-    # does NOT understand virtual paths — it only allows its configured
-    # host directories (e.g. /Users/libing).  Allowing subagents to call
-    # Filesystem tools with virtual paths always results in
+    # Subagents operate on real host paths (phase 3) via bash/sandbox tools.
+    # The Filesystem MCP server only allows its configured host directories
+    # (e.g. /Users/libing) and does not respect the thread workspace roots,
+    # so calls from subagents frequently result in
     # "Access denied - path outside allowed directories" errors, wasting
     # tokens and time.
     if allowed is None:

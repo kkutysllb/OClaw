@@ -166,7 +166,7 @@ class TestIsDingTalkCommand:
         "text",
         [
             "/unknown",
-            "/mnt/user-data/outputs/report.md",
+            "/tmp/kkoclaw/threads/t1/user-data/outputs/report.md",
             "hello",
             "",
             "not a command",

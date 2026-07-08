@@ -364,7 +364,7 @@ class TestExtractResponseText:
                 {
                     "type": "ai",
                     "content": "",
-                    "tool_calls": [{"name": "present_files", "args": {"filepaths": ["/mnt/user-data/outputs/data.csv"]}}],
+                    "tool_calls": [{"name": "present_files", "args": {"filepaths": ["/tmp/kkoclaw/threads/t1/user-data/outputs/data.csv"]}}],
                 },
                 {"type": "tool", "name": "present_files", "content": "ok"},
             ]
@@ -457,7 +457,7 @@ class TestChannelManager:
                 channel_name="test",
                 chat_id="chat1",
                 user_id="user1",
-                text="with /mnt/user-data/uploads/demo.png",
+                text="with /tmp/kkoclaw/threads/test-thread-123/user-data/uploads/demo.png",
                 files=[{"image_key": "img_1"}],
             )
             mock_channel = MagicMock()
@@ -488,7 +488,7 @@ class TestChannelManager:
 
             mock_client.runs.wait.assert_called_once()
             run_call_args = mock_client.runs.wait.call_args
-            assert run_call_args[1]["input"]["messages"][0]["content"] == "with /mnt/user-data/uploads/demo.png"
+            assert run_call_args[1]["input"]["messages"][0]["content"] == "with /tmp/kkoclaw/threads/test-thread-123/user-data/uploads/demo.png"
 
         _run(go())
 
@@ -1439,13 +1439,13 @@ class TestExtractArtifacts:
                     "type": "ai",
                     "content": "Here is your report.",
                     "tool_calls": [
-                        {"name": "present_files", "args": {"filepaths": ["/mnt/user-data/outputs/report.md"]}},
+                        {"name": "present_files", "args": {"filepaths": ["/tmp/kkoclaw/threads/t1/user-data/outputs/report.md"]}},
                     ],
                 },
                 {"type": "tool", "name": "present_files", "content": "Successfully presented files"},
             ]
         }
-        assert _extract_artifacts(result) == ["/mnt/user-data/outputs/report.md"]
+        assert _extract_artifacts(result) == ["/tmp/kkoclaw/threads/t1/user-data/outputs/report.md"]
 
     def test_empty_when_no_present_files(self):
         from app.channels.manager import _extract_artifacts
@@ -1475,7 +1475,7 @@ class TestExtractArtifacts:
                     "type": "ai",
                     "content": "Created report.",
                     "tool_calls": [
-                        {"name": "present_files", "args": {"filepaths": ["/mnt/user-data/outputs/report.md"]}},
+                        {"name": "present_files", "args": {"filepaths": ["/tmp/kkoclaw/threads/t1/user-data/outputs/report.md"]}},
                     ],
                 },
                 {"type": "tool", "name": "present_files", "content": "ok"},
@@ -1484,14 +1484,14 @@ class TestExtractArtifacts:
                     "type": "ai",
                     "content": "Created chart.",
                     "tool_calls": [
-                        {"name": "present_files", "args": {"filepaths": ["/mnt/user-data/outputs/chart.png"]}},
+                        {"name": "present_files", "args": {"filepaths": ["/tmp/kkoclaw/threads/t1/user-data/outputs/chart.png"]}},
                     ],
                 },
                 {"type": "tool", "name": "present_files", "content": "ok"},
             ]
         }
         # Should only return chart.png (from the last turn)
-        assert _extract_artifacts(result) == ["/mnt/user-data/outputs/chart.png"]
+        assert _extract_artifacts(result) == ["/tmp/kkoclaw/threads/t1/user-data/outputs/chart.png"]
 
     def test_multiple_files_in_single_call(self):
         from app.channels.manager import _extract_artifacts
@@ -1503,26 +1503,26 @@ class TestExtractArtifacts:
                     "type": "ai",
                     "content": "Done.",
                     "tool_calls": [
-                        {"name": "present_files", "args": {"filepaths": ["/mnt/user-data/outputs/a.txt", "/mnt/user-data/outputs/b.csv"]}},
+                        {"name": "present_files", "args": {"filepaths": ["/tmp/kkoclaw/threads/t1/user-data/outputs/a.txt", "/tmp/kkoclaw/threads/t1/user-data/outputs/b.csv"]}},
                     ],
                 },
             ]
         }
-        assert _extract_artifacts(result) == ["/mnt/user-data/outputs/a.txt", "/mnt/user-data/outputs/b.csv"]
+        assert _extract_artifacts(result) == ["/tmp/kkoclaw/threads/t1/user-data/outputs/a.txt", "/tmp/kkoclaw/threads/t1/user-data/outputs/b.csv"]
 
 
 class TestFormatArtifactText:
     def test_single_artifact(self):
         from app.channels.manager import _format_artifact_text
 
-        text = _format_artifact_text(["/mnt/user-data/outputs/report.md"])
+        text = _format_artifact_text(["/tmp/kkoclaw/threads/t1/user-data/outputs/report.md"])
         assert text == "Created File: 📎 report.md"
 
     def test_multiple_artifacts(self):
         from app.channels.manager import _format_artifact_text
 
         text = _format_artifact_text(
-            ["/mnt/user-data/outputs/a.txt", "/mnt/user-data/outputs/b.csv"],
+            ["/tmp/kkoclaw/threads/t1/user-data/outputs/a.txt", "/tmp/kkoclaw/threads/t1/user-data/outputs/b.csv"],
         )
         assert text == "Created Files: 📎 a.txt、b.csv"
 
@@ -1543,7 +1543,7 @@ class TestHandleChatWithArtifacts:
                         "type": "ai",
                         "content": "Here is your report.",
                         "tool_calls": [
-                            {"name": "present_files", "args": {"filepaths": ["/mnt/user-data/outputs/report.md"]}},
+                            {"name": "present_files", "args": {"filepaths": ["/tmp/kkoclaw/threads/test-thread-123/user-data/outputs/report.md"]}},
                         ],
                     },
                     {"type": "tool", "name": "present_files", "content": "ok"},
@@ -1570,7 +1570,7 @@ class TestHandleChatWithArtifacts:
             assert len(outbound_received) == 1
             assert "Here is your report." in outbound_received[0].text
             assert "report.md" in outbound_received[0].text
-            assert outbound_received[0].artifacts == ["/mnt/user-data/outputs/report.md"]
+            assert outbound_received[0].artifacts == ["/tmp/kkoclaw/threads/test-thread-123/user-data/outputs/report.md"]
 
         _run(go())
 
@@ -1590,7 +1590,7 @@ class TestHandleChatWithArtifacts:
                         "type": "ai",
                         "content": "",
                         "tool_calls": [
-                            {"name": "present_files", "args": {"filepaths": ["/mnt/user-data/outputs/output.csv"]}},
+                            {"name": "present_files", "args": {"filepaths": ["/tmp/kkoclaw/threads/test-thread-123/user-data/outputs/output.csv"]}},
                         ],
                     },
                     {"type": "tool", "name": "present_files", "content": "ok"},
@@ -1618,7 +1618,7 @@ class TestHandleChatWithArtifacts:
             # Should NOT be the "(No response from agent)" fallback
             assert outbound_received[0].text != "(No response from agent)"
             assert "output.csv" in outbound_received[0].text
-            assert outbound_received[0].artifacts == ["/mnt/user-data/outputs/output.csv"]
+            assert outbound_received[0].artifacts == ["/tmp/kkoclaw/threads/test-thread-123/user-data/outputs/output.csv"]
 
         _run(go())
 
@@ -1639,7 +1639,7 @@ class TestHandleChatWithArtifacts:
                         "type": "ai",
                         "content": "Created report.",
                         "tool_calls": [
-                            {"name": "present_files", "args": {"filepaths": ["/mnt/user-data/outputs/report.md"]}},
+                            {"name": "present_files", "args": {"filepaths": ["/tmp/kkoclaw/threads/thread-dup-test/user-data/outputs/report.md"]}},
                         ],
                     },
                     {"type": "tool", "name": "present_files", "content": "ok"},
@@ -1653,7 +1653,7 @@ class TestHandleChatWithArtifacts:
                         "type": "ai",
                         "content": "Created report.",
                         "tool_calls": [
-                            {"name": "present_files", "args": {"filepaths": ["/mnt/user-data/outputs/report.md"]}},
+                            {"name": "present_files", "args": {"filepaths": ["/tmp/kkoclaw/threads/thread-dup-test/user-data/outputs/report.md"]}},
                         ],
                     },
                     {"type": "tool", "name": "present_files", "content": "ok"},
@@ -1662,7 +1662,7 @@ class TestHandleChatWithArtifacts:
                         "type": "ai",
                         "content": "Created chart.",
                         "tool_calls": [
-                            {"name": "present_files", "args": {"filepaths": ["/mnt/user-data/outputs/chart.png"]}},
+                            {"name": "present_files", "args": {"filepaths": ["/tmp/kkoclaw/threads/thread-dup-test/user-data/outputs/chart.png"]}},
                         ],
                     },
                     {"type": "tool", "name": "present_files", "content": "ok"},
@@ -1695,12 +1695,12 @@ class TestHandleChatWithArtifacts:
 
             # Turn 1: should include report.md
             assert "report.md" in outbound_received[0].text
-            assert outbound_received[0].artifacts == ["/mnt/user-data/outputs/report.md"]
+            assert outbound_received[0].artifacts == ["/tmp/kkoclaw/threads/thread-dup-test/user-data/outputs/report.md"]
 
             # Turn 2: should include ONLY chart.png (report.md is from previous turn)
             assert "chart.png" in outbound_received[1].text
             assert "report.md" not in outbound_received[1].text
-            assert outbound_received[1].artifacts == ["/mnt/user-data/outputs/chart.png"]
+            assert outbound_received[1].artifacts == ["/tmp/kkoclaw/threads/thread-dup-test/user-data/outputs/chart.png"]
 
         _run(go())
 
@@ -1973,7 +1973,7 @@ class TestWeComChannel:
             attachment_path = tmp_path / "image.png"
             attachment_path.write_bytes(b"png")
             attachment = ResolvedAttachment(
-                virtual_path="/mnt/user-data/outputs/image.png",
+                virtual_path=str(attachment_path),
                 actual_path=attachment_path,
                 filename="image.png",
                 mime_type="image/png",

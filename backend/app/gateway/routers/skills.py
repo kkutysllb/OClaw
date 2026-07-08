@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from app.gateway.deps import get_config
-from app.gateway.path_utils import resolve_thread_virtual_path
+from app.gateway.path_utils import resolve_thread_artifact_path
 from kkoclaw.agents.lead_agent.prompt import refresh_skills_system_prompt_cache_async
 from kkoclaw.config.app_config import AppConfig
 from kkoclaw.config.extensions_config import ExtensionsConfig, SkillStateConfig, get_extensions_config, reload_extensions_config
@@ -58,7 +58,7 @@ class SkillInstallRequest(BaseModel):
     """Request model for installing a skill from a .skill file."""
 
     thread_id: str = Field(..., description="The thread ID where the .skill file is located")
-    path: str = Field(..., description="Virtual path to the .skill file (e.g., mnt/user-data/outputs/my-skill.skill)")
+    path: str = Field(..., description="Real host path to the .skill file (e.g., the thread outputs directory + /my-skill.skill)")
     work_modes: list[str] | None = Field(None, description="Optional work mode ids to bind. If omitted and the SKILL.md has no work_modes frontmatter, defaults to ['task'].")
 
 
@@ -141,7 +141,7 @@ async def list_skills(config: AppConfig = Depends(get_config)) -> SkillsListResp
 )
 async def install_skill(request: SkillInstallRequest, config: AppConfig = Depends(get_config)) -> SkillInstallResponse:
     try:
-        skill_file_path = resolve_thread_virtual_path(request.thread_id, request.path)
+        skill_file_path = resolve_thread_artifact_path(request.thread_id, request.path)
         result = await get_or_new_skill_storage(app_config=config).ainstall_skill_from_archive(skill_file_path, work_modes=request.work_modes)
         await refresh_skills_system_prompt_cache_async()
         return SkillInstallResponse(**result)

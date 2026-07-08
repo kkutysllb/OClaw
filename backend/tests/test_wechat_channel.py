@@ -517,7 +517,7 @@ def test_send_file_uploads_and_sends_image(monkeypatch, tmp_path: Path):
                 text="reply text",
             ),
             ResolvedAttachment(
-                virtual_path="/mnt/user-data/outputs/chart.png",
+                virtual_path=str(image_path),
                 actual_path=image_path,
                 filename="chart.png",
                 mime_type="image/png",
@@ -573,7 +573,7 @@ def test_send_file_returns_false_without_upload_full_url(monkeypatch, tmp_path: 
         ok = await channel.send_file(
             OutboundMessage(channel_name="wechat", chat_id="wx-user-1", thread_id="thread-1", text="reply text"),
             ResolvedAttachment(
-                virtual_path="/mnt/user-data/outputs/chart.png",
+                virtual_path=str(image_path),
                 actual_path=image_path,
                 filename="chart.png",
                 mime_type="image/png",
@@ -622,7 +622,7 @@ def test_send_file_prefers_cdn_response_header_for_image(monkeypatch, tmp_path: 
         ok = await channel.send_file(
             OutboundMessage(channel_name="wechat", chat_id="wx-user-1", thread_id="thread-1", text="reply text"),
             ResolvedAttachment(
-                virtual_path="/mnt/user-data/outputs/chart.png",
+                virtual_path=str(image_path),
                 actual_path=image_path,
                 filename="chart.png",
                 mime_type="image/png",
@@ -661,7 +661,7 @@ def test_send_file_skips_non_image(monkeypatch, tmp_path: Path):
         ok = await channel.send_file(
             OutboundMessage(channel_name="wechat", chat_id="wx-user-1", thread_id="thread-1", text="reply text"),
             ResolvedAttachment(
-                virtual_path="/mnt/user-data/outputs/notes.txt",
+                virtual_path=str(file_path),
                 actual_path=file_path,
                 filename="notes.txt",
                 mime_type="text/plain",
@@ -710,7 +710,7 @@ def test_send_file_uploads_and_sends_regular_file(monkeypatch, tmp_path: Path):
         ok = await channel.send_file(
             OutboundMessage(channel_name="wechat", chat_id="wx-user-1", thread_id="thread-1", text="reply text"),
             ResolvedAttachment(
-                virtual_path="/mnt/user-data/outputs/report.pdf",
+                virtual_path=str(file_path),
                 actual_path=file_path,
                 filename="report.pdf",
                 mime_type="application/pdf",
@@ -765,7 +765,7 @@ def test_send_regular_file_uses_cdn_upload_fallback_when_upload_full_url_missing
         ok = await channel.send_file(
             OutboundMessage(channel_name="wechat", chat_id="wx-user-1", thread_id="thread-1", text="reply text"),
             ResolvedAttachment(
-                virtual_path="/mnt/user-data/outputs/report.pdf",
+                virtual_path=str(file_path),
                 actual_path=file_path,
                 filename="report.pdf",
                 mime_type="application/pdf",
@@ -820,7 +820,7 @@ def test_send_image_uses_post_even_when_upload_full_url_present(monkeypatch, tmp
         ok = await channel.send_file(
             OutboundMessage(channel_name="wechat", chat_id="wx-user-1", thread_id="thread-1", text="reply text"),
             ResolvedAttachment(
-                virtual_path="/mnt/user-data/outputs/chart.png",
+                virtual_path=str(image_path),
                 actual_path=image_path,
                 filename="chart.png",
                 mime_type="image/png",
@@ -857,7 +857,7 @@ def test_send_file_blocks_disallowed_regular_file(monkeypatch, tmp_path: Path):
         ok = await channel.send_file(
             OutboundMessage(channel_name="wechat", chat_id="wx-user-1", thread_id="thread-1", text="reply text"),
             ResolvedAttachment(
-                virtual_path="/mnt/user-data/outputs/malware.exe",
+                virtual_path=str(file_path),
                 actual_path=file_path,
                 filename="malware.exe",
                 mime_type="application/octet-stream",

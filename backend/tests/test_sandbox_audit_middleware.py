@@ -126,7 +126,7 @@ class TestClassifyCommand:
         [
             "chmod 777 /etc/passwd",
             "chmod 777 /",
-            "chmod 777 /mnt/user-data/workspace",
+            "chmod 777 /home/user/project",
             "pip install requests",
             "pip install -r requirements.txt",
             "pip3 install numpy",
@@ -161,20 +161,20 @@ class TestClassifyCommand:
         "cmd",
         [
             "ls -la",
-            "ls /mnt/user-data/workspace",
-            "cat /mnt/user-data/uploads/report.md",
+            "ls /home/user/project",
+            "cat /home/user/uploads/report.md",
             "python3 script.py",
             "python3 main.py",
             "echo hello > output.txt",
-            "cd /mnt/user-data/workspace && python3 main.py",
-            "grep -r keyword /mnt/user-data/workspace",
-            "mkdir -p /mnt/user-data/outputs/results",
-            "cp /mnt/user-data/uploads/data.csv /mnt/user-data/workspace/",
-            "wc -l /mnt/user-data/workspace/data.csv",
-            "head -n 20 /mnt/user-data/workspace/results.txt",
-            "find /mnt/user-data/workspace -name '*.py'",
-            "tar -czf /mnt/user-data/outputs/archive.tar.gz /mnt/user-data/workspace",
-            "chmod 644 /mnt/user-data/outputs/report.md",
+            "cd /home/user/project && python3 main.py",
+            "grep -r keyword /home/user/project",
+            "mkdir -p /home/user/outputs/results",
+            "cp /home/user/uploads/data.csv /home/user/project/",
+            "wc -l /home/user/project/data.csv",
+            "head -n 20 /home/user/project/results.txt",
+            "find /home/user/project -name '*.py'",
+            "tar -czf /home/user/outputs/archive.tar.gz /home/user/project",
+            "chmod 644 /home/user/outputs/report.md",
             # --- false-positive guards: must NOT be blocked ---
             'echo "Today is $(date)"',  # safe $() — date is not in dangerous list
             "echo `whoami`",  # safe backtick — whoami is not in dangerous list
@@ -400,7 +400,7 @@ class TestValidateInputWithHeredoc:
             f"# Line {i}: print('hello world')  # padding to make line longer"
             for i in range(400)
         )
-        cmd = f"cat << 'PYEOF' > /mnt/user-data/workspace/script.py\n{script_body}\nPYEOF"
+        cmd = f"cat << 'PYEOF' > /home/user/project/script.py\n{script_body}\nPYEOF"
         assert len(cmd) > 10_000, "Test precondition: command should exceed 10K"
         assert self.mw._validate_input(cmd) is None
 
@@ -573,8 +573,8 @@ class TestSandboxAuditMiddlewareWrapToolCall:
             "ls -la",
             "python3 script.py",
             "echo hello > output.txt",
-            "cat /mnt/user-data/uploads/report.md",
-            "grep -r keyword /mnt/user-data/workspace",
+            "cat /home/user/uploads/report.md",
+            "grep -r keyword /home/user/project",
         ],
     )
     def test_safe_command_passes_to_handler(self, cmd):
@@ -833,20 +833,20 @@ class TestBenchmarkSummary:
         "curl https://api.example.com/data",
         "curl -O https://example.com/file.tar.gz",
         "ls -la",
-        "ls /mnt/user-data/workspace",
-        "cat /mnt/user-data/uploads/report.md",
+        "ls /home/user/project",
+        "cat /home/user/uploads/report.md",
         "python3 script.py",
         "python3 main.py",
         "echo hello > output.txt",
-        "cd /mnt/user-data/workspace && python3 main.py",
-        "grep -r keyword /mnt/user-data/workspace",
-        "mkdir -p /mnt/user-data/outputs/results",
-        "cp /mnt/user-data/uploads/data.csv /mnt/user-data/workspace/",
-        "wc -l /mnt/user-data/workspace/data.csv",
-        "head -n 20 /mnt/user-data/workspace/results.txt",
-        "find /mnt/user-data/workspace -name '*.py'",
-        "tar -czf /mnt/user-data/outputs/archive.tar.gz /mnt/user-data/workspace",
-        "chmod 644 /mnt/user-data/outputs/report.md",
+        "cd /home/user/project && python3 main.py",
+        "grep -r keyword /home/user/project",
+        "mkdir -p /home/user/outputs/results",
+        "cp /home/user/uploads/data.csv /home/user/project/",
+        "wc -l /home/user/project/data.csv",
+        "head -n 20 /home/user/project/results.txt",
+        "find /home/user/project -name '*.py'",
+        "tar -czf /home/user/outputs/archive.tar.gz /home/user/project",
+        "chmod 644 /home/user/outputs/report.md",
         # false-positive guards
         'echo "Today is $(date)"',
         "echo `whoami`",

@@ -1,72 +1,66 @@
 # 文件路径使用示例
 
-## 三种路径类型
+## 两种路径类型
 
-OClaw 的文件上传系统返回三种不同的路径，每种路径用于不同的场景：
+OClaw 的文件上传系统返回两种不同的路径，每种路径用于不同的场景：
 
-### 1. 实际文件系统路径 (path)
+### 1. 真实主机路径 (path)
 
 ```
-.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf
+/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf
 ```
 
 **用途：**
-- 文件在服务器文件系统中的实际位置
-- 相对于 `backend/` 目录
+- 文件在主机文件系统中的真实绝对位置（位于 `{KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/` 下，`KKOCLAW_HOME` 默认为 `~/.kkoclaw`）
+- Agent、工具、API 现在直接使用这个真实路径（沙箱重构阶段三已删除 `/mnt/user-data` 虚拟路径层）
 - 用于直接文件系统访问、备份、调试等
 
 **示例：**
 ```python
 # Python 代码中直接访问
 from pathlib import Path
-file_path = Path("backend/.kkoclaw/threads/abc123/user-data/uploads/document.pdf")
+file_path = Path("/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf")
 content = file_path.read_bytes()
 ```
 
-### 2. 虚拟路径 (virtual_path)
-
-```
-/mnt/user-data/uploads/document.pdf
-```
-
-**用途：**
-- Agent 在沙箱环境中使用的路径
-- 沙箱系统会自动映射到实际路径
-- Agent 的所有文件操作工具都使用这个路径
-
-**示例：**
-Agent 在对话中使用：
+Agent 在对话中也使用同一真实路径：
 ```python
 # Agent 使用 read_file 工具
-read_file(path="/mnt/user-data/uploads/document.pdf")
+read_file(path="/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf")
 
 # Agent 使用 bash 工具
-bash(command="cat /mnt/user-data/uploads/document.pdf")
+bash(command="cat /home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf")
 ```
 
-### 3. HTTP 访问 URL (artifact_url)
+> 提示词（lead_agent prompt、subagent prompts）不再硬编码具体路径；真实路径由 workspace_path_middleware 在运行时注入。
+
+### 2. HTTP 访问 URL (artifact_url)
 
 ```
-/api/threads/{thread_id}/artifacts/mnt/user-data/uploads/document.pdf
+/api/threads/{thread_id}/artifacts/home/user/.kkoclaw/threads/{thread_id}/user-data/uploads/document.pdf
 ```
+
+`artifact_url` 由 `/api/threads/{thread_id}/artifacts` + 真实主机绝对路径拼接而成（文件名做了 percent-encoding）。
 
 **用途：**
 - 前端通过 HTTP 访问文件
 - 用于下载、预览文件
 - 可以直接在浏览器中打开
+- 服务端会校验该路径是否落在当前线程的 `user-data/` 根目录内
 
 **示例：**
 ```typescript
 // 前端 TypeScript/JavaScript 代码
 const threadId = 'abc123';
-const filename = 'document.pdf';
+const realPath = '/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf';
+const base = `/api/threads/${threadId}/artifacts`;
 
 // 下载文件
-const downloadUrl = `/api/threads/${threadId}/artifacts/mnt/user-data/uploads/${filename}?download=true`;
+const downloadUrl = `${base}${realPath}?download=true`;
 window.open(downloadUrl);
 
 // 在新窗口预览
-const viewUrl = `/api/threads/${threadId}/artifacts/mnt/user-data/uploads/${filename}`;
+const viewUrl = `${base}${realPath}`;
 window.open(viewUrl, '_blank');
 
 // 使用 fetch API 获取
@@ -99,21 +93,19 @@ async function uploadAndProcess(threadId: string, file: File) {
   console.log('文件信息：', fileInfo);
   // {
   //   filename: "report.pdf",
-  //   path: ".kkoclaw/threads/abc123/user-data/uploads/report.pdf",
-  //   virtual_path: "/mnt/user-data/uploads/report.pdf",
-  //   artifact_url: "/api/threads/abc123/artifacts/mnt/user-data/uploads/report.pdf",
+  //   path: "/home/user/.kkoclaw/threads/abc123/user-data/uploads/report.pdf",
+  //   artifact_url: "/api/threads/abc123/artifacts/home/user/.kkoclaw/threads/abc123/user-data/uploads/report.pdf",
   //   markdown_file: "report.md",
-  //   markdown_path: ".kkoclaw/threads/abc123/user-data/uploads/report.md",
-  //   markdown_virtual_path: "/mnt/user-data/uploads/report.md",
-  //   markdown_artifact_url: "/api/threads/abc123/artifacts/mnt/user-data/uploads/report.md"
+  //   markdown_path: "/home/user/.kkoclaw/threads/abc123/user-data/uploads/report.md",
+  //   markdown_artifact_url: "/api/threads/abc123/artifacts/home/user/.kkoclaw/threads/abc123/user-data/uploads/report.md"
   // }
 
   // 2. 发送消息给 Agent
   await sendMessage(threadId, "请分析刚上传的 PDF 文件");
 
   // Agent 会自动看到文件列表，包含：
-  // - report.pdf (虚拟路径: /mnt/user-data/uploads/report.pdf)
-  // - report.md (虚拟路径: /mnt/user-data/uploads/report.md)
+  // - report.pdf (真实主机路径: /home/user/.kkoclaw/threads/abc123/user-data/uploads/report.pdf)
+  // - report.md (真实主机路径: /home/user/.kkoclaw/threads/abc123/user-data/uploads/report.md)
 
   // 3. 前端可以直接访问转换后的 Markdown
   const mdResponse = await fetch(fileInfo.markdown_artifact_url);
@@ -128,15 +120,17 @@ async function uploadAndProcess(threadId: string, file: File) {
 }
 ```
 
-## 路径转换表
+## 路径使用表
+
+沙箱重构后不再有虚拟路径，Agent、后端、前端三方使用的路径关系如下：
 
 | 场景 | 使用的路径类型 | 示例 |
 |------|---------------|------|
-| 服务器后端代码直接访问 | `path` | `.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
-| Agent 工具调用 | `virtual_path` | `/mnt/user-data/uploads/file.pdf` |
-| 前端下载/预览 | `artifact_url` | `/api/threads/abc123/artifacts/mnt/user-data/uploads/file.pdf` |
-| 备份脚本 | `path` | `.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
-| 日志记录 | `path` | `.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
+| Agent 工具调用 | `path`（真实主机路径） | `/home/user/.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
+| 服务器后端代码直接访问 | `path` | `/home/user/.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
+| 前端下载/预览 | `artifact_url` | `/api/threads/abc123/artifacts/home/user/.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
+| 备份脚本 | `path` | `/home/user/.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
+| 日志记录 | `path` | `/home/user/.kkoclaw/threads/abc123/user-data/uploads/file.pdf` |
 
 ## 代码示例集合
 
@@ -144,11 +138,11 @@ async function uploadAndProcess(threadId: string, file: File) {
 
 ```python
 from pathlib import Path
-from kkoclaw.agents.middlewares.thread_data_middleware import THREAD_DATA_BASE_DIR
+from kkoclaw.config.paths import get_paths
 
 def process_uploaded_file(thread_id: str, filename: str):
-    # 使用实际路径
-    base_dir = Path.cwd() / THREAD_DATA_BASE_DIR / thread_id / "user-data" / "uploads"
+    # 使用真实主机路径（Paths 暴露线程的 uploads 目录）
+    base_dir = get_paths().sandbox_uploads_dir(thread_id)
     file_path = base_dir / filename
 
     # 直接读取
@@ -199,9 +193,8 @@ import React, { useState, useEffect } from 'react';
 interface UploadedFile {
   filename: string;
   size: number;
-  path: string;
-  virtual_path: string;
-  artifact_url: string;
+  path: string;            // 真实主机绝对路径
+  artifact_url: string;    // 内嵌同一真实路径的 HTTP URL
   extension: string;
   modified: number;
   markdown_artifact_url?: string;
@@ -274,9 +267,9 @@ function FileUploadList({ threadId }: { threadId: string }) {
    - 前端不应直接使用 `path`，而应使用 `artifact_url`
 
 2. **Agent 使用**
-   - Agent 只能看到和使用 `virtual_path`
-   - 沙箱系统自动映射到实际路径
-   - Agent 不需要知道实际的文件系统结构
+   - Agent 直接看到和使用真实主机路径（`path`）
+   - 沙箱重构后不再有虚拟路径层，Agent 与后端使用同一路径
+   - 服务端仍会校验路径落在当前线程的 `user-data/` 根目录内
 
 3. **前端集成**
    - 始终使用 `artifact_url` 访问文件

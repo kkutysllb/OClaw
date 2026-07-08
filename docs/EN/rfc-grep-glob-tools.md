@@ -113,11 +113,13 @@ Parameter semantics:
 Suggested return format:
 
 ```text
-Found 3 paths under /mnt/user-data/workspace
-1. /mnt/user-data/workspace/backend/app.py
-2. /mnt/user-data/workspace/backend/tests/test_app.py
-3. /mnt/user-data/workspace/scripts/build.py
+Found 3 paths under {KKOCLAW_HOME}/threads/{thread_id}/user-data/workspace
+1. {KKOCLAW_HOME}/threads/{thread_id}/user-data/workspace/backend/app.py
+2. {KKOCLAW_HOME}/threads/{thread_id}/user-data/workspace/backend/tests/test_app.py
+3. {KKOCLAW_HOME}/threads/{thread_id}/user-data/workspace/scripts/build.py
 ```
+
+(After sandbox refactor phase 3, the workspace is a real host absolute path; `{KKOCLAW_HOME}/threads/{thread_id}/user-data/workspace` stands in for the search root above.)
 
 If more suitable for frontend consumption later, JSON strings can also be adopted; but the first version should return readable text to stay consistent with existing tool styles.
 
@@ -154,11 +156,11 @@ Parameter semantics:
 Suggested return format:
 
 ```text
-Found 4 matches under /mnt/user-data/workspace
-/mnt/user-data/workspace/backend/config.py:12: TOOL_GROUPS = [...]
-/mnt/user-data/workspace/backend/config.py:48: def load_tool_config(...):
-/mnt/user-data/workspace/backend/tools.py:91: "tool_groups"
-/mnt/user-data/workspace/backend/tests/test_config.py:22: assert "tool_groups" in data
+Found 4 matches under {KKOCLAW_HOME}/threads/{thread_id}/user-data/workspace
+{KKOCLAW_HOME}/threads/{thread_id}/user-data/workspace/backend/config.py:12: TOOL_GROUPS = [...]
+{KKOCLAW_HOME}/threads/{thread_id}/user-data/workspace/backend/config.py:48: def load_tool_config(...):
+{KKOCLAW_HOME}/threads/{thread_id}/user-data/workspace/backend/tools.py:91: "tool_groups"
+{KKOCLAW_HOME}/threads/{thread_id}/user-data/workspace/backend/tests/test_config.py:22: assert "tool_groups" in data
 ```
 
 First version recommends only returning:
@@ -201,9 +203,9 @@ If `rg` is preferred for performance in the future, it should be encapsulated in
 These two tools must reuse the current `ls` / `read_file` path validation logic:
 
 - Local mode goes through `validate_local_tool_path(..., read_only=True)`
-- Supports `/mnt/skills/...`
-- Supports `/mnt/acp-workspace/...`
-- Supports thread workspace / uploads / outputs virtual path resolution
+- Supports `/mnt/skills/...` (global read-only skill library, still a virtual path)
+- Supports `/mnt/acp-workspace/...` (ACP subagent workspace, still a virtual path)
+- Supports real host path resolution for thread workspace / uploads / outputs (`{KKOCLAW_HOME}/threads/{thread_id}/user-data/...`; there is no `/mnt/user-data` virtual layer after sandbox refactor phase 3)
 - Explicitly rejects unauthorized paths and path traversal
 
 That is, they belong to **file:read**, not a `bash` replacement escalation entry point.
@@ -380,7 +382,7 @@ MCP can be supplementary, but `glob` / `grep` as OClaw's base coding tools are b
 - `glob` and `grep` can be default-enabled in `config.example.yaml`
 - Both tools belong to the `file:read` group
 - Strictly comply with existing path permissions under local sandbox
-- Output does not leak host real paths
+- Output only uses real host paths inside the thread's `user-data/` root; no host paths outside that root are leaked
 - Large result sets are truncated with clear notification
 - Model can complete typical code modification flow via `glob -> grep -> read_file -> str_replace`
 - Repository exploration capability noticeably improved in local mode with host bash disabled
@@ -390,7 +392,7 @@ MCP can be supplementary, but `glob` / `grep` as OClaw's base coding tools are b
 1. Implement `glob_tool` and `grep_tool` in `sandbox/tools.py`
 2. Extract ignore rules consistent with `list_dir` to avoid behavior drift
 3. Add tool config defaults in `config.example.yaml`
-4. Add tests for local path validation, virtual path mapping, result truncation, binary skipping
+4. Add tests for local path validation, real host path resolution, result truncation, binary skipping
 5. Update README / backend docs / prompt guidance
 6. Collect actual agent call data, then decide whether to sink to `Sandbox` abstraction
 

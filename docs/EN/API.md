@@ -135,13 +135,13 @@ Content-Type: application/json
 ```json
 {
   "thread_id": "thread_abc",
-  "path": "mnt/user-data/outputs/my-skill.skill",
+  "path": "/home/user/.kkoclaw/threads/thread_abc/user-data/outputs/my-skill.skill",
   "work_modes": ["coding"]
 }
 ```
 
 - `thread_id`: thread containing the `.skill` artifact
-- `path`: virtual path to the artifact
+- `path`: real host absolute path to the artifact (inside the thread's `user-data/` directory)
 - `work_modes`: optional work-mode bindings; defaults to `task` when omitted and the archive has no `work_modes` frontmatter
 
 ### File Uploads
@@ -154,7 +154,7 @@ Content-Type: multipart/form-data
 ```
 **Request Body:** `files` — one or more files to upload
 
-**Response** includes `path`, `virtual_path`, `artifact_url`, and optional `markdown_*` fields for converted documents.
+**Response** includes `path` (the real host absolute path), `artifact_url` (the same real host path embedded in the URL), and optional `markdown_*` fields for converted documents. The `virtual_path` / `markdown_virtual_path` fields were removed in the sandbox refactor (phase 3).
 
 **Supported document formats** (auto-converted to Markdown): PDF (`.pdf`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), Word (`.doc`, `.docx`)
 
@@ -187,9 +187,11 @@ Download or view Agent-generated artifacts.
 GET /api/threads/{thread_id}/artifacts/{path}
 ```
 
+`{path}` is a real host absolute path (inside the thread's `user-data/` directory). The endpoint validates that the path resolves inside the current thread's `workspace/uploads/outputs` root, rejecting unauthorized access and path traversal.
+
 **Path examples:**
-- `/api/threads/abc123/artifacts/mnt/user-data/outputs/result.txt`
-- `/api/threads/abc123/artifacts/mnt/user-data/uploads/document.pdf`
+- `/api/threads/abc123/artifacts/home/user/.kkoclaw/threads/abc123/user-data/outputs/result.txt`
+- `/api/threads/abc123/artifacts/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf`
 
 **Query Parameters:**
 - `download` (boolean): If `true`, force download with Content-Disposition header

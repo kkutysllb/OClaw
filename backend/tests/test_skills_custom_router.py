@@ -76,7 +76,7 @@ def test_install_skill_archive_runs_security_scan(monkeypatch, tmp_path):
         skills=SimpleNamespace(get_skills_path=lambda: skills_root, container_path="/mnt/skills", use="kkoclaw.skills.storage.local_skill_storage:LocalSkillStorage"),
         skill_evolution=SimpleNamespace(enabled=True, moderation_model_name=None),
     )
-    monkeypatch.setattr(skills_router, "resolve_thread_virtual_path", lambda thread_id, path: archive)
+    monkeypatch.setattr(skills_router, "resolve_thread_artifact_path", lambda thread_id, path: archive)
     monkeypatch.setattr(skills_router, "get_or_new_skill_storage", lambda **kw: storage)
     monkeypatch.setattr("kkoclaw.skills.installer.scan_skill_content", _scan)
     monkeypatch.setattr(skills_router, "refresh_skills_system_prompt_cache_async", _refresh)
@@ -84,7 +84,7 @@ def test_install_skill_archive_runs_security_scan(monkeypatch, tmp_path):
     app = _make_test_app(config)
 
     with TestClient(app) as client:
-        response = client.post("/api/skills/install", json={"thread_id": "thread-1", "path": "mnt/user-data/outputs/archive-skill.skill"})
+        response = client.post("/api/skills/install", json={"thread_id": "thread-1", "path": str(archive)})
 
     assert response.status_code == 200
     assert response.json()["skill_name"] == "archive-skill"
@@ -122,7 +122,7 @@ def test_install_skill_archive_security_scan_block_returns_400(monkeypatch, tmp_
         skills=SimpleNamespace(get_skills_path=lambda: skills_root, container_path="/mnt/skills", use="kkoclaw.skills.storage.local_skill_storage:LocalSkillStorage"),
         skill_evolution=SimpleNamespace(enabled=True, moderation_model_name=None),
     )
-    monkeypatch.setattr(skills_router, "resolve_thread_virtual_path", lambda thread_id, path: archive)
+    monkeypatch.setattr(skills_router, "resolve_thread_artifact_path", lambda thread_id, path: archive)
     monkeypatch.setattr(skills_router, "get_or_new_skill_storage", lambda **kw: storage)
     monkeypatch.setattr("kkoclaw.skills.installer.scan_skill_content", _scan)
     monkeypatch.setattr(skills_router, "refresh_skills_system_prompt_cache_async", _refresh)
@@ -130,7 +130,7 @@ def test_install_skill_archive_security_scan_block_returns_400(monkeypatch, tmp_
     app = _make_test_app(config)
 
     with TestClient(app) as client:
-        response = client.post("/api/skills/install", json={"thread_id": "thread-1", "path": "mnt/user-data/outputs/blocked-skill.skill"})
+        response = client.post("/api/skills/install", json={"thread_id": "thread-1", "path": str(archive)})
 
     assert response.status_code == 400
     assert "Security scan blocked skill 'blocked-skill': prompt injection" in response.json()["detail"]

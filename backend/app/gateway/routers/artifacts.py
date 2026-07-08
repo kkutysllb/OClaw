@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 
 from app.gateway.authz import require_permission
-from app.gateway.path_utils import resolve_thread_virtual_path
+from app.gateway.path_utils import resolve_thread_artifact_path
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ async def get_artifact(thread_id: str, path: str, request: Request, download: bo
 
     Args:
         thread_id: The thread ID.
-        path: The artifact path with virtual prefix (e.g., mnt/user-data/outputs/file.txt).
+        path: The real host artifact path (e.g., the thread outputs directory + /file.txt).
         request: FastAPI request object (automatically injected).
 
     Returns:
@@ -130,8 +130,8 @@ async def get_artifact(thread_id: str, path: str, request: Request, download: bo
             is always downloaded regardless of this flag.
 
     Example:
-        - Get text file inline: `/api/threads/abc123/artifacts/mnt/user-data/outputs/notes.txt`
-        - Download file: `/api/threads/abc123/artifacts/mnt/user-data/outputs/data.csv?download=true`
+        - Get text file inline: `/api/threads/abc123/artifacts/<real-host-outputs-path>/notes.txt`
+        - Download file: `/api/threads/abc123/artifacts/<real-host-outputs-path>/data.csv?download=true`
         - Active web content such as `.html`, `.xhtml`, and `.svg` artifacts is always downloaded
     """
     # Check if this is a request for a file inside a .skill archive (e.g., xxx.skill/SKILL.md)
@@ -139,10 +139,10 @@ async def get_artifact(thread_id: str, path: str, request: Request, download: bo
         # Split the path at ".skill/" to get the ZIP file path and internal path
         skill_marker = ".skill/"
         marker_pos = path.find(skill_marker)
-        skill_file_path = path[: marker_pos + len(".skill")]  # e.g., "mnt/user-data/outputs/my-skill.skill"
+        skill_file_path = path[: marker_pos + len(".skill")]  # e.g., the thread outputs path + /my-skill.skill
         internal_path = path[marker_pos + len(skill_marker) :]  # e.g., "SKILL.md"
 
-        actual_skill_path = resolve_thread_virtual_path(thread_id, skill_file_path)
+        actual_skill_path = resolve_thread_artifact_path(thread_id, skill_file_path)
 
         if not actual_skill_path.exists():
             raise HTTPException(status_code=404, detail=f"Skill file not found: {skill_file_path}")
@@ -172,7 +172,7 @@ async def get_artifact(thread_id: str, path: str, request: Request, download: bo
         except UnicodeDecodeError:
             return Response(content=content, media_type=mime_type or "application/octet-stream", headers=cache_headers)
 
-    actual_path = resolve_thread_virtual_path(thread_id, path)
+    actual_path = resolve_thread_artifact_path(thread_id, path)
 
     logger.info(f"Resolving artifact path: thread_id={thread_id}, requested_path={path}, actual_path={actual_path}")
 

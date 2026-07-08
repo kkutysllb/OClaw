@@ -410,7 +410,7 @@ def test_skill_rescue_ignores_non_skill_tool_reads() -> None:
         HumanMessage(content="u1"),
         AIMessage(
             content="",
-            tool_calls=[{"name": "read_file", "id": "t1", "args": {"path": "/mnt/user-data/workspace/notes.md"}}],
+            tool_calls=[{"name": "read_file", "id": "t1", "args": {"path": "/data/threads/t1/user-data/workspace/notes.md"}}],
         ),
         ToolMessage(content="user notes", tool_call_id="t1"),
         HumanMessage(content="u2"),
@@ -440,7 +440,7 @@ def test_skill_rescue_does_not_preserve_non_skill_outputs_from_mixed_tool_calls(
             content="",
             tool_calls=[
                 _skill_read_call("skill-1", "alpha"),
-                {"name": "read_file", "id": "file-1", "args": {"path": "/mnt/user-data/workspace/notes.md"}},
+                {"name": "read_file", "id": "file-1", "args": {"path": "/data/threads/t1/user-data/workspace/notes.md"}},
             ],
         ),
         ToolMessage(content="alpha skill body", tool_call_id="skill-1"),
@@ -481,7 +481,7 @@ def test_skill_rescue_clears_content_on_rescued_ai_clone() -> None:
             content="reading skill and notes",
             tool_calls=[
                 _skill_read_call("skill-1", "alpha"),
-                {"name": "read_file", "id": "file-1", "args": {"path": "/mnt/user-data/workspace/notes.md"}},
+                {"name": "read_file", "id": "file-1", "args": {"path": "/data/threads/t1/user-data/workspace/notes.md"}},
             ],
         ),
         ToolMessage(content="alpha skill body", tool_call_id="skill-1"),

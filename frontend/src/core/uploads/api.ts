@@ -9,13 +9,11 @@ export interface UploadedFileInfo {
   filename: string;
   size: number;
   path: string;
-  virtual_path: string;
   artifact_url: string;
   extension?: string;
   modified?: number;
   markdown_file?: string;
   markdown_path?: string;
-  markdown_virtual_path?: string;
   markdown_artifact_url?: string;
 }
 

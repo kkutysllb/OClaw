@@ -94,11 +94,11 @@ def test_feishu_receive_file_replaces_placeholders_in_order():
             files=[{"image_key": "img_key"}, {"file_key": "file_key"}],
         )
 
-        channel._receive_single_file = AsyncMock(side_effect=["/mnt/user-data/uploads/a.png", "/mnt/user-data/uploads/b.pdf"])
+        channel._receive_single_file = AsyncMock(side_effect=["/tmp/kkoclaw/threads/thread_1/user-data/uploads/a.png", "/tmp/kkoclaw/threads/thread_1/user-data/uploads/b.pdf"])
 
         result = await channel.receive_file(msg, "thread_1")
 
-        assert result.text == "before /mnt/user-data/uploads/a.png middle /mnt/user-data/uploads/b.pdf after"
+        assert result.text == "before /tmp/kkoclaw/threads/thread_1/user-data/uploads/a.png middle /tmp/kkoclaw/threads/thread_1/user-data/uploads/b.pdf after"
 
     _run(go())
 
@@ -165,7 +165,7 @@ def test_feishu_recognizes_all_known_slash_commands(command):
     "text",
     [
         "/unknown",
-        "/mnt/user-data/outputs/prd/technical-design.md",
+        "/tmp/kkoclaw/threads/t1/user-data/outputs/prd/technical-design.md",
         "/etc/passwd",
         "/not-a-command at all",
     ],

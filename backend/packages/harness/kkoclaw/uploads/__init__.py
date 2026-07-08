@@ -8,7 +8,7 @@ from .manager import (
     list_files_in_dir,
     normalize_filename,
     upload_artifact_url,
-    upload_virtual_path,
+    upload_file_path,
     validate_path_traversal,
     validate_thread_id,
 )
@@ -23,7 +23,7 @@ __all__ = [
     "list_files_in_dir",
     "delete_file_safe",
     "upload_artifact_url",
-    "upload_virtual_path",
+    "upload_file_path",
     "enrich_file_listing",
     "validate_thread_id",
 ]

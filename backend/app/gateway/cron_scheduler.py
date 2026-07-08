@@ -277,8 +277,8 @@ class CronScheduler:
         checkpointer is happy (threads are user-isolated).  The original
         *workspace_thread_id* and *workspace_user_id* are passed via
         ``config.configurable`` so that ``ThreadDataMiddleware`` computes
-        the correct workspace paths (allowing ``/mnt/user-data`` to resolve
-        to the workspace that contains the user's scripts).
+        the correct workspace paths (pointing to the workspace that contains
+        the user's scripts).
         """
         client = self._get_client()
         cron_thread_id = str(uuid.uuid4())

@@ -76,11 +76,11 @@ class TestFilesFromKwargs:
 
     def test_skips_entries_with_empty_filename(self, tmp_path):
         mw = _middleware(tmp_path)
-        msg = _human("hi", files=[{"filename": "", "size": 100, "path": "/mnt/user-data/uploads/x"}])
+        msg = _human("hi", files=[{"filename": "", "size": 100, "path": "/home/user/uploads/x"}])
         assert mw._files_from_kwargs(msg) is None
 
-    def test_always_uses_virtual_path(self, tmp_path):
-        """path field must be /mnt/user-data/uploads/<filename> regardless of what the frontend sent."""
+    def test_path_is_derived_from_filename(self, tmp_path):
+        """The path field is derived from the filename (the frontend-supplied path is ignored)."""
         mw = _middleware(tmp_path)
         msg = _human(
             "hi",
@@ -88,25 +88,26 @@ class TestFilesFromKwargs:
         )
         result = mw._files_from_kwargs(msg)
         assert result is not None
-        assert result[0]["path"] == "/mnt/user-data/uploads/report.pdf"
+        # Without an uploads_dir the path falls back to the bare filename.
+        assert result[0]["path"] == "report.pdf"
 
     def test_skips_file_that_does_not_exist_on_disk(self, tmp_path):
         mw = _middleware(tmp_path)
         uploads_dir = _uploads_dir(tmp_path)
         # file is NOT written to disk
-        msg = _human("hi", files=[{"filename": "missing.txt", "size": 50, "path": "/mnt/user-data/uploads/missing.txt"}])
+        msg = _human("hi", files=[{"filename": "missing.txt", "size": 50, "path": "/home/user/uploads/missing.txt"}])
         assert mw._files_from_kwargs(msg, uploads_dir) is None
 
     def test_accepts_file_that_exists_on_disk(self, tmp_path):
         mw = _middleware(tmp_path)
         uploads_dir = _uploads_dir(tmp_path)
         (uploads_dir / "data.csv").write_text("a,b,c")
-        msg = _human("hi", files=[{"filename": "data.csv", "size": 5, "path": "/mnt/user-data/uploads/data.csv"}])
+        msg = _human("hi", files=[{"filename": "data.csv", "size": 5, "path": "/home/user/uploads/data.csv"}])
         result = mw._files_from_kwargs(msg, uploads_dir)
         assert result is not None
         assert len(result) == 1
         assert result[0]["filename"] == "data.csv"
-        assert result[0]["path"] == "/mnt/user-data/uploads/data.csv"
+        assert result[0]["path"] == str(uploads_dir / "data.csv")
 
     def test_skips_nonexistent_but_accepts_existing_in_mixed_list(self, tmp_path):
         mw = _middleware(tmp_path)
@@ -115,8 +116,8 @@ class TestFilesFromKwargs:
         msg = _human(
             "hi",
             files=[
-                {"filename": "present.txt", "size": 4, "path": "/mnt/user-data/uploads/present.txt"},
-                {"filename": "gone.txt", "size": 4, "path": "/mnt/user-data/uploads/gone.txt"},
+                {"filename": "present.txt", "size": 4, "path": "/home/user/uploads/present.txt"},
+                {"filename": "gone.txt", "size": 4, "path": "/home/user/uploads/gone.txt"},
             ],
         )
         result = mw._files_from_kwargs(msg, uploads_dir)
@@ -126,21 +127,21 @@ class TestFilesFromKwargs:
     def test_no_existence_check_when_uploads_dir_is_none(self, tmp_path):
         """Without an uploads_dir argument the existence check is skipped entirely."""
         mw = _middleware(tmp_path)
-        msg = _human("hi", files=[{"filename": "phantom.txt", "size": 10, "path": "/mnt/user-data/uploads/phantom.txt"}])
+        msg = _human("hi", files=[{"filename": "phantom.txt", "size": 10, "path": "/home/user/uploads/phantom.txt"}])
         result = mw._files_from_kwargs(msg, uploads_dir=None)
         assert result is not None
         assert result[0]["filename"] == "phantom.txt"
 
     def test_size_is_coerced_to_int(self, tmp_path):
         mw = _middleware(tmp_path)
-        msg = _human("hi", files=[{"filename": "f.txt", "size": "2048", "path": "/mnt/user-data/uploads/f.txt"}])
+        msg = _human("hi", files=[{"filename": "f.txt", "size": "2048", "path": "/home/user/uploads/f.txt"}])
         result = mw._files_from_kwargs(msg)
         assert result is not None
         assert result[0]["size"] == 2048
 
     def test_missing_size_defaults_to_zero(self, tmp_path):
         mw = _middleware(tmp_path)
-        msg = _human("hi", files=[{"filename": "f.txt", "path": "/mnt/user-data/uploads/f.txt"}])
+        msg = _human("hi", files=[{"filename": "f.txt", "path": "/home/user/uploads/f.txt"}])
         result = mw._files_from_kwargs(msg)
         assert result is not None
         assert result[0]["size"] == 0
@@ -152,8 +153,8 @@ class TestFilesFromKwargs:
 
 
 class TestCreateFilesMessage:
-    def _new_file(self, filename="notes.txt", size=1024):
-        return {"filename": filename, "size": size, "path": f"/mnt/user-data/uploads/{filename}"}
+    def _new_file(self, filename="notes.txt", size=1024, uploads_path="/home/user/uploads"):
+        return {"filename": filename, "size": size, "path": f"{uploads_path}/{filename}"}
 
     def test_new_files_section_always_present(self, tmp_path):
         mw = _middleware(tmp_path)
@@ -162,7 +163,7 @@ class TestCreateFilesMessage:
         assert "</uploaded_files>" in msg
         assert "uploaded in this message" in msg
         assert "notes.txt" in msg
-        assert "/mnt/user-data/uploads/notes.txt" in msg
+        assert "/home/user/uploads/notes.txt" in msg
 
     def test_historical_section_present_only_when_non_empty(self, tmp_path):
         mw = _middleware(tmp_path)
@@ -224,7 +225,7 @@ class TestBeforeAgent:
     def test_returns_none_when_all_files_missing_from_disk(self, tmp_path):
         mw = _middleware(tmp_path)
         _uploads_dir(tmp_path)  # directory exists but is empty
-        msg = _human("hi", files=[{"filename": "ghost.txt", "size": 10, "path": "/mnt/user-data/uploads/ghost.txt"}])
+        msg = _human("hi", files=[{"filename": "ghost.txt", "size": 10, "path": "/home/user/uploads/ghost.txt"}])
         state = self._state(msg)
         assert mw.before_agent(state, _runtime()) is None
 
@@ -233,7 +234,7 @@ class TestBeforeAgent:
         uploads_dir = _uploads_dir(tmp_path)
         (uploads_dir / "report.pdf").write_bytes(b"pdf")
 
-        msg = _human("please analyse", files=[{"filename": "report.pdf", "size": 3, "path": "/mnt/user-data/uploads/report.pdf"}])
+        msg = _human("please analyse", files=[{"filename": "report.pdf", "size": 3, "path": "/home/user/uploads/report.pdf"}])
         state = self._state(msg)
         result = mw.before_agent(state, _runtime())
 
@@ -251,7 +252,7 @@ class TestBeforeAgent:
 
         msg = _human(
             [{"type": "text", "text": "analyse this"}],
-            files=[{"filename": "data.csv", "size": 3, "path": "/mnt/user-data/uploads/data.csv"}],
+            files=[{"filename": "data.csv", "size": 3, "path": "/home/user/uploads/data.csv"}],
         )
         state = self._state(msg)
         result = mw.before_agent(state, _runtime())
@@ -268,7 +269,7 @@ class TestBeforeAgent:
         uploads_dir = _uploads_dir(tmp_path)
         (uploads_dir / "img.png").write_bytes(b"png")
 
-        files_meta = [{"filename": "img.png", "size": 3, "path": "/mnt/user-data/uploads/img.png", "status": "uploaded"}]
+        files_meta = [{"filename": "img.png", "size": 3, "path": "/home/user/uploads/img.png", "status": "uploaded"}]
         msg = _human("check image", files=files_meta, element="task")
         state = self._state(msg)
         result = mw.before_agent(state, _runtime())
@@ -283,7 +284,7 @@ class TestBeforeAgent:
         uploads_dir = _uploads_dir(tmp_path)
         (uploads_dir / "notes.txt").write_bytes(b"hello")
 
-        msg = _human("review", files=[{"filename": "notes.txt", "size": 5, "path": "/mnt/user-data/uploads/notes.txt"}])
+        msg = _human("review", files=[{"filename": "notes.txt", "size": 5, "path": "/home/user/uploads/notes.txt"}])
         result = mw.before_agent(self._state(msg), _runtime())
 
         assert result is not None
@@ -291,7 +292,7 @@ class TestBeforeAgent:
             {
                 "filename": "notes.txt",
                 "size": 5,
-                "path": "/mnt/user-data/uploads/notes.txt",
+                "path": str(uploads_dir / "notes.txt"),
                 "extension": ".txt",
                 "outline": [],
                 "outline_preview": [],
@@ -304,7 +305,7 @@ class TestBeforeAgent:
         (uploads_dir / "old.txt").write_bytes(b"old")
         (uploads_dir / "new.txt").write_bytes(b"new")
 
-        msg = _human("go", files=[{"filename": "new.txt", "size": 3, "path": "/mnt/user-data/uploads/new.txt"}])
+        msg = _human("go", files=[{"filename": "new.txt", "size": 3, "path": "/home/user/uploads/new.txt"}])
         result = mw.before_agent(self._state(msg), _runtime())
 
         assert result is not None
@@ -319,7 +320,7 @@ class TestBeforeAgent:
         uploads_dir = _uploads_dir(tmp_path)
         (uploads_dir / "only.txt").write_bytes(b"x")
 
-        msg = _human("go", files=[{"filename": "only.txt", "size": 1, "path": "/mnt/user-data/uploads/only.txt"}])
+        msg = _human("go", files=[{"filename": "only.txt", "size": 1, "path": "/home/user/uploads/only.txt"}])
         result = mw.before_agent(self._state(msg), _runtime())
 
         content = result["messages"][-1].content
@@ -327,7 +328,7 @@ class TestBeforeAgent:
 
     def test_no_historical_scan_when_thread_id_is_none(self, tmp_path):
         mw = _middleware(tmp_path)
-        msg = _human("go", files=[{"filename": "f.txt", "size": 1, "path": "/mnt/user-data/uploads/f.txt"}])
+        msg = _human("go", files=[{"filename": "f.txt", "size": 1, "path": "/home/user/uploads/f.txt"}])
         # thread_id=None → _files_from_kwargs skips existence check, no dir scan
         result = mw.before_agent(self._state(msg), _runtime(thread_id=None))
         # With no existence check, the file passes through and injection happens
@@ -340,7 +341,7 @@ class TestBeforeAgent:
         uploads_dir = _uploads_dir(tmp_path)
         (uploads_dir / "f.txt").write_bytes(b"x")
 
-        msg = _human("go", files=[{"filename": "f.txt", "size": 1, "path": "/mnt/user-data/uploads/f.txt"}])
+        msg = _human("go", files=[{"filename": "f.txt", "size": 1, "path": "/home/user/uploads/f.txt"}])
         msg.id = "original-id-42"
         result = mw.before_agent(self._state(msg), _runtime())
 
@@ -357,7 +358,7 @@ class TestBeforeAgent:
             encoding="utf-8",
         )
 
-        msg = _human("summarise", files=[{"filename": "report.pdf", "size": 9, "path": "/mnt/user-data/uploads/report.pdf"}])
+        msg = _human("summarise", files=[{"filename": "report.pdf", "size": 9, "path": "/home/user/uploads/report.pdf"}])
         result = mw.before_agent(self._state(msg), _runtime())
 
         assert result is not None
@@ -374,7 +375,7 @@ class TestBeforeAgent:
         uploads_dir = _uploads_dir(tmp_path)
         (uploads_dir / "data.xlsx").write_bytes(b"fake-xlsx")
 
-        msg = _human("analyse", files=[{"filename": "data.xlsx", "size": 9, "path": "/mnt/user-data/uploads/data.xlsx"}])
+        msg = _human("analyse", files=[{"filename": "data.xlsx", "size": 9, "path": "/home/user/uploads/data.xlsx"}])
         result = mw.before_agent(self._state(msg), _runtime())
 
         assert result is not None
@@ -392,7 +393,7 @@ class TestBeforeAgent:
         headings = "\n".join(f"# Heading {i}" for i in range(MAX_OUTLINE_ENTRIES + 5))
         (uploads_dir / "big.md").write_text(headings, encoding="utf-8")
 
-        msg = _human("read", files=[{"filename": "big.pdf", "size": 9, "path": "/mnt/user-data/uploads/big.pdf"}])
+        msg = _human("read", files=[{"filename": "big.pdf", "size": 9, "path": "/home/user/uploads/big.pdf"}])
         result = mw.before_agent(self._state(msg), _runtime())
 
         assert result is not None
@@ -407,7 +408,7 @@ class TestBeforeAgent:
         (uploads_dir / "short.pdf").write_bytes(b"%PDF fake")
         (uploads_dir / "short.md").write_text("# Intro\n\n# Conclusion\n", encoding="utf-8")
 
-        msg = _human("read", files=[{"filename": "short.pdf", "size": 9, "path": "/mnt/user-data/uploads/short.pdf"}])
+        msg = _human("read", files=[{"filename": "short.pdf", "size": 9, "path": "/home/user/uploads/short.pdf"}])
         result = mw.before_agent(self._state(msg), _runtime())
 
         assert result is not None
@@ -427,7 +428,7 @@ class TestBeforeAgent:
         # New file without .md
         (uploads_dir / "new.txt").write_bytes(b"new")
 
-        msg = _human("go", files=[{"filename": "new.txt", "size": 3, "path": "/mnt/user-data/uploads/new.txt"}])
+        msg = _human("go", files=[{"filename": "new.txt", "size": 3, "path": "/home/user/uploads/new.txt"}])
         result = mw.before_agent(self._state(msg), _runtime())
 
         assert result is not None
@@ -446,7 +447,7 @@ class TestBeforeAgent:
             encoding="utf-8",
         )
 
-        msg = _human("analyse", files=[{"filename": "report.pdf", "size": 9, "path": "/mnt/user-data/uploads/report.pdf"}])
+        msg = _human("analyse", files=[{"filename": "report.pdf", "size": 9, "path": "/home/user/uploads/report.pdf"}])
         result = mw.before_agent(self._state(msg), _runtime())
 
         assert result is not None
@@ -465,7 +466,7 @@ class TestBeforeAgent:
         uploads_dir = _uploads_dir(tmp_path)
         (uploads_dir / "data.csv").write_bytes(b"a,b,c\n1,2,3\n")
 
-        msg = _human("analyse", files=[{"filename": "data.csv", "size": 12, "path": "/mnt/user-data/uploads/data.csv"}])
+        msg = _human("analyse", files=[{"filename": "data.csv", "size": 12, "path": "/home/user/uploads/data.csv"}])
         result = mw.before_agent(self._state(msg), _runtime())
 
         assert result is not None

@@ -155,15 +155,17 @@ class TestEnsureAndDeleteWithUserId:
         assert paths.thread_dir("t1").exists()
 
 
-class TestResolveVirtualPathWithUserId:
-    def test_resolve_virtual_path_with_user_id(self, paths: Paths):
+class TestResolveThreadArtifactPathWithUserId:
+    def test_resolve_thread_artifact_path_with_user_id(self, paths: Paths):
         paths.ensure_thread_dirs("t1", user_id="u1")
-        result = paths.resolve_virtual_path("t1", "/mnt/user-data/workspace/file.txt", user_id="u1")
+        host_path = paths.sandbox_work_dir("t1", user_id="u1") / "file.txt"
+        result = paths.resolve_thread_artifact_path("t1", str(host_path), user_id="u1")
         expected_base = paths.sandbox_user_data_dir("t1", user_id="u1").resolve()
         assert str(result).startswith(str(expected_base))
 
-    def test_resolve_virtual_path_legacy(self, paths: Paths):
+    def test_resolve_thread_artifact_path_legacy(self, paths: Paths):
         paths.ensure_thread_dirs("t1")
-        result = paths.resolve_virtual_path("t1", "/mnt/user-data/workspace/file.txt")
+        host_path = paths.sandbox_work_dir("t1") / "file.txt"
+        result = paths.resolve_thread_artifact_path("t1", str(host_path))
         expected_base = paths.sandbox_user_data_dir("t1").resolve()
         assert str(result).startswith(str(expected_base))

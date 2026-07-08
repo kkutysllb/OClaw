@@ -566,12 +566,15 @@ export interface FileInMessage {
 }
 
 /**
- * Strip <uploaded_files> tag from message content.
- * Returns the content with the tag removed.
+ * Strip injected middleware blocks from message content.
+ * Removes <uploaded_files> and <working_directory> tags so they don't
+ * appear in the chat UI (they are agent-internal context injections).
+ * Returns the cleaned content.
  */
 export function stripUploadedFilesTag(content: string): string {
   return content
     .replace(/<uploaded_files>[\s\S]*?<\/uploaded_files>/g, "")
+    .replace(/<working_directory>[\s\S]*?<\/working_directory>/g, "")
     .trim();
 }
 

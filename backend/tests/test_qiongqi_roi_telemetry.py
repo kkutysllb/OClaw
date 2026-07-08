@@ -152,7 +152,7 @@ def test_qiongqi_roi_middleware_persists_latest_model_usage(tmp_path, monkeypatc
         "messages": [
             ToolMessage(
                 content=(
-                    "head\n\n[Full bash output saved to /mnt/user-data/outputs/tool-output/bash.txt "
+                    "head\n\n[Full bash output saved to /data/threads/thread-roi/user-data/outputs/tool-output/bash.txt "
                     "(4000 chars, ~1000 tokens). Use read_file with start_line and end_line "
                     "to access specific sections. 3000 chars omitted from this preview.]\n\ntail"
                 ),

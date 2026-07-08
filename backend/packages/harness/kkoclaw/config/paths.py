@@ -8,9 +8,8 @@ from kkoclaw.config.runtime_paths import project_root, runtime_home
 
 logger = logging.getLogger(__name__)
 
-# Virtual path prefix seen by agents inside the sandbox
-VIRTUAL_PATH_PREFIX = "/mnt/user-data"
-
+# Phase 3 removed the /mnt/user-data virtual path layer. Agents and tools now
+# operate on real host paths directly; see docs/superpowers/plans/2026-07-08-sandbox-phase3-remove-virtual-paths.md.
 _SAFE_THREAD_ID_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
 _SAFE_USER_ID_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
 
@@ -148,10 +147,10 @@ class Paths:
         │       └── memory.json
         └── threads/
             └── {thread_id}/
-                └── user-data/         <-- mounted as /mnt/user-data/ inside sandbox
-                    ├── workspace/     <-- /mnt/user-data/workspace/
-                    ├── uploads/       <-- /mnt/user-data/uploads/
-                    └── outputs/       <-- /mnt/user-data/outputs/
+                └── user-data/         <-- real host path; agents access it directly
+                    ├── workspace/     <-- working directory for temporary files
+                    ├── uploads/       <-- user-uploaded files
+                    └── outputs/       <-- agent-generated artifacts
 
     BaseDir resolution (in priority order):
         1. Constructor argument `base_dir`
@@ -262,8 +261,9 @@ class Paths:
         Otherwise (legacy layout):
             `{base_dir}/threads/{thread_id}/`
 
-        This directory contains a `user-data/` subdirectory that is mounted
-        as `/mnt/user-data/` inside the sandbox.
+        This directory contains a `user-data/` subdirectory holding the
+        workspace/uploads/outputs directories that agents access via real
+        host paths.
 
         Raises:
             ValueError: If `thread_id` or `user_id` contains unsafe characters (path
@@ -275,33 +275,29 @@ class Paths:
 
     def sandbox_work_dir(self, thread_id: str, *, user_id: str | None = None) -> Path:
         """
-        Host path for the agent's workspace directory.
-        Host: `{base_dir}/threads/{thread_id}/user-data/workspace/`
-        Sandbox: `/mnt/user-data/workspace/`
+        Host path for the agent's workspace directory:
+        `{base_dir}/threads/{thread_id}/user-data/workspace/`
         """
         return self.thread_dir(thread_id, user_id=user_id) / "user-data" / "workspace"
 
     def sandbox_uploads_dir(self, thread_id: str, *, user_id: str | None = None) -> Path:
         """
-        Host path for user-uploaded files.
-        Host: `{base_dir}/threads/{thread_id}/user-data/uploads/`
-        Sandbox: `/mnt/user-data/uploads/`
+        Host path for user-uploaded files:
+        `{base_dir}/threads/{thread_id}/user-data/uploads/`
         """
         return self.thread_dir(thread_id, user_id=user_id) / "user-data" / "uploads"
 
     def sandbox_outputs_dir(self, thread_id: str, *, user_id: str | None = None) -> Path:
         """
-        Host path for agent-generated artifacts.
-        Host: `{base_dir}/threads/{thread_id}/user-data/outputs/`
-        Sandbox: `/mnt/user-data/outputs/`
+        Host path for agent-generated artifacts:
+        `{base_dir}/threads/{thread_id}/user-data/outputs/`
         """
         return self.thread_dir(thread_id, user_id=user_id) / "user-data" / "outputs"
 
     def acp_workspace_dir(self, thread_id: str, *, user_id: str | None = None) -> Path:
         """
-        Host path for the ACP workspace of a specific thread.
-        Host: `{base_dir}/threads/{thread_id}/acp-workspace/`
-        Sandbox: `/mnt/acp-workspace/`
+        Host path for the ACP workspace of a specific thread:
+        `{base_dir}/threads/{thread_id}/acp-workspace/`
 
         Each thread gets its own isolated ACP workspace so that concurrent
         sessions cannot read each other's ACP agent outputs.
@@ -310,9 +306,8 @@ class Paths:
 
     def sandbox_user_data_dir(self, thread_id: str, *, user_id: str | None = None) -> Path:
         """
-        Host path for the user-data root.
-        Host: `{base_dir}/threads/{thread_id}/user-data/`
-        Sandbox: `/mnt/user-data/`
+        Host path for the user-data root:
+        `{base_dir}/threads/{thread_id}/user-data/`
         """
         return self.thread_dir(thread_id, user_id=user_id) / "user-data"
 
@@ -373,41 +368,45 @@ class Paths:
         if thread_dir.exists():
             shutil.rmtree(thread_dir)
 
-    def resolve_virtual_path(self, thread_id: str, virtual_path: str, *, user_id: str | None = None) -> Path:
-        """Resolve a sandbox virtual path to the actual host filesystem path.
+    def resolve_thread_artifact_path(self, thread_id: str, path: str, *, user_id: str | None = None) -> Path:
+        """Resolve an artifact path to the actual host filesystem path.
+
+        Phase 3: paths are real host absolute paths. This method validates that
+        *path* resolves to a location inside the thread's user-data root
+        (workspace/uploads/outputs) and returns the resolved host path.
 
         Args:
             thread_id: The thread ID.
-            virtual_path: Virtual path as seen inside the sandbox, e.g.
-                          ``/mnt/user-data/outputs/report.pdf``.
-                          Leading slashes are stripped before matching.
+            path: Real host path (e.g. ``{base}/threads/{tid}/user-data/outputs/x.pdf``).
             user_id: Optional user ID for user-scoped path resolution.
 
         Returns:
             The resolved absolute host filesystem path.
 
         Raises:
-            ValueError: If the path does not start with the expected virtual
-                        prefix or a path-traversal attempt is detected.
+            ValueError: If the path is not absolute, is outside the thread's
+                        user-data root, or a path-traversal attempt is detected.
         """
-        stripped = virtual_path.lstrip("/")
-        prefix = VIRTUAL_PATH_PREFIX.lstrip("/")
+        candidate = Path(path)
+        if not candidate.is_absolute():
+            raise ValueError(f"Artifact path must be absolute: {path}")
 
-        # Require an exact segment-boundary match to avoid prefix confusion
-        # (e.g. reject paths like "mnt/user-dataX/...").
-        if stripped != prefix and not stripped.startswith(prefix + "/"):
-            raise ValueError(f"Path must start with /{prefix}")
+        _reject_traversal_segments(path)
+        resolved = candidate.resolve()
 
-        relative = stripped[len(prefix) :].lstrip("/")
         base = self.sandbox_user_data_dir(thread_id, user_id=user_id).resolve()
-        actual = (base / relative).resolve()
-
         try:
-            actual.relative_to(base)
+            resolved.relative_to(base)
         except ValueError:
-            raise ValueError("Access denied: path traversal detected")
+            raise ValueError("Access denied: path is outside the thread workspace")
+        return resolved
 
-        return actual
+
+def _reject_traversal_segments(path: str) -> None:
+    """Reject paths containing ``..`` segments to prevent directory traversal."""
+    for segment in path.replace("\\", "/").split("/"):
+        if segment == "..":
+            raise ValueError("Access denied: path traversal detected")
 
 
 # ── Singleton ────────────────────────────────────────────────────────────

@@ -73,6 +73,11 @@ def _stub_runtime_middleware_imports(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setitem(
         sys.modules,
+        "kkoclaw.agents.middlewares.workspace_path_middleware",
+        _module("kkoclaw.agents.middlewares.workspace_path_middleware", WorkspacePathMiddleware=FakeMiddleware),
+    )
+    monkeypatch.setitem(
+        sys.modules,
         "kkoclaw.sandbox.middleware",
         _module("kkoclaw.sandbox.middleware", SandboxMiddleware=FakeMiddleware),
     )
@@ -117,6 +122,11 @@ def test_build_subagent_runtime_middlewares_threads_app_config_to_llm_middleware
     )
     monkeypatch.setitem(
         sys.modules,
+        "kkoclaw.agents.middlewares.workspace_path_middleware",
+        _module("kkoclaw.agents.middlewares.workspace_path_middleware", WorkspacePathMiddleware=FakeMiddleware),
+    )
+    monkeypatch.setitem(
+        sys.modules,
         "kkoclaw.sandbox.middleware",
         _module("kkoclaw.sandbox.middleware", SandboxMiddleware=FakeMiddleware),
     )
@@ -134,7 +144,7 @@ def test_build_subagent_runtime_middlewares_threads_app_config_to_llm_middleware
     middlewares = build_subagent_runtime_middlewares(app_config=app_config, lazy_init=False)
 
     assert captured["app_config"] is app_config
-    assert len(middlewares) == 6
+    assert len(middlewares) == 7
     assert isinstance(middlewares[-1], ToolErrorHandlingMiddleware)
 
 

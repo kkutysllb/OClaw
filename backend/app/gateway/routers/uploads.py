@@ -25,7 +25,6 @@ from kkoclaw.uploads.manager import (
     normalize_filename,
     open_upload_file_no_symlink,
     upload_artifact_url,
-    upload_virtual_path,
 )
 from kkoclaw.utils.file_conversion import CONVERTIBLE_EXTENSIONS, convert_file_to_markdown
 
@@ -250,17 +249,16 @@ async def upload_files(
             )
             written_paths.append(file_path)
 
-            virtual_path = upload_virtual_path(safe_filename)
+            real_upload_path = str(sandbox_uploads / safe_filename)
 
             if sync_to_sandbox:
-                sandbox_sync_targets.append((file_path, virtual_path))
+                sandbox_sync_targets.append((file_path, real_upload_path))
 
             file_info = {
                 "filename": safe_filename,
                 "size": str(file_size),
-                "path": str(sandbox_uploads / safe_filename),
-                "virtual_path": virtual_path,
-                "artifact_url": upload_artifact_url(thread_id, safe_filename),
+                "path": real_upload_path,
+                "artifact_url": upload_artifact_url(thread_id, safe_filename, str(sandbox_uploads)),
             }
 
             logger.info(f"Saved file: {safe_filename} ({file_size} bytes) to {file_info['path']}")
@@ -270,15 +268,14 @@ async def upload_files(
                 md_path = await convert_file_to_markdown(file_path)
                 if md_path:
                     written_paths.append(md_path)
-                    md_virtual_path = upload_virtual_path(md_path.name)
+                    md_real_path = str(sandbox_uploads / md_path.name)
 
                     if sync_to_sandbox:
-                        sandbox_sync_targets.append((md_path, md_virtual_path))
+                        sandbox_sync_targets.append((md_path, md_real_path))
 
                     file_info["markdown_file"] = md_path.name
-                    file_info["markdown_path"] = str(sandbox_uploads / md_path.name)
-                    file_info["markdown_virtual_path"] = md_virtual_path
-                    file_info["markdown_artifact_url"] = upload_artifact_url(thread_id, md_path.name)
+                    file_info["markdown_path"] = md_real_path
+                    file_info["markdown_artifact_url"] = upload_artifact_url(thread_id, md_path.name, str(sandbox_uploads))
 
             uploaded_files.append(file_info)
 
@@ -308,9 +305,9 @@ async def upload_files(
         _make_file_sandbox_readable(file_path)
 
     if sync_to_sandbox:
-        for file_path, virtual_path in sandbox_sync_targets:
+        for file_path, real_path in sandbox_sync_targets:
             _make_file_sandbox_writable(file_path)
-            sandbox.update_file(virtual_path, file_path.read_bytes())
+            sandbox.update_file(real_path, file_path.read_bytes())
 
     message = f"Successfully uploaded {len(uploaded_files)} file(s)"
     if skipped_files:
@@ -344,12 +341,8 @@ async def list_uploaded_files(thread_id: str, request: Request) -> dict:
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     result = list_files_in_dir(uploads_dir)
-    enrich_file_listing(result, thread_id)
-
-    # Gateway additionally includes the sandbox-relative path.
     sandbox_uploads = get_paths().sandbox_uploads_dir(thread_id, user_id=get_effective_user_id())
-    for f in result["files"]:
-        f["path"] = str(sandbox_uploads / f["filename"])
+    enrich_file_listing(result, thread_id, str(sandbox_uploads))
 
     return result
 

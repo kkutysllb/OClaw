@@ -16,7 +16,7 @@ from kkoclaw.agents.memory.updater import _strip_upload_mentions_from_memory
 # Helpers
 # ---------------------------------------------------------------------------
 
-_UPLOAD_BLOCK = "<uploaded_files>\nThe following files have been uploaded and are available for use:\n\n- filename: secret.txt\n  path: /mnt/user-data/uploads/abc123/secret.txt\n  size: 42 bytes\n</uploaded_files>"
+_UPLOAD_BLOCK = "<uploaded_files>\nThe following files have been uploaded and are available for use:\n\n- filename: secret.txt\n  path: /data/threads/abc123/user-data/uploads/secret.txt\n  size: 42 bytes\n</uploaded_files>"
 
 
 def _human(text: str) -> HumanMessage:
@@ -130,7 +130,7 @@ class TestFilterMessagesForMemory:
         msgs = [_human(combined), _ai("It says hello.")]
         result = filter_messages_for_memory(msgs)
         all_content = " ".join(m.content for m in result if isinstance(m.content, str))
-        assert "/mnt/user-data/uploads/" not in all_content
+        assert "/data/threads/abc123/user-data/uploads/" not in all_content
         assert "<uploaded_files>" not in all_content
 
 
@@ -216,10 +216,12 @@ class TestStripUploadMentionsFromMemory:
         assert "User prefers concise answers" in summary
 
     def test_upload_path_sentence_removed_from_summary(self):
-        mem = self._make_memory("User uses Python. User uploaded file to /mnt/user-data/uploads/tid/data.csv. User likes clean code.")
+        # Phase 3: the regex matches the upload *event* wording ("uploaded file"),
+        # not the raw path literal. Test an "uploaded file to <path>" sentence.
+        mem = self._make_memory("User uses Python. User uploaded file to /data/threads/tid/user-data/uploads/data.csv. User likes clean code.")
         result = _strip_upload_mentions_from_memory(mem)
         summary = result["user"]["topOfMind"]["summary"]
-        assert "/mnt/user-data/uploads/" not in summary
+        assert "uploaded file to" not in summary
         assert "User uses Python" in summary
 
     def test_legitimate_csv_mention_is_preserved(self):

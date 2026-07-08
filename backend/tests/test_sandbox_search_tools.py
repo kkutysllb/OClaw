@@ -26,7 +26,7 @@ def _make_runtime(tmp_path):
     )
 
 
-def test_glob_tool_returns_virtual_paths_and_ignores_common_dirs(tmp_path, monkeypatch) -> None:
+def test_glob_tool_returns_host_paths_and_ignores_common_dirs(tmp_path, monkeypatch) -> None:
     runtime = _make_runtime(tmp_path)
     workspace = tmp_path / "workspace"
     (workspace / "app.py").write_text("print('hi')\n", encoding="utf-8")
@@ -41,13 +41,12 @@ def test_glob_tool_returns_virtual_paths_and_ignores_common_dirs(tmp_path, monke
         runtime=runtime,
         description="find python files",
         pattern="**/*.py",
-        path="/mnt/user-data/workspace",
+        path=str(workspace),
     )
 
-    assert "/mnt/user-data/workspace/app.py" in result
-    assert "/mnt/user-data/workspace/pkg/util.py" in result
+    assert str(workspace / "app.py") in result
+    assert str(workspace / "pkg" / "util.py") in result
     assert "node_modules" not in result
-    assert str(workspace) not in result
 
 
 def test_glob_tool_supports_skills_virtual_paths(tmp_path, monkeypatch) -> None:
@@ -86,14 +85,13 @@ def test_grep_tool_filters_by_glob_and_skips_binary_files(tmp_path, monkeypatch)
         runtime=runtime,
         description="find todo references",
         pattern="TODO",
-        path="/mnt/user-data/workspace",
+        path=str(workspace),
         glob="**/*.py",
     )
 
-    assert "/mnt/user-data/workspace/main.py:1: TODO = 'ship it'" in result
+    assert f"{workspace / 'main.py'}:1: TODO = 'ship it'" in result
     assert "notes.txt" not in result
     assert "image.bin" not in result
-    assert str(workspace) not in result
 
 
 def test_grep_tool_truncates_results(tmp_path, monkeypatch) -> None:
@@ -109,11 +107,11 @@ def test_grep_tool_truncates_results(tmp_path, monkeypatch) -> None:
         runtime=runtime,
         description="limit matches",
         pattern="TODO",
-        path="/mnt/user-data/workspace",
+        path=str(workspace),
         max_results=2,
     )
 
-    assert "Found 2 matches under /mnt/user-data/workspace (showing first 2)" in result
+    assert f"Found 2 matches under {workspace} (showing first 2)" in result
     assert "TODO one" in result
     assert "TODO two" in result
     assert "TODO three" not in result
@@ -134,7 +132,7 @@ def test_glob_tool_include_dirs_filters_nested_ignored_paths(tmp_path, monkeypat
         runtime=runtime,
         description="find dirs",
         pattern="**",
-        path="/mnt/user-data/workspace",
+        path=str(workspace),
         include_dirs=True,
     )
 
@@ -154,7 +152,7 @@ def test_grep_tool_literal_mode(tmp_path, monkeypatch) -> None:
         runtime=runtime,
         description="literal search",
         pattern="(a+b)",
-        path="/mnt/user-data/workspace",
+        path=str(workspace),
         literal=True,
     )
 
@@ -173,7 +171,7 @@ def test_grep_tool_case_sensitive(tmp_path, monkeypatch) -> None:
         runtime=runtime,
         description="case sensitive search",
         pattern="TODO",
-        path="/mnt/user-data/workspace",
+        path=str(workspace),
         case_sensitive=True,
     )
 
@@ -190,7 +188,7 @@ def test_grep_tool_invalid_regex_returns_error(tmp_path, monkeypatch) -> None:
         runtime=runtime,
         description="bad pattern",
         pattern="[invalid",
-        path="/mnt/user-data/workspace",
+        path=str(tmp_path / "workspace"),
     )
 
     assert "Invalid regex pattern" in result
@@ -248,11 +246,11 @@ def test_glob_tool_honors_smaller_requested_max_results(tmp_path, monkeypatch) -
         runtime=runtime,
         description="limit glob matches",
         pattern="**/*.py",
-        path="/mnt/user-data/workspace",
+        path=str(workspace),
         max_results=2,
     )
 
-    assert "Found 2 paths under /mnt/user-data/workspace (showing first 2)" in result
+    assert f"Found 2 paths under {workspace} (showing first 2)" in result
     assert "Results truncated." in result
 
 
@@ -261,8 +259,8 @@ def test_glob_tool_honors_smaller_requested_max_results(tmp_path, monkeypatch) -
 # ---------------------------------------------------------------------------
 
 
-def test_ls_tool_masks_user_data_host_paths(tmp_path, monkeypatch) -> None:
-    """ls_tool output must not leak host user-data paths; they should be virtual."""
+def test_ls_tool_returns_real_host_user_data_paths(tmp_path, monkeypatch) -> None:
+    """Phase 3: ls_tool returns real host user-data paths (no virtual masking)."""
     runtime = _make_runtime(tmp_path)
     workspace = tmp_path / "workspace"
     (workspace / "report.txt").write_text("hello\n", encoding="utf-8")
@@ -273,14 +271,13 @@ def test_ls_tool_masks_user_data_host_paths(tmp_path, monkeypatch) -> None:
     result = ls_tool.func(
         runtime=runtime,
         description="list workspace",
-        path="/mnt/user-data/workspace",
+        path=str(workspace),
     )
 
-    # Virtual paths must be present
-    assert "/mnt/user-data/workspace" in result
-    # Host paths must NOT leak
-    assert str(workspace) not in result
-    assert str(tmp_path) not in result
+    # Real host paths are returned (user-data paths are intentionally exposed)
+    assert str(workspace) in result
+    assert str(workspace / "report.txt") in result
+    assert "report.txt" in result
 
 
 def test_ls_tool_masks_skills_host_paths(tmp_path, monkeypatch) -> None:
@@ -318,7 +315,7 @@ def test_ls_tool_returns_empty_for_empty_directory(tmp_path, monkeypatch) -> Non
     result = ls_tool.func(
         runtime=runtime,
         description="list empty dir",
-        path="/mnt/user-data/workspace",
+        path=str(tmp_path / "workspace"),
     )
 
     assert result == "(empty)"

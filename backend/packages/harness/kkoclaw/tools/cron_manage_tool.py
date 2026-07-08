@@ -164,9 +164,9 @@ async def _cron_manage_impl(
                     raise ValueError(f"Cron job '{name}' already exists.")
 
                 # Capture the current thread_id and user_id so the scheduler
-                # reuses this thread's workspace (/mnt/user-data) when executing
-                # the job.  This ensures scripts and files created in the
-                # current conversation are accessible to the cron run.
+                # reuses this thread's workspace when executing the job.
+                # This ensures scripts and files created in the current
+                # conversation are accessible to the cron run.
                 current_thread_id = None
                 current_user_id = None
                 try:

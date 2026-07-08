@@ -249,7 +249,7 @@ class TestToolCallFlow:
     @requires_llm
     def test_tool_call_event_structure(self, client):
         """Tool call events contain name, args, and id fields."""
-        events = list(client.stream("Use the read_file tool to read /mnt/user-data/workspace/nonexistent.txt"))
+        events = list(client.stream("Use the read_file tool to read /tmp/kkoclaw/threads/test-thread/user-data/workspace/nonexistent.txt"))
 
         tc_events = [e for e in events if e.type == "messages-tuple" and e.data.get("tool_calls")]
         if tc_events:
@@ -504,7 +504,7 @@ class TestArtifactAccess:
         outputs_dir.mkdir(parents=True, exist_ok=True)
         (outputs_dir / "result.txt").write_text("hello artifact")
 
-        data, mime = c.get_artifact(tid, "mnt/user-data/outputs/result.txt")
+        data, mime = c.get_artifact(tid, str(outputs_dir / "result.txt"))
         assert data == b"hello artifact"
         assert "text" in mime
 
@@ -521,21 +521,31 @@ class TestArtifactAccess:
         sub.mkdir(parents=True, exist_ok=True)
         (sub / "data.json").write_text('{"x": 1}')
 
-        data, mime = c.get_artifact(tid, "mnt/user-data/outputs/charts/data.json")
+        data, mime = c.get_artifact(tid, str(sub / "data.json"))
         assert b'"x"' in data
         assert "json" in mime
 
     def test_get_artifact_nonexistent_raises(self, e2e_env):
         """Reading a nonexistent artifact raises FileNotFoundError."""
+        from kkoclaw.config.paths import get_paths
+        from kkoclaw.runtime.user_context import get_effective_user_id
+
         c = KKOCLAWClient(checkpointer=None, thinking_enabled=False)
+        tid = "test-thread"
+        outputs_dir = get_paths().sandbox_outputs_dir(tid, user_id=get_effective_user_id())
         with pytest.raises(FileNotFoundError):
-            c.get_artifact("test-thread", "mnt/user-data/outputs/ghost.txt")
+            c.get_artifact(tid, str(outputs_dir / "ghost.txt"))
 
     def test_get_artifact_traversal_within_prefix_blocked(self, e2e_env):
-        """Path traversal within the valid prefix is still blocked."""
+        """Path traversal that escapes the user-data root is blocked."""
+        from kkoclaw.config.paths import get_paths
+        from kkoclaw.runtime.user_context import get_effective_user_id
+
         c = KKOCLAWClient(checkpointer=None, thinking_enabled=False)
+        tid = "test-thread"
+        outputs_dir = get_paths().sandbox_outputs_dir(tid, user_id=get_effective_user_id())
         with pytest.raises((PermissionError, ValueError, FileNotFoundError)):
-            c.get_artifact("test-thread", "mnt/user-data/outputs/../../etc/passwd")
+            c.get_artifact(tid, str(outputs_dir / ".." / ".." / "etc" / "passwd"))
 
 
 # ---------------------------------------------------------------------------

@@ -35,7 +35,7 @@ import {
   type FeedbackData,
 } from "@/core/api/feedback";
 import { useAuthenticatedArtifactObjectUrl } from "@/core/artifacts/authenticated-url";
-import { resolveArtifactURL } from "@/core/artifacts/utils";
+import { isArtifactPath, resolveArtifactURL } from "@/core/artifacts/utils";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   extractContentFromMessage,
@@ -190,7 +190,7 @@ function MessageImage({
   maxWidth?: string;
 }) {
   const artifactUrl =
-    typeof src === "string" && src.startsWith("/mnt/")
+    typeof src === "string" && isArtifactPath(src)
       ? resolveArtifactURL(src, threadId)
       : typeof src === "string"
         ? src
@@ -220,7 +220,7 @@ function MessageArtifactLink({
 }: AnchorHTMLAttributes<HTMLAnchorElement> & {
   threadId: string;
 }) {
-  const url = href?.startsWith("/mnt/") ? resolveArtifactURL(href, threadId) : href;
+  const url = href && isArtifactPath(href) ? resolveArtifactURL(href, threadId) : href;
   const displayUrl = useAuthenticatedArtifactObjectUrl(url);
 
   return (
@@ -252,7 +252,7 @@ function MessageContent_({
         <MessageImage {...props} threadId={threadId} maxWidth="90%" />
       ),
       a: ({ href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) => {
-        if (href?.startsWith("/mnt/")) {
+        if (href && isArtifactPath(href)) {
           return (
             <MessageArtifactLink
               {...props}

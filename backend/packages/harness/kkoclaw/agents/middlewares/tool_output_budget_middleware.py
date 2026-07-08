@@ -97,7 +97,7 @@ def _externalize(
     outputs_path: str,
     storage_subdir: str,
 ) -> str | None:
-    """Write *content* to disk and return the virtual path, or ``None`` on failure."""
+    """Write *content* to disk and return the real host path, or ``None`` on failure."""
     if os.path.isabs(storage_subdir) or ".." in storage_subdir:
         return None
     storage_dir = os.path.join(outputs_path, storage_subdir)
@@ -121,8 +121,7 @@ def _externalize(
     except OSError:
         return None
 
-    virtual_base = "/mnt/user-data/outputs"
-    return f"{virtual_base}/{storage_subdir}/{filename}"
+    return filepath
 
 
 # ---------------------------------------------------------------------------

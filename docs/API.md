@@ -380,13 +380,13 @@ Content-Type: application/json
 ```json
 {
   "thread_id": "thread_abc",
-  "path": "mnt/user-data/outputs/my-skill.skill",
+  "path": "/home/user/.kkoclaw/threads/thread_abc/user-data/outputs/my-skill.skill",
   "work_modes": ["coding"]
 }
 ```
 
 - `thread_id`：`.skill` 文件所在的线程 ID
-- `path`：线程文件系统中的虚拟路径
+- `path`：`.skill` 文件的真实主机绝对路径（位于该线程的 `user-data/` 目录内）
 - `work_modes`：可选；安装后绑定的工作模式。省略时若包内没有 `work_modes` frontmatter，则默认绑定到 `task`
 
 **响应：**
@@ -420,18 +420,18 @@ Content-Type: multipart/form-data
     {
       "filename": "document.pdf",
       "size": 1234567,
-      "path": ".kkoclaw/threads/abc123/user-data/uploads/document.pdf",
-      "virtual_path": "/mnt/user-data/uploads/document.pdf",
-      "artifact_url": "/api/threads/abc123/artifacts/mnt/user-data/uploads/document.pdf",
+      "path": "/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf",
+      "artifact_url": "/api/threads/abc123/artifacts/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf",
       "markdown_file": "document.md",
-      "markdown_path": ".kkoclaw/threads/abc123/user-data/uploads/document.md",
-      "markdown_virtual_path": "/mnt/user-data/uploads/document.md",
-      "markdown_artifact_url": "/api/threads/abc123/artifacts/mnt/user-data/uploads/document.md"
+      "markdown_path": "/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.md",
+      "markdown_artifact_url": "/api/threads/abc123/artifacts/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.md"
     }
   ],
   "message": "成功上传 1 个文件"
 }
 ```
+
+`path` 字段是真实主机绝对路径，`artifact_url` 在末尾内嵌同一真实主机路径。响应不再包含 `virtual_path` / `markdown_virtual_path` 字段。
 
 **支持的文档格式**（自动转换为 Markdown）：
 - PDF（`.pdf`）
@@ -452,9 +452,8 @@ GET /api/threads/{thread_id}/uploads/list
     {
       "filename": "document.pdf",
       "size": 1234567,
-      "path": ".kkoclaw/threads/abc123/user-data/uploads/document.pdf",
-      "virtual_path": "/mnt/user-data/uploads/document.pdf",
-      "artifact_url": "/api/threads/abc123/artifacts/mnt/user-data/uploads/document.pdf",
+      "path": "/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf",
+      "artifact_url": "/api/threads/abc123/artifacts/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf",
       "extension": ".pdf",
       "modified": 1705997600.0
     }
@@ -507,9 +506,11 @@ DELETE /api/threads/{thread_id}
 GET /api/threads/{thread_id}/artifacts/{path}
 ```
 
+`{path}` 是真实主机绝对路径（位于该线程的 `user-data/` 目录内）。该端点会校验路径是否解析到当前线程的 `workspace/uploads/outputs` 根目录之内，拒绝越权访问与路径穿越。
+
 **路径示例：**
-- `/api/threads/abc123/artifacts/mnt/user-data/outputs/result.txt`
-- `/api/threads/abc123/artifacts/mnt/user-data/uploads/document.pdf`
+- `/api/threads/abc123/artifacts/home/user/.kkoclaw/threads/abc123/user-data/outputs/result.txt`
+- `/api/threads/abc123/artifacts/home/user/.kkoclaw/threads/abc123/user-data/uploads/document.pdf`
 
 **查询参数：**
 - `download`（布尔值）：如果为 `true`，强制下载并添加 Content-Disposition 头

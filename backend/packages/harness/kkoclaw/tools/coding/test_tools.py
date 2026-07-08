@@ -97,7 +97,13 @@ def _command_with_project_root(runtime: Runtime, cmd: str) -> str:
 def _project_root_from_runtime(runtime: Runtime) -> str:
     thread_data = get_thread_data(runtime)
     project_root = thread_data.get("project_root") if thread_data else None
-    return project_root or "/mnt/user-data/workspace"
+    if project_root:
+        return project_root
+    if thread_data:
+        workspace = thread_data.get("workspace_path")
+        if workspace:
+            return workspace
+    return os.getcwd()
 
 
 def _detect_test_framework(runtime: Runtime) -> str | None:

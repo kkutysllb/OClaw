@@ -11,7 +11,7 @@ import stat
 from pathlib import Path
 from urllib.parse import quote
 
-from kkoclaw.config.paths import VIRTUAL_PATH_PREFIX, get_paths
+from kkoclaw.config.paths import get_paths
 from kkoclaw.runtime.user_context import get_effective_user_id
 
 
@@ -284,27 +284,29 @@ def delete_file_safe(base_dir: Path, filename: str, *, convertible_extensions: s
     return {"success": True, "message": f"Deleted {filename}"}
 
 
-def upload_artifact_url(thread_id: str, filename: str) -> str:
+def upload_artifact_url(thread_id: str, filename: str, uploads_path: str) -> str:
     """Build the artifact URL for a file in a thread's uploads directory.
 
-    *filename* is percent-encoded so that spaces, ``#``, ``?`` etc. are safe.
+    Phase 3: the URL embeds the real host uploads path. *filename* is
+    percent-encoded so that spaces, ``#``, ``?`` etc. are safe.
     """
-    return f"/api/threads/{thread_id}/artifacts{VIRTUAL_PATH_PREFIX}/uploads/{quote(filename, safe='')}"
+    real_path = f"{uploads_path.rstrip('/')}/{quote(filename, safe='')}"
+    return f"/api/threads/{thread_id}/artifacts{real_path}"
 
 
-def upload_virtual_path(filename: str) -> str:
-    """Build the virtual path for a file in the uploads directory."""
-    return f"{VIRTUAL_PATH_PREFIX}/uploads/{filename}"
+def upload_file_path(uploads_path: str, filename: str) -> str:
+    """Build the real host path for a file in the uploads directory."""
+    return f"{uploads_path.rstrip('/')}/{filename}"
 
 
-def enrich_file_listing(result: dict, thread_id: str) -> dict:
-    """Add virtual paths, artifact URLs, and stringify sizes on a listing result.
+def enrich_file_listing(result: dict, thread_id: str, uploads_path: str) -> dict:
+    """Add real paths, artifact URLs, and stringify sizes on a listing result.
 
     Mutates *result* in place and returns it for convenience.
     """
     for f in result["files"]:
         filename = f["filename"]
         f["size"] = str(f["size"])
-        f["virtual_path"] = upload_virtual_path(filename)
-        f["artifact_url"] = upload_artifact_url(thread_id, filename)
+        f["path"] = upload_file_path(uploads_path, filename)
+        f["artifact_url"] = upload_artifact_url(thread_id, filename, uploads_path)
     return result

@@ -12,7 +12,7 @@ from typing import Any, Literal
 from app.channels.base import Channel
 from app.channels.commands import KNOWN_CHANNEL_COMMANDS
 from app.channels.message_bus import InboundMessage, InboundMessageType, MessageBus, OutboundMessage, ResolvedAttachment
-from kkoclaw.config.paths import VIRTUAL_PATH_PREFIX, get_paths
+from kkoclaw.config.paths import get_paths
 from kkoclaw.runtime.user_context import get_effective_user_id
 from kkoclaw.sandbox.sandbox_provider import get_sandbox_provider
 
@@ -376,7 +376,7 @@ class FeishuChannel(Channel):
             logger.exception("[Feishu] failed to persist downloaded resource: %s, type=%s", resolved_target, type)
             return f"Failed to obtain the [{type}]"
 
-        virtual_path = f"{VIRTUAL_PATH_PREFIX}/uploads/{resolved_target.name}"
+        real_path = str(resolved_target)
 
         try:
             sandbox_provider = get_sandbox_provider()
@@ -386,13 +386,13 @@ class FeishuChannel(Channel):
                 if sandbox is None:
                     logger.warning("[Feishu] sandbox not found for thread_id=%s", thread_id)
                     return f"Failed to obtain the [{type}]"
-                sandbox.update_file(virtual_path, content)
+                sandbox.update_file(real_path, content)
         except Exception:
-            logger.exception("[Feishu] failed to sync resource into non-local sandbox: %s", virtual_path)
+            logger.exception("[Feishu] failed to sync resource into non-local sandbox: %s", real_path)
             return f"Failed to obtain the [{type}]"
 
-        logger.info("[Feishu] downloaded resource mapped: file_key=%s -> %s", file_key, virtual_path)
-        return virtual_path
+        logger.info("[Feishu] downloaded resource mapped: file_key=%s -> %s", file_key, real_path)
+        return real_path
 
     # -- message formatting ------------------------------------------------
 

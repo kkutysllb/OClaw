@@ -59,7 +59,13 @@ def _project_root(runtime: Runtime) -> str:
     """Extract the project root from runtime context."""
     thread_data = get_thread_data(runtime)
     project_root = thread_data.get("project_root") if thread_data else None
-    return project_root or "/mnt/user-data/workspace"
+    if project_root:
+        return project_root
+    if thread_data:
+        workspace = thread_data.get("workspace_path")
+        if workspace:
+            return workspace
+    return os.getcwd()
 
 
 def _collect_source_files(

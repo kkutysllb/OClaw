@@ -137,8 +137,8 @@ class ThreadState(AgentState):
 
     # OClaw 扩展
     sandbox: dict             # 沙箱环境信息
-    artifacts: list[str]      # 生成的文件路径
-    thread_data: dict         # {workspace, uploads, outputs} 路径
+    artifacts: list[str]      # 生成的文件路径（真实主机绝对路径）
+    thread_data: dict         # {workspace, uploads, outputs} 真实主机路径
     title: str | None         # 自动生成的对话标题
     todos: list[dict]         # 任务跟踪（计划模式）
     viewed_images: dict       # 视觉模型图像数据
@@ -179,14 +179,25 @@ class ThreadState(AgentState):
                       └─────────────────────────┘
 ```
 
-**虚拟路径映射**：
+**路径说明**：
 
-| 虚拟路径 | 物理路径 |
+沙箱重构（阶段三）后，`/mnt/user-data/{workspace,uploads,outputs}` 虚拟路径层已删除。Agent、工具、API 现在直接使用真实主机绝对路径。线程数据根目录为 `{KKOCLAW_HOME}/threads/{thread_id}/user-data/`（启用用户隔离时为 `{KKOCLAW_HOME}/users/{user_id}/threads/{thread_id}/user-data/`），其中 `KKOCLAW_HOME` 默认解析为 `~/.kkoclaw`。
+
+| 类别 | 真实主机路径 |
 |---------|---------|
-| `/mnt/user-data/workspace` | `backend/.kkoclaw/threads/{thread_id}/user-data/workspace` |
-| `/mnt/user-data/uploads` | `backend/.kkoclaw/threads/{thread_id}/user-data/uploads` |
-| `/mnt/user-data/outputs` | `backend/.kkoclaw/threads/{thread_id}/user-data/outputs` |
-| `/mnt/skills` | `kk-oclaw/skills/` |
+| 工作区 | `{KKOCLAW_HOME}/threads/{thread_id}/user-data/workspace/` |
+| 上传文件 | `{KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/` |
+| 生成制品 | `{KKOCLAW_HOME}/threads/{thread_id}/user-data/outputs/` |
+
+`ThreadState.artifacts` 现在直接存放这些真实主机绝对路径（如 `/home/user/.kkoclaw/threads/abc/user-data/outputs/report.pdf`），`Paths.resolve_thread_artifact_path` 负责校验其落在该线程的 `user-data/` 根目录内。
+
+仍保留为虚拟路径的目录：
+
+| 虚拟路径 | 物理路径 | 说明 |
+|---------|---------|---------|
+| `/mnt/skills` | `kk-oclaw/skills/` | 全局只读技能库 |
+| `/mnt/acp-workspace` | `{KKOCLAW_HOME}/threads/{thread_id}/acp-workspace/` | ACP 子代理工作区（按线程隔离） |
+| `/mnt/xxx`（自定义） | `config.yaml` 中配置 | 通过 config 配置的自定义挂载 |
 
 **用户驱动的权限边界（permission_scope）**：
 
@@ -405,23 +416,23 @@ SKILL.md 格式：
 
 2. 网关接收文件
    - 验证文件
-   - 存储到 .kkoclaw/threads/{thread_id}/user-data/uploads/
+   - 存储到 {KKOCLAW_HOME}/threads/{thread_id}/user-data/uploads/
    - 如果是文档：通过 markitdown 转换为 Markdown
 
 3. 返回响应
    {
      "files": [{
        "filename": "doc.pdf",
-       "path": ".kkoclaw/.../uploads/doc.pdf",
-       "virtual_path": "/mnt/user-data/uploads/doc.pdf",
-       "artifact_url": "/api/threads/.../artifacts/mnt/.../doc.pdf"
+       "path": "{KKOCLAW_HOME}/threads/.../user-data/uploads/doc.pdf",
+       "artifact_url": "/api/threads/.../artifacts{KKOCLAW_HOME}/threads/.../uploads/doc.pdf"
      }]
    }
+   （path 与 artifact_url 内嵌的都是真实主机绝对路径，不再有 virtual_path）
 
 4. 下一次 Agent 运行
    - UploadsMiddleware 列出文件
    - 将文件列表注入到消息中
-   - Agent 可通过 virtual_path 访问
+   - Agent 直接通过真实主机路径访问
 ```
 
 ### 线程清理流程
@@ -434,7 +445,7 @@ SKILL.md 格式：
    DELETE /api/threads/{thread_id}
 
 3. 网关移除 OClaw 管理的本地文件
-   - 递归删除 .kkoclaw/threads/{thread_id}/
+   - 递归删除 {KKOCLAW_HOME}/threads/{thread_id}/
    - 目录不存在时视为无操作
    - 无效的线程 ID 在文件系统访问前被拒绝
 ```

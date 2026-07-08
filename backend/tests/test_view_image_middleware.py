@@ -26,7 +26,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from kkoclaw.agents.middlewares.view_image_middleware import ViewImageMiddleware
 
 
-def _view_image_call(call_id: str = "call_1", path: str = "/mnt/user-data/uploads/img.png") -> dict:
+def _view_image_call(call_id: str = "call_1", path: str = "/home/user/uploads/img.png") -> dict:
     return {"name": "view_image", "id": call_id, "args": {"image_path": path}}
 
 

@@ -9,14 +9,7 @@ from langgraph.types import Command
 from langgraph.typing import ContextT
 
 from kkoclaw.agents.thread_state import ThreadDataState, ThreadState
-from kkoclaw.config.paths import VIRTUAL_PATH_PREFIX
 
-_ALLOWED_IMAGE_VIRTUAL_ROOTS = (
-    f"{VIRTUAL_PATH_PREFIX}/workspace",
-    f"{VIRTUAL_PATH_PREFIX}/uploads",
-    f"{VIRTUAL_PATH_PREFIX}/outputs",
-)
-_ALLOWED_IMAGE_VIRTUAL_ROOTS_TEXT = ", ".join(_ALLOWED_IMAGE_VIRTUAL_ROOTS)
 _MAX_IMAGE_BYTES = 20 * 1024 * 1024
 _EXTENSION_TO_MIME = {
     ".jpg": "image/jpeg",
@@ -26,8 +19,20 @@ _EXTENSION_TO_MIME = {
 }
 
 
-def _is_allowed_image_virtual_path(image_path: str) -> bool:
-    return any(image_path == root or image_path.startswith(f"{root}/") for root in _ALLOWED_IMAGE_VIRTUAL_ROOTS)
+def _is_allowed_image_path(image_path: str, thread_data: ThreadDataState | None) -> bool:
+    """Check if image_path is under one of the per-thread user-data roots."""
+    if thread_data is None or not image_path:
+        return False
+    resolved = Path(image_path).expanduser().resolve()
+    for key in ("workspace_path", "uploads_path", "outputs_path"):
+        root = thread_data.get(key)
+        if root:
+            try:
+                resolved.relative_to(Path(root).expanduser().resolve())
+                return True
+            except ValueError:
+                continue
+    return False
 
 
 def _detect_image_mime(image_data: bytes) -> str | None:
@@ -64,7 +69,7 @@ def view_image_tool(
     - For multiple files at once (use present_files instead)
 
     Args:
-        image_path: Absolute /mnt/user-data virtual path to the image file. Common formats supported: jpg, jpeg, png, webp.
+        image_path: Absolute path to the image file (real host path under the thread workspace/uploads/outputs). Common formats supported: jpg, jpeg, png, webp.
     """
     from kkoclaw.sandbox.exceptions import SandboxRuntimeError
     from kkoclaw.sandbox.tools import (
@@ -75,12 +80,12 @@ def view_image_tool(
 
     thread_data = get_thread_data(runtime)
 
-    if not _is_allowed_image_virtual_path(image_path):
+    if not _is_allowed_image_path(image_path, thread_data):
         return Command(
             update={
                 "messages": [
                     ToolMessage(
-                        f"Error: Only image paths under {_ALLOWED_IMAGE_VIRTUAL_ROOTS_TEXT} are allowed",
+                        "Error: Only image paths under the thread workspace/uploads/outputs directories are allowed",
                         tool_call_id=tool_call_id,
                     )
                 ]

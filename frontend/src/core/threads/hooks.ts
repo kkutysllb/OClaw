@@ -807,7 +807,7 @@ export function useThreadStream({
                 (info) => ({
                   filename: info.filename,
                   size: info.size,
-                  path: info.virtual_path,
+                  path: info.path,
                   status: "uploaded" as const,
                 }),
               );
@@ -843,7 +843,7 @@ export function useThreadStream({
           (info) => ({
             filename: info.filename,
             size: info.size,
-            path: info.virtual_path,
+            path: info.path,
             status: "uploaded" as const,
           }),
         );

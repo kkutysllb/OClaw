@@ -29,6 +29,7 @@ subsequent ``session_shell`` invocations automatically.
 from __future__ import annotations
 
 import logging
+import os
 import re
 
 from langchain.tools import tool
@@ -97,7 +98,7 @@ def _default_cwd(runtime: Runtime, thread_data: dict | None) -> str:
         workspace = thread_data.get("workspace_path")
         if workspace:
             return workspace
-    return "/mnt/user-data/workspace"
+    return os.getcwd()
 
 
 def _parse_exports(command: str) -> dict[str, str]:

@@ -126,7 +126,11 @@ class TestLiveToolUse:
 
     def test_agent_uses_ls_tool(self, client):
         """Agent uses ls tool to list a directory."""
-        events = list(client.stream("Use the ls tool to list the contents of /mnt/user-data/workspace. Just report what you see."))
+        from kkoclaw.config.paths import get_paths
+        from kkoclaw.runtime.user_context import get_effective_user_id
+
+        workspace_dir = get_paths().sandbox_work_dir("live-ls", user_id=get_effective_user_id())
+        events = list(client.stream(f"Use the ls tool to list the contents of {workspace_dir}. Just report what you see."))
 
         types = [e.type for e in events]
         print(f"  event types: {types}")
@@ -144,7 +148,15 @@ class TestLiveToolUse:
 class TestLiveMultiToolChain:
     def test_write_then_read(self, client):
         """Agent writes a file, then reads it back."""
-        events = list(client.stream("Step 1: Use write_file to write 'integration_test_content' to /mnt/user-data/outputs/live_test.txt. Step 2: Use read_file to read that file back. Step 3: Tell me the content you read."))
+        import uuid
+
+        from kkoclaw.config.paths import get_paths
+        from kkoclaw.runtime.user_context import get_effective_user_id
+
+        tid = f"live-wr-{uuid.uuid4().hex[:8]}"
+        outputs_dir = get_paths().sandbox_outputs_dir(tid, user_id=get_effective_user_id())
+        target = outputs_dir / "live_test.txt"
+        events = list(client.stream(f"Step 1: Use write_file to write 'integration_test_content' to {target}. Step 2: Use read_file to read that file back. Step 3: Tell me the content you read."))
 
         types = [e.type for e in events]
         print(f"  event types: {types}")
@@ -188,7 +200,7 @@ class TestLiveFileUpload:
         assert filenames == {"test_upload_a.txt", "test_upload_b.txt"}
         for r in result["files"]:
             assert int(r["size"]) > 0
-            assert r["virtual_path"].startswith("/mnt/user-data/uploads/")
+            assert "/uploads/" in r["path"]
             assert "artifact_url" in r
         print(f"  uploaded: {filenames}")
 
@@ -268,12 +280,19 @@ class TestLiveArtifact:
         """Agent writes a file → client reads it back via get_artifact()."""
         import uuid
 
+        from kkoclaw.config.paths import get_paths
+        from kkoclaw.runtime.user_context import get_effective_user_id
+
         thread_id = f"live-artifact-{uuid.uuid4().hex[:8]}"
+
+        # Real host path to the thread's outputs directory.
+        outputs_dir = get_paths().sandbox_outputs_dir(thread_id, user_id=get_effective_user_id())
+        artifact_path = str(outputs_dir / "artifact_test.json")
 
         # Ask agent to write a file
         events = list(
             client.stream(
-                'Use write_file to create /mnt/user-data/outputs/artifact_test.json with content: {"status": "ok", "source": "live_test"}',
+                f'Use write_file to create {artifact_path} with content: {{"status": "ok", "source": "live_test"}}',
                 thread_id=thread_id,
             )
         )
@@ -283,7 +302,7 @@ class TestLiveArtifact:
         assert any(any(tc["name"] == "write_file" for tc in e.data["tool_calls"]) for e in tc_events)
 
         # Read artifact
-        content, mime = client.get_artifact(thread_id, "mnt/user-data/outputs/artifact_test.json")
+        content, mime = client.get_artifact(thread_id, artifact_path)
         data = json.loads(content)
         assert data["status"] == "ok"
         assert data["source"] == "live_test"
@@ -291,8 +310,13 @@ class TestLiveArtifact:
         print(f"  artifact: {data}, mime: {mime}")
 
     def test_get_artifact_not_found(self, client):
+        from kkoclaw.config.paths import get_paths
+        from kkoclaw.runtime.user_context import get_effective_user_id
+
+        thread_id = "nonexistent-thread"
+        outputs_dir = get_paths().sandbox_outputs_dir(thread_id, user_id=get_effective_user_id())
         with pytest.raises(FileNotFoundError):
-            client.get_artifact("nonexistent-thread", "mnt/user-data/outputs/nope.txt")
+            client.get_artifact(thread_id, str(outputs_dir / "nope.txt"))
 
 
 # ===========================================================================
