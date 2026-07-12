@@ -170,6 +170,7 @@ export function InputBox({
   const { models } = useModels();
   const { thread, isMock } = useThread();
   const { textInput } = usePromptInputController();
+  const hasText = (textInput.value ?? "").trim().length > 0;
   const promptRootRef = useRef<HTMLDivElement | null>(null);
   // Destructure the stable setters out of the context. These come from
   // useState/useCallback inside the Provider, so their identities are stable
@@ -283,6 +284,7 @@ export function InputBox({
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
       if (status === "streaming") {
+        if (!message.text?.trim()) return;
         onEnqueue?.(message);
         return;
       }
@@ -876,29 +878,30 @@ export function InputBox({
                 </ModelSelectorList>
               </ModelSelectorContent>
             </ModelSelector>
-            {status === "streaming" && (
+            {status === "streaming" && (!hasText || !onEnqueue) ? (
               <Button
-                variant="secondary"
-                size="sm"
-                className="gap-1"
+                variant="outline"
+                size="icon-sm"
+                className="rounded-full"
                 onClick={() => onStop?.()}
                 aria-label="停止当前任务"
+                title="停止当前任务"
               >
-                <SquareIcon className="size-3.5" />
-                停止
+                <SquareIcon className="size-4" />
               </Button>
+            ) : (
+              <PromptInputSubmit
+                className="rounded-full"
+                disabled={disabled}
+                variant="outline"
+                status={status}
+                title={
+                  status === "streaming"
+                    ? "加入待发送队列（任务执行中）"
+                    : undefined
+                }
+              />
             )}
-            <PromptInputSubmit
-              className="rounded-full"
-              disabled={disabled}
-              variant="outline"
-              status={status}
-              title={
-                status === "streaming"
-                  ? "加入待发送队列（任务执行中）"
-                  : undefined
-              }
-            />
           </PromptInputTools>
         </PromptInputFooter>
         {!isNewThread && (
