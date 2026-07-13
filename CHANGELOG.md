@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.5 - 2026-07-13
+
+Compare: `v0.2.4...v0.2.5`
+
+- Allow .skill installs when security scan is unavailable (cc4ccbc)
+
 ## v0.2.4 - 2026-07-12
 
 Compare: `v0.2.3...v0.2.4`

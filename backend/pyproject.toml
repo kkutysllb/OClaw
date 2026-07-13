@@ -1,6 +1,6 @@
 [project]
 name = "kkoclaw"
-version = "0.2.4"
+version = "0.2.5"
 description = "LangGraph-based AI super agent system with sandbox execution and multi-agent orchestration"
 readme = "README.md"
 requires-python = ">=3.12"
