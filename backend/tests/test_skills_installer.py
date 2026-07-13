@@ -204,7 +204,7 @@ class TestInstallSkillFromArchive:
         skills_root.mkdir()
         calls = []
 
-        async def _scan(content, *, executable, location):
+        async def _scan(content, *, executable, location, **kwargs):
             calls.append({"content": content, "executable": executable, "location": location})
             return ScanResult(decision="allow", reason="ok")
 
@@ -214,7 +214,7 @@ class TestInstallSkillFromArchive:
 
         assert calls == [
             {
-                "content": "---\nname: test-skill\ndescription: A test skill\n---\n\n# test-skill\n",
+                "content": "---\nname: test-skill\ndescription: A test skill\nwork_modes: [task]\n---\n\n# test-skill\n",
                 "executable": False,
                 "location": "test-skill/SKILL.md",
             }
@@ -234,7 +234,7 @@ class TestInstallSkillFromArchive:
         skills_root.mkdir()
         calls = []
 
-        async def _scan(content, *, executable, location):
+        async def _scan(content, *, executable, location, **kwargs):
             calls.append({"content": content, "executable": executable, "location": location})
             return ScanResult(decision="allow", reason="ok")
 
@@ -244,7 +244,7 @@ class TestInstallSkillFromArchive:
 
         assert calls == [
             {
-                "content": "---\nname: test-skill\ndescription: A test skill\n---\n\n# test-skill\n",
+                "content": "---\nname: test-skill\ndescription: A test skill\nwork_modes: [task]\n---\n\n# test-skill\n",
                 "executable": False,
                 "location": "test-skill/SKILL.md",
             },
@@ -340,6 +340,29 @@ class TestInstallSkillFromArchive:
             get_or_new_skill_storage(skills_path=skills_root).install_skill_from_archive(zip_path)
 
         assert not (skills_root / "custom" / "blocked-skill").exists()
+
+    def test_security_scan_unavailable_warns_and_allows_install(self, tmp_path, monkeypatch):
+        zip_path = self._make_skill_zip(tmp_path, skill_name="scan-unavailable-skill")
+        skills_root = tmp_path / "skills"
+        skills_root.mkdir()
+
+        from types import SimpleNamespace
+
+        config = SimpleNamespace(skill_evolution=SimpleNamespace(moderation_model_name=None))
+        monkeypatch.setattr("kkoclaw.skills.security_scanner.get_app_config", lambda: config)
+        monkeypatch.setattr(
+            "kkoclaw.skills.security_scanner.create_chat_model",
+            lambda **kwargs: (_ for _ in ()).throw(RuntimeError("scanner offline")),
+        )
+        from kkoclaw.skills.security_scanner import scan_skill_content
+
+        monkeypatch.setattr("kkoclaw.skills.installer.scan_skill_content", scan_skill_content)
+
+        result = get_or_new_skill_storage(skills_path=skills_root).install_skill_from_archive(zip_path)
+
+        assert result["success"] is True
+        assert result["skill_name"] == "scan-unavailable-skill"
+        assert (skills_root / "custom" / "scan-unavailable-skill" / "SKILL.md").exists()
 
     def test_copy_failure_does_not_leave_partial_install(self, tmp_path, monkeypatch):
         zip_path = self._make_skill_zip(tmp_path)

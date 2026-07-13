@@ -516,12 +516,8 @@ async def upload_support_files(
                         status_code=400,
                         detail=f"Security scan blocked {relative_path}: {scan.reason}",
                     )
-                # scripts/ uploads via the wizard (support-files endpoint)
-                # accept both "allow" and "warn" — unlike the .skill installer
-                # (which requires explicit "allow" for executables because the
-                # archive may come from an untrusted third-party marketplace),
-                # this endpoint is driven by an explicit user action: the user
-                # picked the file from their own machine. A "warn" typically
+                # scripts/ uploads via the wizard accept both "allow" and
+                # "warn", matching the .skill installer. A "warn" typically
                 # flags borderline-but-legitimate patterns like external API
                 # references (e.g. a script that calls a documented API with
                 # an env-var key), which is exactly what the user intends to

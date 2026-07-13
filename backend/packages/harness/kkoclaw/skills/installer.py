@@ -158,7 +158,12 @@ async def _scan_skill_file_or_raise(skill_dir: Path, path: Path, skill_name: str
         raise SkillSecurityScanError(f"Security scan failed for skill '{skill_name}': {location} must be valid UTF-8") from e
 
     try:
-        result = await scan_skill_content(content, executable=executable, location=location)
+        result = await scan_skill_content(
+            content,
+            executable=executable,
+            location=location,
+            unavailable_decision="warn",
+        )
     except Exception as e:
         raise SkillSecurityScanError(f"Security scan failed for {location}: {e}") from e
 

@@ -82,7 +82,7 @@ KKOCLAW ships with the following public skills:
 
 ### Security scanning
 
-`security_scanner.py` checks skill content for potentially dangerous patterns before writes, installs, or edits are accepted. If scanning is unavailable or returns a blocking decision, the write is rejected for manual review.
+`security_scanner.py` checks skill content for potentially dangerous patterns before writes, installs, or edits are accepted. A blocking decision is rejected for manual review. For user-driven `.skill` installs, scanner outages are allowed with a warning; direct writes and edits still fail closed when scanning is unavailable.
 
 ### Dependency installation
 

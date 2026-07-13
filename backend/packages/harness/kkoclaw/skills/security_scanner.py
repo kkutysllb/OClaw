@@ -7,6 +7,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
+from typing import Literal
 
 from kkoclaw.config import get_app_config
 from kkoclaw.config.app_config import AppConfig
@@ -81,7 +82,14 @@ def _extract_json_object(raw: str) -> dict | None:
     return None
 
 
-async def scan_skill_content(content: str, *, executable: bool = False, location: str = SKILL_MD_FILE, app_config: AppConfig | None = None) -> ScanResult:
+async def scan_skill_content(
+    content: str,
+    *,
+    executable: bool = False,
+    location: str = SKILL_MD_FILE,
+    app_config: AppConfig | None = None,
+    unavailable_decision: Literal["block", "warn"] = "block",
+) -> ScanResult:
     """Screen skill content before it is written to disk."""
     rubric = (
         "You are a security reviewer for AI agent skills. "
@@ -129,6 +137,15 @@ async def scan_skill_content(content: str, *, executable: bool = False, location
             f"Security scan timed out after {_SCAN_TIMEOUT_SECONDS:.0f}s; allowed with warning.",
         )
     except Exception:
+        if unavailable_decision == "warn":
+            logger.warning(
+                "Skill security scan model call failed for %s; allowing with warning",
+                location,
+                exc_info=True,
+            )
+            return ScanResult("warn", "Security scan unavailable; allowed with warning.")
         logger.warning("Skill security scan model call failed; blocking write until manual review", exc_info=True)
 
+    if unavailable_decision == "warn":
+        return ScanResult("warn", "Security scan unavailable; allowed with warning.")
     return ScanResult("block", "Security scan unavailable; manual review required.")
