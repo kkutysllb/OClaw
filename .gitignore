@@ -187,4 +187,5 @@ docs/superpowers/
 # ═══════════════════════════════════════
 third_party/
 2026-06-28-work-mode-skills-implementation.md
-frontend/playwright-report/*
+frontend/playwright-report/*.worktrees/
+.worktrees/
