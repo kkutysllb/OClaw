@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.3.0 - 2026-07-16
+
+Compare: `v0.2.6...v0.3.0`
+
+- fix more bug (85a50e6)
+- fix(coding-ui): auto-hide todo panel when all tasks done + manual close button (1dc784e)
+- fix(ui): hide scrollbars globally across all pages (not just coding workbench) (ced1a12)
+- feat(coding-engine): systematic orchestration strengthening — scenario routing, stage-skill linkage, tool policy activation (d1fb2ee)
+- feat(todo-list): improve task status indicators for better visual distinction (382a620)
+- fix(coding-ui): remove status bar (Coding Agent label + status badge) from main area (25c13d4)
+- feat(coding-ui): add floating TodoList panel below environment info card (ccbc82a)
+- fix(coding-ui): force-hide scrollbar with !important + override scrollbar-gutter (811fb8a)
+- fix(coding-ui): hide all scrollbars in coding workbench (scoped CSS) (564e823)
+- fix(coding-ui): hide scrollbar in environment info floating card (cf1a794)
+- refactor(coding-ui): remove 项目Diff and 结果 tabs + components (14a162c)
+- fix(coding-ui): move left sidebar toggle to leftmost edge of toolbar (b526cb4)
+- fix(coding-ui): fix sidebar toggle direction, remove duplicate terminal button (61b92c5)
+- refactor(coding-ui): move ROI/流程/技能 to toolbar icons, remove 对话/session/事件 tabs (6b84321)
+
 ## v0.2.6 - 2026-07-15
 
 Compare: `v0.2.5...v0.2.6`
