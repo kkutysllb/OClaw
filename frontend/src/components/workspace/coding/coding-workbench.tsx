@@ -225,6 +225,7 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
   const [environmentCardCollapsed, setEnvironmentCardCollapsed] =
     useState(false);
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [todoPanelDismissed, setTodoPanelDismissed] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalTabs, setTerminalTabs] = useState<EmbeddedTerminalTab[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
@@ -292,6 +293,19 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
   const showFileExplorer = !leftCollapsed;
   const showWorkbenchPane = !rightCollapsed;
   const showEnvironmentCard = !showWorkbenchPane && !environmentCardCollapsed;
+
+  // Todo panel: visible when there are todos, at least one is not completed,
+  // and the user hasn't manually dismissed it. Auto-hides when all done.
+  const hasActiveTodos =
+    todos.length > 0 && todos.some((t) => t.status !== "completed");
+  const showTodoPanel = hasActiveTodos && !todoPanelDismissed;
+
+  // When new todos arrive (agent starts a new task), re-show the panel.
+  useEffect(() => {
+    if (hasActiveTodos) {
+      setTodoPanelDismissed(false);
+    }
+  }, [hasActiveTodos]);
 
   const startPanelResize = (
     side: "left" | "right",
@@ -688,11 +702,24 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
                     visible={showEnvironmentCard}
                   />
                 </div>
-                {todos.length > 0 && (
+                {showTodoPanel && (
                   <div className="scrollbar-none pointer-events-auto max-h-[50%] overflow-y-auto rounded-2xl border bg-background/96 p-3 shadow-xl backdrop-blur transition-all">
-                    <p className="text-muted-foreground mb-2 text-[11px] font-semibold tracking-[0.08em] uppercase">
-                      任务清单
-                    </p>
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-muted-foreground text-[11px] font-semibold tracking-[0.08em] uppercase">
+                        任务清单
+                      </p>
+                      <Button
+                        aria-label="关闭任务面板"
+                        className="text-muted-foreground hover:text-foreground size-auto rounded p-0.5"
+                        size="icon-sm"
+                        title="关闭"
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setTodoPanelDismissed(true)}
+                      >
+                        <XIcon className="size-3.5" />
+                      </Button>
+                    </div>
                     <TodoList todos={todos} className="border-l-0" />
                   </div>
                 )}
@@ -722,7 +749,7 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
                 <div
                   className={cn(
                     "flex h-full min-h-0 flex-col transition-[padding] duration-200",
-                    (showEnvironmentCard || todos.length > 0) && "2xl:pr-[360px] xl:pr-[340px]",
+                    (showEnvironmentCard || showTodoPanel) && "2xl:pr-[360px] xl:pr-[340px]",
                   )}
                 >
                   <AgentInspector
