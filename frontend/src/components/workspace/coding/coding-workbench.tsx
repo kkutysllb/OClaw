@@ -26,7 +26,6 @@ import {
   InfoIcon,
   LoaderCircleIcon,
   SparklesIcon,
-  MessageSquareIcon,
   RefreshCwIcon,
   SearchIcon,
   SendIcon,
@@ -53,7 +52,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { ArtifactsProvider } from "@/components/workspace/artifacts";
 import {
   copyProjectTerminalPath,
@@ -210,20 +209,17 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
   };
 
   const [activeCodeTab, setActiveCodeTab] = useState<
-    "code" | "task-changes" | "diff" | "results" | "review"
+    "code" | "task-changes" | "diff" | "results" | "review" | "roi" | "workflow" | "skills"
   >("code");
   const [workbenchView, setWorkbenchView] = useState<
-    "code" | "task-changes" | "diff" | "results" | "review"
+    "code" | "task-changes" | "diff" | "results" | "review" | "roi" | "workflow" | "skills"
   >("code");
-  const [activeInspectorTab, setActiveInspectorTab] = useState<
-    "agent" | "events" | "session" | "roi" | "workflow" | "skills"
-  >("agent");
   const [isCommitDialogOpen, setCommitDialogOpen] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
 
   // Collapse state for the left file explorer and the right workbench panel.
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(true);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(LEFT_PANEL_DEFAULT_WIDTH);
   const [rightPanelWidth, setRightPanelWidth] = useState(RIGHT_PANEL_DEFAULT_WIDTH);
   const [environmentCardCollapsed, setEnvironmentCardCollapsed] =
@@ -432,7 +428,7 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
   };
 
   const handleSelectWorkbenchTab = (
-    tab: "code" | "task-changes" | "diff" | "results" | "review",
+    tab: "code" | "task-changes" | "diff" | "results" | "review" | "roi" | "workflow" | "skills",
   ) => {
     setActiveCodeTab(tab);
     setWorkbenchView(tab);
@@ -575,6 +571,52 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
                 onClick={() => handleSelectWorkbenchTab("review")}
               />
             </div>
+            {/* ROI / 流程 / 技能 — moved from Inspector tabs to toolbar icon buttons */}
+            <Button
+              aria-label="ROI"
+              aria-pressed={workbenchView === "roi"}
+              className={cn(
+                "size-8 shrink-0",
+                workbenchView === "roi" && showWorkbenchPane && "bg-muted",
+              )}
+              size="icon-sm"
+              title="ROI"
+              type="button"
+              variant="ghost"
+              onClick={() => handleSelectWorkbenchTab("roi")}
+            >
+              <GaugeIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              aria-label="流程"
+              aria-pressed={workbenchView === "workflow"}
+              className={cn(
+                "size-8 shrink-0",
+                workbenchView === "workflow" && showWorkbenchPane && "bg-muted",
+              )}
+              size="icon-sm"
+              title="流程"
+              type="button"
+              variant="ghost"
+              onClick={() => handleSelectWorkbenchTab("workflow")}
+            >
+              <GitCompareIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              aria-label="技能"
+              aria-pressed={workbenchView === "skills"}
+              className={cn(
+                "size-8 shrink-0",
+                workbenchView === "skills" && showWorkbenchPane && "bg-muted",
+              )}
+              size="icon-sm"
+              title="技能"
+              type="button"
+              variant="ghost"
+              onClick={() => handleSelectWorkbenchTab("skills")}
+            >
+              <SparklesIcon className="h-4 w-4" />
+            </Button>
             <Button
               aria-label="切换环境信息面板"
               aria-pressed={showEnvironmentCard}
@@ -686,13 +728,8 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
                 >
                   <AgentInspector
                     onFocusFile={focusWorkbenchFile}
-                    projectRoot={project.path}
                     projectId={projectId}
-                    threadId={codingThreadId}
-                    selectedTaskId={selectedTaskId}
                     onThreadIdChange={setAgentThreadId}
-                    activeTab={activeInspectorTab}
-                    onActiveTabChange={setActiveInspectorTab}
                   />
                 </div>
               </section>
@@ -752,6 +789,24 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
                             threadId={codingThreadId}
                             onFocusFile={focusWorkbenchFile}
                           />
+                        </div>
+                      )}
+                      {workbenchView === "roi" && showWorkbenchPane && (
+                        <div className="min-h-0 flex-1 overflow-hidden">
+                          <CodingRoiInspector threadId={codingThreadId} />
+                        </div>
+                      )}
+                      {workbenchView === "workflow" && showWorkbenchPane && (
+                        <div className="min-h-0 flex-1 overflow-hidden">
+                          <CodingWorkflowInspector
+                            projectRoot={project.path}
+                            threadId={codingThreadId}
+                          />
+                        </div>
+                      )}
+                      {workbenchView === "skills" && showWorkbenchPane && (
+                        <div className="min-h-0 flex-1 overflow-hidden">
+                          <CodingSkillsInspector projectRoot={project.path} />
                         </div>
                       )}
                     </div>
@@ -1158,95 +1213,21 @@ function PanelResizeHandle({
 }
 
 function AgentInspector({
-  activeTab,
-  onActiveTabChange,
   onFocusFile,
   onThreadIdChange,
   projectId,
-  projectRoot,
-  threadId,
-  selectedTaskId,
 }: {
-  activeTab: "agent" | "events" | "session" | "roi" | "workflow" | "skills";
-  onActiveTabChange: (tab: "agent" | "events" | "session" | "roi" | "workflow" | "skills") => void;
   onFocusFile?: WorkbenchFocusHandler;
   projectId: string;
-  projectRoot: string;
-  threadId: string;
-  selectedTaskId?: string | null;
   onThreadIdChange?: (threadId: string | undefined) => void;
 }) {
   return (
-    <div className="bg-background flex h-full min-h-0 flex-col border-l">
-      <div className="flex h-10 shrink-0 items-center justify-between border-b px-3">
-        <div className="min-w-0">
-          <p className="truncate text-xs font-semibold tracking-wide uppercase">
-            QiongQi Engine Agent Inspector（穷奇引擎智能体检查器）
-          </p>
-        </div>
-      </div>
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) =>
-          onActiveTabChange(value as "agent" | "events" | "session" | "roi" | "workflow" | "skills")
-        }
-        className="flex min-h-0 flex-1 flex-col"
-      >
-        <TabsList className="mx-2 mt-2 grid h-8 shrink-0 grid-cols-6">
-          <TabsTrigger value="agent" className="px-2 text-xs" title="对话">
-            <MessageSquareIcon className="h-3 w-3 sm:mr-1" />
-            <span className="hidden sm:inline">对话</span>
-          </TabsTrigger>
-          <TabsTrigger value="events" className="px-2 text-xs" title="事件">
-            <ActivityIcon className="h-3 w-3 sm:mr-1" />
-            <span className="hidden sm:inline">事件</span>
-          </TabsTrigger>
-          <TabsTrigger value="session" className="px-2 text-xs" title="Session">
-            <InfoIcon className="h-3 w-3 sm:mr-1" />
-            <span className="hidden sm:inline">Session</span>
-          </TabsTrigger>
-          <TabsTrigger value="roi" className="px-2 text-xs" title="ROI">
-            <GaugeIcon className="h-3 w-3 sm:mr-1" />
-            <span className="hidden sm:inline">ROI</span>
-          </TabsTrigger>
-          <TabsTrigger value="workflow" className="px-2 text-xs" title="Workflow">
-            <GitCompareIcon className="h-3 w-3 sm:mr-1" />
-            <span className="hidden sm:inline">流程</span>
-          </TabsTrigger>
-          <TabsTrigger value="skills" className="px-2 text-xs" title="Skills">
-            <SparklesIcon className="h-3 w-3 sm:mr-1" />
-            <span className="hidden sm:inline">Skills</span>
-          </TabsTrigger>
-        </TabsList>
-        <div className="relative mt-0 min-h-0 flex-1 overflow-hidden">
-          <PersistentInspectorPanel active={activeTab === "agent"}>
-            <AgentPanel
-              projectId={projectId}
-              onFocusFile={onFocusFile}
-              onThreadIdChange={onThreadIdChange}
-            />
-          </PersistentInspectorPanel>
-          <PersistentInspectorPanel active={activeTab === "events"}>
-            <CodingEventsInspector
-              threadId={threadId}
-              onFocusFile={onFocusFile}
-              selectedTaskId={selectedTaskId}
-            />
-          </PersistentInspectorPanel>
-          <PersistentInspectorPanel active={activeTab === "session"}>
-            <CodingSessionInspector threadId={threadId} />
-          </PersistentInspectorPanel>
-          <PersistentInspectorPanel active={activeTab === "roi"}>
-            <CodingRoiInspector threadId={threadId} />
-          </PersistentInspectorPanel>
-          <PersistentInspectorPanel active={activeTab === "workflow"}>
-            <CodingWorkflowInspector projectRoot={projectRoot} threadId={threadId} />
-          </PersistentInspectorPanel>
-          <PersistentInspectorPanel active={activeTab === "skills"}>
-            <CodingSkillsInspector projectRoot={projectRoot} />
-          </PersistentInspectorPanel>
-        </div>
-      </Tabs>
+    <div className="bg-background flex h-full min-h-0 flex-col">
+      <AgentPanel
+        projectId={projectId}
+        onFocusFile={onFocusFile}
+        onThreadIdChange={onThreadIdChange}
+      />
     </div>
   );
 }
