@@ -537,6 +537,23 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
             className="flex h-11 shrink-0 items-center gap-3 overflow-x-auto border-b px-3"
             data-testid="coding-workbench-toolbar"
           >
+            {/* Left sidebar toggle — pinned to the left edge */}
+            <Button
+              aria-label="切换文件树"
+              aria-pressed={showFileExplorer}
+              className="size-8 shrink-0"
+              size="icon-sm"
+              title={showFileExplorer ? "折叠文件树" : "展开文件树"}
+              type="button"
+              variant="ghost"
+              onClick={handleToggleFileExplorer}
+            >
+              {showFileExplorer ? (
+                <PanelLeftCloseIcon className="h-4 w-4" />
+              ) : (
+                <PanelLeftOpenIcon className="h-4 w-4" />
+              )}
+            </Button>
             <div
               className="bg-muted text-muted-foreground mr-auto inline-flex h-8 w-fit shrink-0 items-center justify-center rounded-md p-1"
               role="tablist"
@@ -573,23 +590,6 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
                 onClick={() => handleSelectWorkbenchTab("review")}
               />
             </div>
-            {/* Left sidebar toggle — placed near the left panel area */}
-            <Button
-              aria-label="切换文件树"
-              aria-pressed={showFileExplorer}
-              className="size-8 shrink-0"
-              size="icon-sm"
-              title={showFileExplorer ? "折叠文件树" : "展开文件树"}
-              type="button"
-              variant="ghost"
-              onClick={handleToggleFileExplorer}
-            >
-              {showFileExplorer ? (
-                <PanelLeftCloseIcon className="h-4 w-4" />
-              ) : (
-                <PanelLeftOpenIcon className="h-4 w-4" />
-              )}
-            </Button>
             {/* ROI / 流程 / 技能 — moved from Inspector tabs to toolbar icon buttons */}
             <Button
               aria-label="ROI"
