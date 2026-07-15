@@ -400,15 +400,15 @@
   display: none; /* Chrome/Safari/macOS */
 }
 
-/* Coding workbench: hide all scrollbars inside the three-panel layout. */
-.coding-workbench-scroll,
-.coding-workbench-scroll * {
+/* Global: hide all scrollbars across the app (chat, coding, settings).
+   The StickToBottom library sets inline overflow:auto + scrollbarGutter:'stable',
+   so we need !important + scrollbar-gutter override to fully hide the bar. */
+* {
   scrollbar-width: none !important; /* Firefox */
   -ms-overflow-style: none !important; /* IE/Edge */
-  scrollbar-gutter: auto !important; /* override StickToBottom inline style */
+  scrollbar-gutter: auto !important;
 }
-.coding-workbench-scroll::-webkit-scrollbar,
-.coding-workbench-scroll *::-webkit-scrollbar {
+*::-webkit-scrollbar {
   width: 0 !important;
   height: 0 !important;
   display: none !important; /* Chrome/Safari/macOS */
