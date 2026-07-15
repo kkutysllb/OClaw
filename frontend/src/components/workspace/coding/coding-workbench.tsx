@@ -17,7 +17,9 @@ import {
   GitCompareIcon,
   GitCommitHorizontalIcon,
   PackageOpenIcon,
+  PanelLeftCloseIcon,
   PanelLeftOpenIcon,
+  PanelRightCloseIcon,
   PanelRightOpenIcon,
   PlusIcon,
   XIcon,
@@ -571,6 +573,23 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
                 onClick={() => handleSelectWorkbenchTab("review")}
               />
             </div>
+            {/* Left sidebar toggle — placed near the left panel area */}
+            <Button
+              aria-label="切换文件树"
+              aria-pressed={showFileExplorer}
+              className="size-8 shrink-0"
+              size="icon-sm"
+              title={showFileExplorer ? "折叠文件树" : "展开文件树"}
+              type="button"
+              variant="ghost"
+              onClick={handleToggleFileExplorer}
+            >
+              {showFileExplorer ? (
+                <PanelLeftCloseIcon className="h-4 w-4" />
+              ) : (
+                <PanelLeftOpenIcon className="h-4 w-4" />
+              )}
+            </Button>
             {/* ROI / 流程 / 技能 — moved from Inspector tabs to toolbar icon buttons */}
             <Button
               aria-label="ROI"
@@ -640,40 +659,22 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
             >
               <TerminalIcon className="h-4 w-4" />
             </Button>
-            <Button
-              aria-label="新建项目终端"
-              className="size-8 shrink-0"
-              size="icon-sm"
-              title="新建项目终端"
-              type="button"
-              variant="ghost"
-              onClick={() => void handleOpenTerminal()}
-            >
-              <PlusIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              aria-label="切换文件树"
-              aria-pressed={showFileExplorer}
-              className="size-8 shrink-0"
-              size="icon-sm"
-              title="切换文件树"
-              type="button"
-              variant="ghost"
-              onClick={handleToggleFileExplorer}
-            >
-              <PanelLeftOpenIcon className="h-4 w-4" />
-            </Button>
+            {/* Right sidebar toggle — placed near the right panel area */}
             <Button
               aria-label="切换代码面板"
               aria-pressed={showWorkbenchPane}
               className="size-8 shrink-0"
               size="icon-sm"
-              title="切换代码面板"
+              title={showWorkbenchPane ? "折叠代码面板" : "展开代码面板"}
               type="button"
               variant="ghost"
               onClick={handleToggleWorkbenchPane}
             >
-              <PanelRightOpenIcon className="h-4 w-4" />
+              {showWorkbenchPane ? (
+                <PanelRightCloseIcon className="h-4 w-4" />
+              ) : (
+                <PanelRightOpenIcon className="h-4 w-4" />
+              )}
             </Button>
           </div>
           <div className="mt-0 flex min-h-0 flex-1 overflow-hidden">
