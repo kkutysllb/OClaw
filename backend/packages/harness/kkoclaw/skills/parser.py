@@ -4,9 +4,12 @@ from pathlib import Path
 
 import yaml
 
-from .types import SKILL_MD_FILE, Skill, SkillCategory
+from .types import SKILL_MD_FILE, SecretRequirement, Skill, SkillCategory
 
 logger = logging.getLogger(__name__)
+
+# Valid environment-variable name pattern (used by required-secrets validation).
+_ENV_VAR_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 
 
 def parse_allowed_tools(raw: object, skill_file: Path) -> list[str] | None:
@@ -132,3 +135,40 @@ def parse_skill_file(
     except Exception:
         logger.exception("Unexpected error parsing skill file %s", skill_file)
         return None
+
+
+def parse_required_secrets(raw: object, skill_file: Path) -> tuple[SecretRequirement, ...]:
+    """Parse the optional required-secrets frontmatter field (issue #3861).
+
+    Accepts a YAML sequence whose items are either a string (the secret / env
+    variable name) or a mapping (``{name, optional}``). Returns an empty tuple
+    when the field is omitted. Entries whose name is missing or is not a valid
+    environment-variable name are dropped with a warning, so one malformed
+    declaration does not invalidate the whole skill. Raises ValueError only when
+    the field is present but is not a list.
+    """
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ValueError(f"required-secrets in {skill_file} must be a list")
+
+    secrets: list[SecretRequirement] = []
+    seen: set[str] = set()
+    for item in raw:
+        if isinstance(item, str):
+            name, optional = item.strip(), False
+        elif isinstance(item, dict):
+            name = str(item.get("name") or "").strip()
+            optional = bool(item.get("optional", False))
+        else:
+            logger.warning("Ignoring malformed required-secrets entry in %s: %r", skill_file, item)
+            continue
+
+        if not _ENV_VAR_NAME_RE.match(name):
+            logger.warning("Ignoring required-secrets entry with invalid env var name in %s: %r", skill_file, name)
+            continue
+        if name in seen:
+            continue
+        seen.add(name)
+        secrets.append(SecretRequirement(name=name, optional=optional))
+    return tuple(secrets)
