@@ -1254,7 +1254,7 @@ function EnvironmentInfoFloatingCard({
   return (
     <div
       className={cn(
-        "absolute right-3 top-3 z-20 w-[320px] max-w-[calc(100%-1.5rem)] rounded-2xl border bg-background/96 p-3 shadow-xl backdrop-blur transition-all",
+        "scrollbar-none absolute right-3 top-3 z-20 max-h-[calc(100%-1.5rem)] w-[320px] max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-2xl border bg-background/96 p-3 shadow-xl backdrop-blur transition-all",
         visible ? "opacity-100" : "pointer-events-none opacity-0",
       )}
     >
