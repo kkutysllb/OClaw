@@ -14,6 +14,7 @@ from kkoclaw.agents.middlewares.input_sanitization_middleware import InputSaniti
 from kkoclaw.agents.middlewares.skill_activation_middleware import SkillActivationMiddleware
 from kkoclaw.agents.middlewares.internal_content_middleware import InternalContentMiddleware
 from kkoclaw.agents.middlewares.loop_detection_middleware import LoopDetectionMiddleware
+from kkoclaw.agents.middlewares.read_before_write_middleware import ReadBeforeWriteMiddleware
 from kkoclaw.agents.middlewares.mcp_routing_middleware import McpRoutingMiddleware
 from kkoclaw.agents.middlewares.memory_middleware import MemoryMiddleware
 from kkoclaw.agents.middlewares.safety_finish_reason_middleware import SafetyFinishReasonMiddleware
@@ -390,6 +391,12 @@ def _build_middlewares(
     # Inject custom middlewares before ClarificationMiddleware
     if custom_middlewares:
         middlewares.extend(custom_middlewares)
+
+    # ReadBeforeWriteMiddleware — block writes to existing files that were not
+    # read at their current version (deer-flow issue #3857). Gated by its own
+    # config flag (on by default) in addition to engine.upstream_middlewares.
+    if upstream_enabled and resolved_app_config.read_before_write.enabled:
+        middlewares.append(ReadBeforeWriteMiddleware())
 
     # LoopDetectionMiddleware — detect and break repetitive tool-call loops.
     # Additionally gated by its own config flag (on by default). Placed before

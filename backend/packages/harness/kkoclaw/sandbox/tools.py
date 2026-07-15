@@ -1656,6 +1656,29 @@ async def _grep_tool_async(
 grep_tool.coroutine = _grep_tool_async
 
 
+def read_current_file_content(runtime: Runtime | None, path: str) -> str:
+    """Read the full current content of ``path`` using read_file's resolution rules.
+
+    Shared by ``read_file_tool`` and ``ReadBeforeWriteMiddleware`` (issue #3857)
+    so the read-before-write gate hashes exactly the bytes the read tool would
+    see. Raises ``FileNotFoundError`` when the file does not exist; other sandbox
+    errors propagate to the caller. Mirrors the deer-flow helper of the same name.
+    """
+    sandbox = ensure_sandbox_initialized(runtime)
+    ensure_thread_directories_exist(runtime)
+    if is_local_sandbox(runtime):
+        thread_data = get_thread_data(runtime)
+        validate_local_tool_path(path, thread_data, read_only=True)
+        if _is_skills_path(path):
+            path = _resolve_skills_path(path)
+        elif _is_acp_workspace_path(path):
+            path = _resolve_acp_workspace_path(path, _extract_thread_id_from_thread_data(thread_data))
+        elif not _is_custom_mount_path(path):
+            path = _resolve_and_validate_user_data_path(path, thread_data)
+        # Custom mount paths are resolved by LocalSandbox._resolve_path()
+    return sandbox.read_file(path)
+
+
 @tool("read_file", parse_docstring=True)
 def read_file_tool(
     runtime: Runtime,
