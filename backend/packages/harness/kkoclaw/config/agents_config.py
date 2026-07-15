@@ -55,6 +55,27 @@ class AgentConfig(BaseModel):
     work_mode_id: str | None = None
 
 
+#: Top-level ``AgentConfig`` fields the managed update surfaces (the
+#: ``update_agent`` harness tool and the HTTP ``PATCH /api/agents/{name}`` route)
+#: overwrite. Every other field is preserved as-is when rewriting config.yaml.
+MANAGED_AGENT_CONFIG_FIELDS: frozenset[str] = frozenset({"name", "description", "model", "tool_groups", "skills"})
+
+
+def preserve_non_managed_fields(existing_cfg: AgentConfig) -> dict[str, object]:
+    """Return every top-level field on ``existing_cfg`` not in :data:`MANAGED_AGENT_CONFIG_FIELDS`.
+
+    Used by the two surfaces that rewrite a custom agent's ``config.yaml``
+    (the ``update_agent`` harness tool and the HTTP ``PATCH /api/agents/{name}``
+    route) to carry forward any hand-authored field — currently ``github``,
+    and any field added to :class:`AgentConfig` in the future — that the
+    update API does not expose as an argument. Without this, operators who
+    hand-author a ``github:`` block on a custom agent would silently lose
+    it the next time the agent or a UI editor touched ``description`` /
+    ``model`` / ``tool_groups`` / ``skills``.
+    """
+    return existing_cfg.model_dump(exclude_unset=True, exclude=MANAGED_AGENT_CONFIG_FIELDS)
+
+
 def resolve_agent_dir(name: str, *, user_id: str | None = None) -> Path:
     """Return the on-disk directory for an agent, preferring the per-user layout.
 
