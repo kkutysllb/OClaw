@@ -444,17 +444,6 @@ function AgentPanelInner({ projectId, onThreadIdChange, onFocusFile, onTodosChan
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
-          {/* Status bar */}
-          <div className="flex shrink-0 items-center justify-between border-b px-3 py-2">
-            <span className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
-              Coding Agent
-            </span>
-            <AgentStatusBadge
-              status={visibleAgentStatus}
-              lastToolLabel={lastToolLabel}
-            />
-          </div>
-
           {/* Messages */}
           <main className="relative flex min-h-0 grow flex-col">
             <MessageList
