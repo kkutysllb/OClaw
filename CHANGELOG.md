@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.2.6 - 2026-07-15
+
+Compare: `v0.2.5...v0.2.6`
+
+- 修复一些bug (6ff79e0)
+- fix(engine): MemoryMiddleware.after_agent get_config() NameError → ensure_config() (0b0e051)
+- refactor(engine): merge tools.py with deer-flow (additive) — review_skill_package, sync-tool wrapper, mcp tagging (86a9298)
+- feat(engine): port review_skill_package + update_agent tools; add preserve_non_managed_fields (d4fa3b9)
+- feat(engine): unblock review/ skills package — add frontmatter/parser symbols (dff6e62)
+- feat(engine): unblock + wire read_before_write middleware (e5f7895)
+- feat(engine): unblock + wire skill_activation middleware (9485f14)
+- chore(engine): Batch 8 (Orchestrator) — context_compaction unblocked; agent/factory/prompt full-merge DEFERRED (82e3664)
+- feat(engine): unblock context_compaction — add DeerFlowSummarizationMiddleware alias + create_summarization_middleware factory (943e703)
+- test(engine): update dynamic_context test for SystemMessage date reminder (OWASP LLM01) (cbbb95b)
+- refactor(engine): complete dynamic_context HumanMessage→SystemMessage migration for reminders (87739af)
+- chore(engine): Batch 7 (Community/Sandbox/Scheduler/TUI) complete — 56 files ported, optional-dep buckets deferred (27cb613)
+- feat(engine): port community providers + sandbox helpers + scheduler + workspace_changes + TUI from deer-flow (14ae393)
+- chore(engine): Batch 6 (Skills) complete — 10/18 ported (incl slash unblocker), review/ deferred; skill_activation narrowed to 1 blocker (SecretRequirement) (83b2d56)
+- feat(engine): port skills subsystem from deer-flow (catalog, review, skillscan, slash, user-scoped storage) (7143103)
+- chore(engine): Batch 5 (Models) complete — patched_mimo/stepfun ported, factory.py merged (f1ed0e9)
+- refactor(engine): merge models/factory.py from deer-flow (tracing dedup) + re-layer OClaw providers (c72d477)
+- feat(engine): port patched_mimo + patched_stepfun providers from deer-flow (e84165d)
+- chore(engine): Batch 4 (Tools & MCP) — partial complete (d5a5714)
+- refactor(engine): merge MCP session_pool + tools from deer-flow (owner-task fix, name canonicalization, path pinning) (f3217d3)
+- feat(engine): port tools/mcp_metadata.py from deer-flow (6d11ac4)
+- chore(engine): Batch 3 (Middlewares) complete — 9 upstream middlewares wired into canonical chain (gated), 2 deferred; engine.upstream_middlewares flag verified (7831ac6)
+- refactor(engine): rebuild _build_middlewares to canonical merged chain (upstream middlewares gated by engine.upstream_middlewares) (eefe6e6)
+- feat(engine): add engine.upstream_middlewares feature flag (db9b3a3)
+- feat(engine): port 11 upstream middlewares from deer-flow (95042c8)
+- test(engine): pin dynamic_context SystemMessage reminder parity (unblocks coalescing middleware) (6ca908f)
+- feat(engine): port middleware helpers + thread_state skill/delegation channels + status_contract (b6b1d5a)
+- chore(engine): Batch 2 (Runtime & Persistence) complete — runtime modules, persistence models, bootstrap, idempotent migration chain, shared-file merges (0332f6b)
+- refactor(engine): merge shared runtime/persistence files to deer-flow main + re-layer OClaw (1018c7d)
+- refactor(engine): reconcile alembic chain — idempotent 0001_baseline + 0002-0004 + rebase OClaw migrations to 0005-0007 (061be92)
+- feat(engine): port persistence/bootstrap + migration helpers from deer-flow (6d07a0a)
+- feat(engine): port upstream persistence models (channel_connections, scheduled_tasks, scheduled_task_runs) (ba16be6)
+- feat(engine): port 5 upstream runtime modules (context_compaction, context_keys, goal, secret_context, stream_bridge/redis) (c9da2af)
+- chore(engine): Batch 1 (Foundation) complete — config/constants/logging/utils synced to deer-flow (57f0efc)
+- refactor(engine): merge deer-flow AppConfig fields into kkoclaw (+13 fields, preserve OClaw fields) (08f7c62)
+- feat(engine): port utils/{llm_text,oneshot_llm,messages,file_io} from deer-flow (87fe28a)
+- refactor(engine): sync config/paths.py to deer-flow main + re-layer OClaw paths (f8b95e0)
+- feat(engine): port 12 standalone config modules from deer-flow (0b0eaa8)
+- feat(engine): port trace_context + logging_config from deer-flow (e3fad9b)
+- feat(engine): port constants.py from deer-flow (DEFAULT_SKILLS_CONTAINER_PATH) (852e517)
+- chore(engine): add engine_parity_diff tool for deer-flow resync (bb68ce9)
+- chore: ignore .worktrees/ for isolated worktrees (9c10596)
+
 ## v0.2.5 - 2026-07-13
 
 Compare: `v0.2.4...v0.2.5`
