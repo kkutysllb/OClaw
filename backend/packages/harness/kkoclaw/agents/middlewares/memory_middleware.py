@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, override
 from langchain.agents import AgentState
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import HumanMessage
+from langchain_core.runnables import ensure_config
 from langgraph.runtime import Runtime
 
 from kkoclaw.agents.middlewares.internal_messages import internal_human_message
@@ -200,7 +201,7 @@ class MemoryMiddleware(AgentMiddleware[MemoryMiddlewareState]):
         # Get thread ID from runtime context first, then fall back to LangGraph's configurable metadata
         thread_id = runtime.context.get("thread_id") if runtime.context else None
         if thread_id is None:
-            config_data = get_config()
+            config_data = ensure_config()
             thread_id = config_data.get("configurable", {}).get("thread_id")
         if not thread_id:
             logger.debug("No thread_id in context, skipping memory update")
