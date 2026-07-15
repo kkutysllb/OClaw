@@ -34,7 +34,7 @@ interface ReviewPanelProps {
   threadId: string;
   onFocusFile?: (
     filePath: string,
-    target?: "code" | "task-changes" | "diff",
+    target?: "code" | "task-changes" | "review",
     taskId?: string,
     line?: number | null,
   ) => void;
@@ -487,7 +487,7 @@ function FindingCard({
   onApplyFix?: (findingId: string) => void;
   onFocusFile?: (
     filePath: string,
-    target?: "code" | "task-changes" | "diff",
+    target?: "code" | "task-changes" | "review",
     taskId?: string,
     line?: number | null,
   ) => void;
@@ -495,7 +495,7 @@ function FindingCard({
 }) {
   const cfg = SEVERITY_CONFIG[finding.severity];
   const Icon = cfg.icon;
-  const target = finding.task_id ? "task-changes" : "diff";
+  const target = finding.task_id ? "task-changes" : "code";
   const canApplyFix = finding.fix?.applicable && !finding.fix.applied;
   const isApplying = applyingFixId === finding.id;
 

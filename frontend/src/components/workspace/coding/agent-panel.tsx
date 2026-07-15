@@ -60,7 +60,7 @@ interface AgentPanelProps {
   onThreadIdChange?: (threadId: string | undefined) => void;
   onFocusFile?: (
     filePath: string,
-    target?: "code" | "task-changes" | "diff" | "review",
+    target?: "code" | "task-changes" | "review",
     taskId?: string,
     line?: number | null,
   ) => void;
@@ -542,7 +542,7 @@ function CodingChangeSummaryCard({
   projectId: string;
   onFocusFile?: (
     filePath: string,
-    target?: "code" | "task-changes" | "diff" | "review",
+    target?: "code" | "task-changes" | "review",
     taskId?: string,
     line?: number | null,
   ) => void;

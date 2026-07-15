@@ -24,7 +24,7 @@ interface CodingTaskChangesPanelProps {
   onSelectTask?: (taskId: string) => void;
   onFocusFile?: (
     filePath: string,
-    target?: "code" | "task-changes" | "diff",
+    target?: "code" | "task-changes" | "review",
     taskId?: string,
     line?: number | null,
   ) => void;

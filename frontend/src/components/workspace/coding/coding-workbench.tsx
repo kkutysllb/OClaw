@@ -16,7 +16,6 @@ import {
   GitBranchIcon,
   GitCompareIcon,
   GitCommitHorizontalIcon,
-  PackageOpenIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PanelRightCloseIcon,
@@ -102,8 +101,6 @@ import { cn } from "@/lib/utils";
 
 import { AgentPanel } from "./agent-panel";
 import { CodeViewer } from "./code-viewer";
-import { CodingDiffPanel } from "./coding-diff-panel";
-import { CodingResultsPanel } from "./coding-results-panel";
 import { CodingTaskChangesPanel } from "./coding-task-changes-panel";
 import { FileExplorer } from "./file-explorer";
 import { ReviewPanel } from "./review-panel";
@@ -112,7 +109,7 @@ interface CodingWorkbenchProps {
   projectId: string;
 }
 
-type WorkbenchFocusTarget = "code" | "task-changes" | "diff" | "review";
+type WorkbenchFocusTarget = "code" | "task-changes" | "review";
 type WorkbenchFocusHandler = (
   filePath: string,
   target?: WorkbenchFocusTarget,
@@ -178,7 +175,6 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
     }
   }, [agentThreadId, threadIdStorageKey]);
   const codingThreadId = agentThreadId ?? projectId;
-  const resultsThreadId = codingThreadId;
   const { changes: historicalChanges } = useCodingSessionChanges(codingThreadId);
   const { review } = useLatestCodingReview(codingThreadId);
   const reviewSummary = review?.summary;
@@ -211,10 +207,10 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
   };
 
   const [activeCodeTab, setActiveCodeTab] = useState<
-    "code" | "task-changes" | "diff" | "results" | "review" | "roi" | "workflow" | "skills"
+    "code" | "task-changes" | "review" | "roi" | "workflow" | "skills"
   >("code");
   const [workbenchView, setWorkbenchView] = useState<
-    "code" | "task-changes" | "diff" | "results" | "review" | "roi" | "workflow" | "skills"
+    "code" | "task-changes" | "review" | "roi" | "workflow" | "skills"
   >("code");
   const [isCommitDialogOpen, setCommitDialogOpen] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
@@ -430,13 +426,11 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
   };
 
   const handleSelectWorkbenchTab = (
-    tab: "code" | "task-changes" | "diff" | "results" | "review" | "roi" | "workflow" | "skills",
+    tab: "code" | "task-changes" | "review" | "roi" | "workflow" | "skills",
   ) => {
     setActiveCodeTab(tab);
     setWorkbenchView(tab);
-    if (tab !== "results") {
-      openWorkbenchPane();
-    }
+    openWorkbenchPane();
   };
 
   const handleCommit = async () => {
@@ -570,18 +564,6 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
                 icon={<GitCompareIcon className="h-3 w-3" />}
                 label="任务变更"
                 onClick={() => handleSelectWorkbenchTab("task-changes")}
-              />
-              <WorkbenchToolbarButton
-                active={activeCodeTab === "diff"}
-                icon={<GitCompareIcon className="h-3 w-3" />}
-                label="项目 Diff"
-                onClick={() => handleSelectWorkbenchTab("diff")}
-              />
-              <WorkbenchToolbarButton
-                active={activeCodeTab === "results"}
-                icon={<PackageOpenIcon className="h-3 w-3" />}
-                label="结果"
-                onClick={() => handleSelectWorkbenchTab("results")}
               />
               <WorkbenchToolbarButton
                 active={activeCodeTab === "review"}
@@ -757,15 +739,6 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
                           />
                         </div>
                       )}
-                      {workbenchView === "diff" && showWorkbenchPane && (
-                        <div className="min-h-0 flex-1 overflow-hidden">
-                          <CodingDiffPanel
-                            projectId={projectId}
-                            selectedFilePath={selectedFile}
-                            focusLine={focusedLine}
-                          />
-                        </div>
-                      )}
                       {workbenchView === "task-changes" && showWorkbenchPane && (
                         <div className="min-h-0 flex-1 overflow-hidden">
                           <CodingTaskChangesPanel
@@ -775,11 +748,6 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
                             onSelectTask={setSelectedTaskId}
                             onFocusFile={focusWorkbenchFile}
                           />
-                        </div>
-                      )}
-                      {workbenchView === "results" && showWorkbenchPane && (
-                        <div className="min-h-0 flex-1 overflow-hidden">
-                          <CodingResultsPanel threadId={resultsThreadId} />
                         </div>
                       )}
                       {workbenchView === "review" && showWorkbenchPane && (
@@ -1704,7 +1672,7 @@ function EventRow({
           onClick={() => onFocusFile(focusTarget.path, focusTarget.target, focusTarget.taskId)}
         >
           <FileTextIcon className="h-3.5 w-3.5" />
-          定位 {focusTarget.target === "diff" ? "变更" : "文件"}
+          定位 {focusTarget.target === "task-changes" ? "变更" : "文件"}
         </Button>
       )}
     </div>
@@ -3169,7 +3137,7 @@ function formatEventType(eventType: string): string {
 
 function getEventFocusTarget(
   event: QiongqiEvent,
-): { path: string; target: "code" | "task-changes" | "diff"; taskId?: string } | null {
+): { path: string; target: "code" | "task-changes" | "review"; taskId?: string } | null {
   const path =
     typeof event.payload.path === "string"
       ? event.payload.path
