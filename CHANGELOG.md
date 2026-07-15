@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.1 - 2026-07-16
+
+Compare: `v0.3.0...v0.3.1`
+
+- Version metadata update.
+
 ## v0.3.0 - 2026-07-16
 
 Compare: `v0.2.6...v0.3.0`
