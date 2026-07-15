@@ -63,15 +63,21 @@ def test_mcp_routing_importable() -> None:
 
 
 def test_skill_activation_importable() -> None:
-    # DEFERRED: depends on the skills-secrets subsystem not yet ported:
-    #   - kkoclaw.skills.slash (parse_slash_skill_reference / resolve_slash_skill)
-    #   - SecretRequirement dataclass + Skill.required_secrets / .secrets_autonomous
-    #     fields (kkoclaw.skills.types)
-    #   - get_or_new_user_skill_storage / UserScopedSkillStorage (skills.storage)
-    #   Part of a larger skills-subsystem port; resolves when that lands.
+    # DEFERRED (Batch 6 narrowed the blocker): slash.py + user-scoped storage
+    # are now ported, but the middleware still imports SecretRequirement and the
+    # Skill.required_secrets / .secrets_autonomous fields from
+    # kkoclaw.skills.types — OClaw's types.py is a deliberately-divergent
+    # preserved file (PUBLIC="builtin", no LEGACY, no secrets surface) that is
+    # out of scope for Batch 6. Resolves when the secrets surface on types.Skill
+    # is reconciled in a later batch.
+    #
+    # exc_type=ImportError is explicit: the module file exists but raises
+    # ImportError at load (missing SecretRequirement); without exc_type newer
+    # pytest warns that importorskip caught a module-found-but-broken case.
     mod = pytest.importorskip(
         "kkoclaw.agents.middlewares.skill_activation_middleware",
-        reason="deferred: skill_activation needs skills-secrets subsystem (slash, SecretRequirement, UserScopedSkillStorage)",
+        reason="deferred: skill_activation needs SecretRequirement + Skill.required_secrets/.secrets_autonomous (kkoclaw.skills.types, preserved/divergent)",
+        exc_type=ImportError,
     )
     assert mod.SkillActivationMiddleware() is not None
 
