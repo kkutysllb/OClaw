@@ -403,10 +403,13 @@
 /* Coding workbench: hide all scrollbars inside the three-panel layout. */
 .coding-workbench-scroll,
 .coding-workbench-scroll * {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE/Edge */
+  scrollbar-gutter: auto !important; /* override StickToBottom inline style */
 }
 .coding-workbench-scroll::-webkit-scrollbar,
 .coding-workbench-scroll *::-webkit-scrollbar {
-  display: none; /* Chrome/Safari/macOS */
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important; /* Chrome/Safari/macOS */
 }
