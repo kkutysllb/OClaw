@@ -6,20 +6,30 @@ from kkoclaw.config import get_app_config
 from kkoclaw.config.app_config import AppConfig
 from kkoclaw.reflection import resolve_variable
 from kkoclaw.sandbox.security import is_host_bash_allowed
-from kkoclaw.tools.builtins import ask_clarification_tool, present_file_tool, task_tool, view_image_tool
+from kkoclaw.tools.builtins import ask_clarification_tool, present_file_tool, review_skill_package, task_tool, view_image_tool
 from kkoclaw.tools.builtins.tool_search import reset_deferred_registry
+from kkoclaw.tools.mcp_metadata import tag_mcp_tool
+from kkoclaw.tools.sync import make_sync_tool_wrapper
 
 logger = logging.getLogger(__name__)
 
 BUILTIN_TOOLS = [
     present_file_tool,
     ask_clarification_tool,
+    review_skill_package,
 ]
 
 SUBAGENT_TOOLS = [
     task_tool,
     # task_status_tool is no longer exposed to LLM (backend handles polling internally)
 ]
+
+
+def _ensure_sync_invocable_tool(tool: BaseTool) -> BaseTool:
+    """Attach a sync wrapper to async-only tools used by sync agent callers (deer-flow parity)."""
+    if getattr(tool, "func", None) is None and getattr(tool, "coroutine", None) is not None:
+        tool.func = make_sync_tool_wrapper(tool.coroutine, tool.name)
+    return tool
 
 
 def _is_host_bash_tool(tool: object) -> bool:
@@ -77,7 +87,7 @@ def get_available_tools(
                 cfg.use,
             )
 
-    loaded_tools = [t for _, t in loaded_tools_raw]
+    loaded_tools = [_ensure_sync_invocable_tool(t) for _, t in loaded_tools_raw]
 
     # Conditionally add tools based on config
     builtin_tools = BUILTIN_TOOLS.copy()
@@ -152,6 +162,7 @@ def get_available_tools(
 
                     registry = DeferredToolRegistry()
                     for t in mcp_tools:
+                        tag_mcp_tool(t)
                         registry.register(t)
                     set_deferred_registry(registry)
                     builtin_tools.append(tool_search_tool)
