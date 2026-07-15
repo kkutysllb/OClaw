@@ -2,6 +2,16 @@
 
 from pydantic import BaseModel, Field
 
+# Global MCP routing auto-promote breadth range (PR2). Used by
+# ``McpRoutingMiddleware`` to clamp the requested top_k.
+AUTO_PROMOTE_TOP_K_MIN = 1
+AUTO_PROMOTE_TOP_K_MAX = 5
+
+
+def clamp_auto_promote_top_k(value: int) -> int:
+    """Clamp the global MCP routing auto-promote breadth to PR2's range."""
+    return max(AUTO_PROMOTE_TOP_K_MIN, min(AUTO_PROMOTE_TOP_K_MAX, int(value)))
+
 
 class ToolSearchConfig(BaseModel):
     """Configuration for deferred tool loading via tool_search.

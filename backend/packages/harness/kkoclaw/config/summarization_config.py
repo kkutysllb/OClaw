@@ -6,6 +6,10 @@ from pydantic import BaseModel, Field
 
 ContextSizeType = Literal["fraction", "tokens", "messages"]
 
+# Tool names treated as skill-file reads when capturing loaded skills into the
+# durable skill_context channel (DurableContextMiddleware).
+DEFAULT_SKILL_FILE_READ_TOOL_NAMES: tuple[str, ...] = ("read_file", "read", "view", "cat")
+
 
 class ContextSize(BaseModel):
     """Context size specification for trigger or keep parameters."""

@@ -7,19 +7,28 @@ from langchain_core.runnables import RunnableConfig
 from kkoclaw.agents.lead_agent.prompt import apply_prompt_template
 from kkoclaw.agents.memory.summarization_hook import memory_flush_hook
 from kkoclaw.agents.middlewares.clarification_middleware import ClarificationMiddleware
+from kkoclaw.agents.middlewares.durable_context_middleware import DurableContextMiddleware
 from kkoclaw.agents.middlewares.dynamic_context_middleware import DynamicContextMiddleware
 from kkoclaw.agents.middlewares.inject_middleware import InjectMiddleware
+from kkoclaw.agents.middlewares.input_sanitization_middleware import InputSanitizationMiddleware
 from kkoclaw.agents.middlewares.internal_content_middleware import InternalContentMiddleware
+from kkoclaw.agents.middlewares.loop_detection_middleware import LoopDetectionMiddleware
+from kkoclaw.agents.middlewares.mcp_routing_middleware import McpRoutingMiddleware
 from kkoclaw.agents.middlewares.memory_middleware import MemoryMiddleware
 from kkoclaw.agents.middlewares.safety_finish_reason_middleware import SafetyFinishReasonMiddleware
 from kkoclaw.agents.middlewares.subagent_limit_middleware import SubagentLimitMiddleware
 from kkoclaw.agents.middlewares.summarization_middleware import BeforeSummarizationHook, KKOCLAWSummarizationMiddleware
+from kkoclaw.agents.middlewares.system_message_coalescing_middleware import SystemMessageCoalescingMiddleware
+from kkoclaw.agents.middlewares.terminal_response_middleware import TerminalResponseMiddleware
 from kkoclaw.agents.middlewares.title_middleware import TitleMiddleware
 from kkoclaw.agents.middlewares.todo_middleware import TodoMiddleware
+from kkoclaw.agents.middlewares.token_budget_middleware import TokenBudgetMiddleware
+from kkoclaw.agents.middlewares.token_economy_middleware import TokenEconomyMiddleware
 from kkoclaw.agents.middlewares.token_usage_middleware import TokenUsageMiddleware
 from kkoclaw.agents.middlewares.tool_error_handling_middleware import build_lead_runtime_middlewares
 from kkoclaw.agents.middlewares.tool_output_budget_middleware import ToolOutputBudgetMiddleware
-from kkoclaw.agents.middlewares.token_economy_middleware import TokenEconomyMiddleware
+from kkoclaw.agents.middlewares.tool_progress_middleware import ToolProgressMiddleware
+from kkoclaw.agents.middlewares.tool_result_sanitization_middleware import ToolResultSanitizationMiddleware
 from kkoclaw.agents.middlewares.view_image_middleware import ViewImageMiddleware
 from kkoclaw.agents.thread_state import RuntimeContext, ThreadState
 from kkoclaw.config.agents_config import load_agent_config, validate_agent_name
@@ -261,6 +270,16 @@ def _build_middlewares(
     resolved_app_config = app_config or get_app_config()
     middlewares = build_lead_runtime_middlewares(app_config=resolved_app_config, lazy_init=True)
 
+    upstream_enabled = resolved_app_config.engine.upstream_middlewares
+
+    # ── Upstream sanitization guardrails (early, before any context shaping) ──
+    # InputSanitization escapes prompt-injection tags in user input; ToolResult
+    # does the same for remote tool outputs. They must run before the model sees
+    # untrusted content, so they sit right after the error-handling base chain.
+    if upstream_enabled:
+        middlewares.append(InputSanitizationMiddleware())
+        middlewares.append(ToolResultSanitizationMiddleware())
+
     # DynamicContextMiddleware — inject current date (and optionally memory)
     # as <system-reminder> into first HumanMessage for prefix-cache reuse.
     middlewares.append(DynamicContextMiddleware(agent_name=agent_name, app_config=resolved_app_config))
@@ -275,6 +294,19 @@ def _build_middlewares(
     token_economy_config = resolved_app_config.token_economy
     if token_economy_config.enabled:
         middlewares.append(TokenEconomyMiddleware.from_app_config(resolved_app_config))
+
+    # DurableContextMiddleware — capture delegations + loaded skills and re-inject
+    # the durable context data block before summarization compacts the history.
+    # Placed here (upstream canonical position: before summarization) so the
+    # captured context survives summarization-driven message pruning.
+    if upstream_enabled:
+        summarization_cfg = resolved_app_config.summarization
+        middlewares.append(
+            DurableContextMiddleware(
+                skills_container_path=resolved_app_config.skills.container_path,
+                skill_file_read_tool_names=summarization_cfg.skill_file_read_tool_names,
+            )
+        )
 
     # Add summarization middleware if enabled
     summarization_middleware = _create_summarization_middleware(app_config=resolved_app_config)
@@ -291,6 +323,12 @@ def _build_middlewares(
     # Add TokenUsageMiddleware when token_usage tracking is enabled
     if resolved_app_config.token_usage.enabled:
         middlewares.append(TokenUsageMiddleware())
+
+    # TokenBudgetMiddleware — enforce per-run token budget limits. Additionally
+    # gated by its own config flag (off by default). Placed after the usage /
+    # summarization / todo area per the upstream canonical chain.
+    if upstream_enabled and resolved_app_config.token_budget.enabled:
+        middlewares.append(TokenBudgetMiddleware(resolved_app_config.token_budget))
 
     # Add TitleMiddleware
     middlewares.append(TitleMiddleware(app_config=resolved_app_config))
@@ -310,6 +348,25 @@ def _build_middlewares(
 
         middlewares.append(DeferredToolFilterMiddleware())
 
+    # McpRoutingMiddleware — auto-promote deferred MCP tools from routing
+    # metadata before model calls. Placed near the deferred-tool filter (its
+    # canonical upstream position) so it writes promotion state the filter
+    # consumes. The real keyword routing index is built at tool-loading time;
+    # here we pass an empty index, which yields a safe no-op for keyword-based
+    # auto-promotion (DeferredToolFilterMiddleware still governs schema
+    # visibility). Wrapped defensively: if construction ever needs richer args
+    # we skip rather than break the chain.
+    if upstream_enabled:
+        try:
+            middlewares.append(McpRoutingMiddleware(routing_index={}, catalog_hash=None, top_k=1))
+        except Exception:  # pragma: no cover - defensive; empty index should always construct
+            logger.warning("McpRoutingMiddleware skipped: construction failed", exc_info=True)
+
+    # ToolProgressMiddleware — state-machine tool stagnation guard. Additionally
+    # gated by its own config flag (off by default). Sits in the tool-call area.
+    if upstream_enabled and resolved_app_config.tool_progress.enabled:
+        middlewares.append(ToolProgressMiddleware.from_config(resolved_app_config.tool_progress))
+
     # Add SubagentLimitMiddleware to truncate excess parallel task calls
     subagent_enabled = cfg.get("subagent_enabled", False)
     if subagent_enabled:
@@ -327,12 +384,29 @@ def _build_middlewares(
     if custom_middlewares:
         middlewares.extend(custom_middlewares)
 
+    # LoopDetectionMiddleware — detect and break repetitive tool-call loops.
+    # Additionally gated by its own config flag (on by default). Placed before
+    # SafetyFinishReason per the upstream canonical chain.
+    if upstream_enabled and resolved_app_config.loop_detection.enabled:
+        middlewares.append(LoopDetectionMiddleware.from_config(resolved_app_config.loop_detection))
+
     # SafetyFinishReasonMiddleware — suppress tool execution when the provider
     # safety-terminated the response. Registered after custom middlewares so
     # that LangChain's reverse-order after_model dispatch runs Safety first.
     safety_config = resolved_app_config.safety_finish_reason
     if safety_config.enabled:
         middlewares.append(SafetyFinishReasonMiddleware.from_config(safety_config))
+
+    # SystemMessageCoalescingMiddleware — merge all SystemMessages into a single
+    # leading SystemMessage on the final request payload. Placed after
+    # SafetyFinishReason per the upstream canonical chain.
+    if upstream_enabled:
+        middlewares.append(SystemMessageCoalescingMiddleware())
+
+    # TerminalResponseMiddleware — final response shaping. Placed after
+    # SystemMessageCoalescing per the upstream canonical chain.
+    if upstream_enabled:
+        middlewares.append(TerminalResponseMiddleware())
 
     # ClarificationMiddleware should always be last
     middlewares.append(ClarificationMiddleware())

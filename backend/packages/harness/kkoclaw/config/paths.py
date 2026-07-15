@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import re
@@ -6,12 +7,20 @@ from pathlib import Path, PureWindowsPath
 
 from kkoclaw.config.runtime_paths import project_root, runtime_home
 
-logger = logging.getLogger(__name__)
+# Phase 3 removed the /mnt/user-data virtual *mount* layer from the sandbox:
+# agents and tools now operate on real host paths directly. The
+# ``resolve_virtual_path`` helper and ``VIRTUAL_PATH_PREFIX`` constant below are
+# retained from upstream for API compatibility but are not used by OClaw's
+# runtime; OClaw resolves artifact paths via ``resolve_thread_artifact_path``.
+# See docs/superpowers/plans/2026-07-08-sandbox-phase3-remove-virtual-paths.md.
+VIRTUAL_PATH_PREFIX = "/mnt/user-data"
 
-# Phase 3 removed the /mnt/user-data virtual path layer. Agents and tools now
-# operate on real host paths directly; see docs/superpowers/plans/2026-07-08-sandbox-phase3-remove-virtual-paths.md.
 _SAFE_THREAD_ID_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
 _SAFE_USER_ID_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
+_UNSAFE_USER_ID_CHAR_RE = re.compile(r"[^A-Za-z0-9_\-]")
+_SAFE_USER_ID_DIGEST_HEX_LEN = 16
+
+logger = logging.getLogger(__name__)
 
 
 def _migrate_legacy_project_home() -> None:
@@ -102,6 +111,29 @@ def _validate_user_id(user_id: str) -> str:
     if not _SAFE_USER_ID_RE.match(user_id):
         raise ValueError(f"Invalid user_id {user_id!r}: only alphanumeric characters, hyphens, and underscores are allowed.")
     return user_id
+
+
+def make_safe_user_id(raw: str) -> str:
+    """Normalize an external identity into the user-id charset (``[A-Za-z0-9_-]``).
+
+    IM channel ids (Feishu/Slack/Telegram) may contain characters that
+    :func:`_validate_user_id` rejects. Already-safe ids pass through unchanged;
+    lossy ones get a short digest suffix so two distinct inputs never share a
+    storage bucket.
+    """
+    if not raw:
+        raise ValueError("user_id must be a non-empty string.")
+    sanitized = _UNSAFE_USER_ID_CHAR_RE.sub("-", raw)
+    if sanitized == raw:
+        return raw
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:_SAFE_USER_ID_DIGEST_HEX_LEN]
+    return f"{sanitized}-{digest}"
+
+
+def _legacy_safe_user_id(raw: str, sanitized: str) -> str:
+    """Bucket name produced by the previous (SHA-1) digest revision for ``raw``."""
+    digest = hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()[:_SAFE_USER_ID_DIGEST_HEX_LEN]
+    return f"{sanitized}-{digest}"
 
 
 def _join_host_path(base: str, *parts: str) -> str:
@@ -236,6 +268,32 @@ class Paths:
         """Directory for a specific user: `{base_dir}/users/{user_id}/`."""
         return self.base_dir / "users" / _validate_user_id(user_id)
 
+    def prepare_user_dir_for_raw_id(self, raw_user_id: str) -> str:
+        """Return the safe user ID and migrate this ID's legacy unsafe-id bucket.
+
+        A previous branch revision used SHA-1 for unsafe external user IDs.
+        New IDs use SHA-256; the legacy bucket name is recomputed from the same
+        raw ID, so only this user's own old bucket can ever be moved — a
+        different raw ID sharing the sanitized prefix produces a different
+        legacy digest and is never touched.
+        """
+        safe_user_id = make_safe_user_id(raw_user_id)
+        sanitized = _UNSAFE_USER_ID_CHAR_RE.sub("-", raw_user_id)
+        if safe_user_id == raw_user_id:
+            return safe_user_id
+
+        users_dir = self.base_dir / "users"
+        target_dir = users_dir / safe_user_id
+        legacy_dir = users_dir / _legacy_safe_user_id(raw_user_id, sanitized)
+        try:
+            if target_dir.exists() or not legacy_dir.is_dir():
+                return safe_user_id
+            legacy_dir.rename(target_dir)
+            logger.info("Migrated legacy unsafe-id user directory to the current digest format")
+        except OSError:
+            logger.exception("Failed to migrate legacy unsafe-id user directory")
+        return safe_user_id
+
     def user_memory_file(self, user_id: str) -> Path:
         """Per-user memory file: `{base_dir}/users/{user_id}/memory.json`."""
         return self.user_dir(user_id) / "memory.json"
@@ -251,6 +309,19 @@ class Paths:
     def user_agent_memory_file(self, user_id: str, agent_name: str) -> Path:
         """Per-user per-agent memory: `{base_dir}/users/{user_id}/agents/{name}/memory.json`."""
         return self.user_agent_dir(user_id, agent_name) / "memory.json"
+
+    def user_skills_dir(self, user_id: str) -> Path:
+        """Per-user root for that user's custom skills: `{base_dir}/users/{user_id}/skills/`."""
+        return self.user_dir(user_id) / "skills"
+
+    def user_custom_skills_dir(self, user_id: str) -> Path:
+        """Per-user custom skills directory: `{base_dir}/users/{user_id}/skills/custom/`.
+
+        This is the user-scoped replacement for the global ``{base_dir}/skills/custom/``
+        directory. Custom skills are written here; public skills remain under the
+        global ``{base_dir}/skills/public/`` (read-only).
+        """
+        return self.user_skills_dir(user_id) / "custom"
 
     def thread_dir(self, thread_id: str, *, user_id: str | None = None) -> Path:
         """
@@ -367,6 +438,42 @@ class Paths:
         thread_dir = self.thread_dir(thread_id, user_id=user_id)
         if thread_dir.exists():
             shutil.rmtree(thread_dir)
+
+    def resolve_virtual_path(self, thread_id: str, virtual_path: str, *, user_id: str | None = None) -> Path:
+        """Resolve a sandbox virtual path to the actual host filesystem path.
+
+        Args:
+            thread_id: The thread ID.
+            virtual_path: Virtual path as seen inside the sandbox, e.g.
+                          ``/mnt/user-data/outputs/report.pdf``.
+                          Leading slashes are stripped before matching.
+            user_id: Optional user ID for user-scoped path resolution.
+
+        Returns:
+            The resolved absolute host filesystem path.
+
+        Raises:
+            ValueError: If the path does not start with the expected virtual
+                        prefix or a path-traversal attempt is detected.
+        """
+        stripped = virtual_path.lstrip("/")
+        prefix = VIRTUAL_PATH_PREFIX.lstrip("/")
+
+        # Require an exact segment-boundary match to avoid prefix confusion
+        # (e.g. reject paths like "mnt/user-dataX/...").
+        if stripped != prefix and not stripped.startswith(prefix + "/"):
+            raise ValueError(f"Path must start with /{prefix}")
+
+        relative = stripped[len(prefix) :].lstrip("/")
+        base = self.sandbox_user_data_dir(thread_id, user_id=user_id).resolve()
+        actual = (base / relative).resolve()
+
+        try:
+            actual.relative_to(base)
+        except ValueError:
+            raise ValueError("Access denied: path traversal detected")
+
+        return actual
 
     def resolve_thread_artifact_path(
         self,

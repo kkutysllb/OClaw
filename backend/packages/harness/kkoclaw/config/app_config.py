@@ -2,7 +2,7 @@ import logging
 import os
 from contextvars import ContextVar
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 import yaml
 from dotenv import load_dotenv
@@ -10,28 +10,40 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from kkoclaw.config.acp_config import ACPAgentConfig, load_acp_config_from_dict
 from kkoclaw.config.agents_api_config import AgentsApiConfig, load_agents_api_config_from_dict
+from kkoclaw.config.auth_config import AuthAppConfig
+from kkoclaw.config.channel_connections_config import ChannelConnectionsConfig
 from kkoclaw.config.checkpointer_config import CheckpointerConfig, load_checkpointer_config_from_dict
 from kkoclaw.config.coding_agent_config import CodingAgentConfig
+from kkoclaw.config.cron_management_config import CronManagementConfig
 from kkoclaw.config.database_config import DatabaseConfig
 from kkoclaw.config.extensions_config import ExtensionsConfig
 from kkoclaw.config.guardrails_config import GuardrailsConfig, load_guardrails_config_from_dict
+from kkoclaw.config.input_polish_config import InputPolishConfig
+from kkoclaw.config.loop_detection_config import LoopDetectionConfig
 from kkoclaw.config.memory_config import MemoryConfig, load_memory_config_from_dict
 from kkoclaw.config.model_config import ModelConfig
+from kkoclaw.config.read_before_write_config import ReadBeforeWriteConfig
+from kkoclaw.config.reload_boundary import format_field_description
 from kkoclaw.config.run_events_config import RunEventsConfig
+from kkoclaw.config.run_ownership_config import RunOwnershipConfig
 from kkoclaw.config.runtime_paths import existing_project_file
 from kkoclaw.config.safety_finish_reason_config import SafetyFinishReasonConfig
 from kkoclaw.config.sandbox_config import SandboxConfig
-from kkoclaw.config.cron_management_config import CronManagementConfig
+from kkoclaw.config.scheduler_config import SchedulerConfig
 from kkoclaw.config.skill_evolution_config import SkillEvolutionConfig
+from kkoclaw.config.skill_scan_config import SkillScanConfig
 from kkoclaw.config.skills_config import SkillsConfig
 from kkoclaw.config.stream_bridge_config import StreamBridgeConfig, load_stream_bridge_config_from_dict
 from kkoclaw.config.subagents_config import SubagentsAppConfig, load_subagents_config_from_dict
+from kkoclaw.config.suggestions_config import SuggestionsConfig
 from kkoclaw.config.summarization_config import SummarizationConfig, load_summarization_config_from_dict
 from kkoclaw.config.title_config import TitleConfig, load_title_config_from_dict
+from kkoclaw.config.token_budget_config import TokenBudgetConfig
+from kkoclaw.config.token_economy_config import TokenEconomyConfig
 from kkoclaw.config.token_usage_config import TokenUsageConfig
 from kkoclaw.config.tool_config import ToolConfig, ToolGroupConfig
 from kkoclaw.config.tool_output_config import ToolOutputConfig
-from kkoclaw.config.token_economy_config import TokenEconomyConfig
+from kkoclaw.config.tool_progress_config import ToolProgressConfig
 from kkoclaw.config.tool_search_config import ToolSearchConfig, load_tool_search_config_from_dict
 
 load_dotenv()
@@ -50,6 +62,44 @@ class CircuitBreakerConfig(BaseModel):
 
     failure_threshold: int = Field(default=5, description="Number of consecutive failures before tripping the circuit")
     recovery_timeout_sec: int = Field(default=60, description="Time in seconds before attempting to recover the circuit")
+
+
+class EngineConfig(BaseModel):
+    """Engine-level feature flags for the deer-flow resync."""
+
+    upstream_middlewares: bool = Field(
+        default=True,
+        description="Enable the ported upstream middlewares (coalescing, terminal_response, durable_context, mcp_routing, skill_activation, input/tool_result sanitization, loop_detection, token_budget, tool_progress). Set False to revert to the legacy OClaw-only chain.",
+    )
+
+
+class LoggingEnhanceConfig(BaseModel):
+    """Request trace logging enhancement settings."""
+
+    enabled: bool = Field(default=False, description="Enable request-level trace ids in Gateway response headers and log records.")
+    format: Literal["text", "json"] = Field(default="text", description="Enhanced log output format.")
+
+
+class LoggingConfig(BaseModel):
+    """Logging configuration."""
+
+    enhance: LoggingEnhanceConfig = Field(default_factory=LoggingEnhanceConfig, description="Request trace correlation logging settings.")
+
+
+def is_trace_correlation_enabled(config: Any) -> bool:
+    """Return ``True`` when ``logging.enhance.enabled`` is set on *config*.
+
+    Single source of truth for the request-trace-correlation gate, shared by
+    the Gateway ``TraceMiddleware`` and the embedded ``DeerFlowClient`` so
+    the two entry points cannot drift on when ``deerflow_trace_id`` is
+    emitted (Langfuse metadata) and when a request-level trace id is bound
+    at all. Accepts any object exposing ``logging.enhance.enabled`` via
+    ``getattr`` chains (``AppConfig``, ``SimpleNamespace`` fixtures, etc.);
+    missing intermediate attributes silently degrade to ``False``.
+    """
+    logging_config = getattr(config, "logging", None)
+    enhance = getattr(logging_config, "enhance", None)
+    return bool(getattr(enhance, "enabled", False))
 
 
 def _legacy_config_candidates() -> tuple[Path, ...]:
@@ -87,6 +137,19 @@ class AppConfig(BaseModel):
     """Config for the KKOCLAW application"""
 
     log_level: str = Field(default="info", description="Logging level for kkoclaw and app modules (debug/info/warning/error); third-party libraries are not affected")
+    # ── Ported from deer-flow (Batch 1) ──────────────────────────────
+    logging: LoggingConfig = Field(default_factory=LoggingConfig, description=format_field_description("logging", field_doc="Logging configuration, including enhanced trace-id correlation."))
+    token_budget: TokenBudgetConfig = Field(default_factory=TokenBudgetConfig, description="Token Budget tracking and limits configuration.")
+    loop_detection: LoopDetectionConfig = Field(default_factory=LoopDetectionConfig, description="Loop detection middleware configuration.")
+    tool_progress: ToolProgressConfig = Field(default_factory=ToolProgressConfig, description="Tool progress state machine middleware configuration.")
+    read_before_write: ReadBeforeWriteConfig = Field(default_factory=ReadBeforeWriteConfig, description="Read-before-write file gate middleware configuration.")
+    input_polish: InputPolishConfig = Field(default_factory=InputPolishConfig, description="Pre-send input polishing configuration.")
+    suggestions: SuggestionsConfig = Field(default_factory=SuggestionsConfig, description="Follow-up suggestions configuration.")
+    skill_scan: SkillScanConfig = Field(default_factory=SkillScanConfig, description="Native deterministic skill safety scanning configuration.")
+    channel_connections: ChannelConnectionsConfig = Field(default_factory=ChannelConnectionsConfig, description=format_field_description("channel_connections", field_doc="Channel connection configuration."))
+    auth: AuthAppConfig = Field(default_factory=AuthAppConfig, description="Authentication configuration (local + OIDC SSO).")
+    scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig, description=format_field_description("scheduler", field_doc="Scheduled-task service configuration."))
+    run_ownership: RunOwnershipConfig = Field(default_factory=RunOwnershipConfig, description=format_field_description("run_ownership", field_doc="Run ownership / lease configuration."))
     token_usage: TokenUsageConfig = Field(default_factory=TokenUsageConfig, description="Token usage tracking configuration")
     models: list[ModelConfig] = Field(default_factory=list, description="Available models")
     sandbox: SandboxConfig = Field(description="Sandbox configuration")
@@ -109,6 +172,7 @@ class AppConfig(BaseModel):
     tool_output: ToolOutputConfig = Field(default_factory=ToolOutputConfig, description="Tool output budget enforcement configuration")
     token_economy: TokenEconomyConfig = Field(default_factory=TokenEconomyConfig, description="Token Economy system configuration (concise responses, history compression, storm breaker)")
     circuit_breaker: CircuitBreakerConfig = Field(default_factory=CircuitBreakerConfig, description="LLM circuit breaker configuration")
+    engine: EngineConfig = Field(default_factory=EngineConfig, description="Engine feature flags for the deer-flow resync.")
     agent_recursion_limit: int = Field(
         default=500,
         ge=10,

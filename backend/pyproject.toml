@@ -28,6 +28,7 @@ oclaw-code = "kkoclaw.coding_cli:main"
 
 [project.optional-dependencies]
 postgres = ["kkoclaw-harness[postgres]"]
+redis = ["kkoclaw-harness[redis]"]
 
 [dependency-groups]
 dev = [

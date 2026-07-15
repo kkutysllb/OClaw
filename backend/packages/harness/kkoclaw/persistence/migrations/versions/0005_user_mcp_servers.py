@@ -1,7 +1,7 @@
 """add user_mcp_servers table
 
-Revision ID: a1b2c3d4e5f6
-Revises:
+Revision ID: 0005_user_mcp_servers
+Revises: 0004_run_ownership
 Create Date: 2026-06-28 13:40:00.000000
 
 Creates the ``user_mcp_servers`` table for per-user MCP server isolation.
@@ -9,6 +9,10 @@ Creates the ``user_mcp_servers`` table for per-user MCP server isolation.
 Each row stores one MCP server's full configuration (JSON) scoped to a
 single user. ``is_system_default`` marks servers seeded from the global
 ``extensions_config.json`` template — these are protected from deletion.
+
+Idempotent: OClaw provisions this table via ``Base.metadata.create_all`` at
+engine init, so ``upgrade()`` guards on table existence and is a no-op on an
+existing OClaw DB.
 """
 
 from __future__ import annotations
@@ -17,13 +21,16 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "a1b2c3d4e5f6"
-down_revision = None
+revision = "0005_user_mcp_servers"
+down_revision = "0004_run_ownership"
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
+    existing_tables = set(sa.inspect(op.get_bind()).get_table_names())
+    if "user_mcp_servers" in existing_tables:
+        return
     op.create_table(
         "user_mcp_servers",
         sa.Column("id", sa.String(64), primary_key=True),

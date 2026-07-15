@@ -93,11 +93,16 @@ async def init_engine(
             ) from None
 
     if backend == "sqlite":
+        import asyncio
         import os
 
         from sqlalchemy import event
 
-        os.makedirs(sqlite_dir or ".", exist_ok=True)
+        # Offload the directory creation: ``init_engine`` runs on the FastAPI
+        # lifespan event loop, and a sync ``os.makedirs`` (a stat + mkdir
+        # syscall) blocks it during startup. Mirrors the #1912 fix for the
+        # checkpointer's ``ensure_sqlite_parent_dir``.
+        await asyncio.to_thread(os.makedirs, sqlite_dir or ".", exist_ok=True)
         _engine = create_async_engine(url, echo=echo, json_serializer=_json_serializer)
 
         # Enable WAL on every new connection. SQLite PRAGMA settings are
@@ -107,11 +112,14 @@ async def init_engine(
         # SQLite deployment (TC-UPG-06 in AUTH_TEST_PLAN.md). The companion
         # ``synchronous=NORMAL`` is the safe-and-fast pairing — fsync only
         # at WAL checkpoint boundaries instead of every commit.
-        # Note: we do not set PRAGMA busy_timeout here — Python's sqlite3
-        # driver already defaults to a 5-second busy timeout (see the
-        # ``timeout`` kwarg of ``sqlite3.connect``), and aiosqlite /
-        # SQLAlchemy's aiosqlite dialect inherit that default.  Setting
-        # it again would be a no-op.
+        # We also widen ``busy_timeout`` to 30s here. Python's sqlite3 driver
+        # defaults to 5s, which is fine for transient row contention but too
+        # tight for cross-process bootstrap: the second-N-th Gateway process
+        # may need to wait while the first runs ``ALTER TABLE`` /
+        # ``CREATE TABLE`` for a fresh schema. The same widened timeout is
+        # mirrored on the alembic-spawned engine in
+        # ``migrations/env.py::run_migrations_online`` so its connections
+        # behave identically.
         @event.listens_for(_engine.sync_engine, "connect")
         def _enable_sqlite_wal(dbapi_conn, _record):  # noqa: ARG001 — SQLAlchemy contract
             cursor = dbapi_conn.cursor()
@@ -119,6 +127,7 @@ async def init_engine(
                 cursor.execute("PRAGMA journal_mode=WAL;")
                 cursor.execute("PRAGMA synchronous=NORMAL;")
                 cursor.execute("PRAGMA foreign_keys=ON;")
+                cursor.execute("PRAGMA busy_timeout=30000;")
             finally:
                 cursor.close()
     elif backend == "postgres":
