@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from kkoclaw.agents.middlewares.dynamic_context_middleware import DynamicContextMiddleware
 
@@ -34,4 +34,11 @@ def test_dynamic_context_uses_runtime_scope_for_first_memory_injection(monkeypat
         "active_scope": active_scope,
         "user_id": "runtime-user",
     }
-    assert "scoped memory" in result["messages"][0].content
+    # Upstream parity: the date reminder is a SystemMessage (messages[0]) and
+    # the user-owned memory is delivered as a separate HumanMessage so it
+    # never gains system authority (OWASP LLM01).
+    messages = result["messages"]
+    assert isinstance(messages[0], SystemMessage)
+    assert "<current_date>" in messages[0].content
+    memory_msg = next(m for m in messages if isinstance(m, HumanMessage) and m.id.endswith("__memory"))
+    assert "scoped memory" in memory_msg.content
