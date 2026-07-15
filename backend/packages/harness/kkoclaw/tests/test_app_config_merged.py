@@ -38,3 +38,11 @@ def test_app_config_loads_real_config_yaml():
     cfg = AppConfig.from_file()
     assert cfg.models  # config.yaml defines models
     assert cfg.sandbox is not None
+
+
+def test_engine_upstream_middlewares_flag_default():
+    from kkoclaw.config.app_config import AppConfig
+    cfg = AppConfig(sandbox={"use": "kkoclaw.sandbox.local:LocalSandboxProvider"})
+    assert hasattr(cfg, "engine")
+    assert hasattr(cfg.engine, "upstream_middlewares")
+    assert cfg.engine.upstream_middlewares is True

@@ -64,6 +64,15 @@ class CircuitBreakerConfig(BaseModel):
     recovery_timeout_sec: int = Field(default=60, description="Time in seconds before attempting to recover the circuit")
 
 
+class EngineConfig(BaseModel):
+    """Engine-level feature flags for the deer-flow resync."""
+
+    upstream_middlewares: bool = Field(
+        default=True,
+        description="Enable the ported upstream middlewares (coalescing, terminal_response, durable_context, mcp_routing, skill_activation, input/tool_result sanitization, loop_detection, token_budget, tool_progress). Set False to revert to the legacy OClaw-only chain.",
+    )
+
+
 class LoggingEnhanceConfig(BaseModel):
     """Request trace logging enhancement settings."""
 
@@ -163,6 +172,7 @@ class AppConfig(BaseModel):
     tool_output: ToolOutputConfig = Field(default_factory=ToolOutputConfig, description="Tool output budget enforcement configuration")
     token_economy: TokenEconomyConfig = Field(default_factory=TokenEconomyConfig, description="Token Economy system configuration (concise responses, history compression, storm breaker)")
     circuit_breaker: CircuitBreakerConfig = Field(default_factory=CircuitBreakerConfig, description="LLM circuit breaker configuration")
+    engine: EngineConfig = Field(default_factory=EngineConfig, description="Engine feature flags for the deer-flow resync.")
     agent_recursion_limit: int = Field(
         default=500,
         ge=10,
