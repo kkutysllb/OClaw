@@ -358,3 +358,85 @@ class KKOCLAWSummarizationMiddleware(SummarizationMiddleware):
             except Exception:
                 hook_name = getattr(hook, "__name__", None) or type(hook).__name__
                 logger.exception("before_summarization hook %s failed", hook_name)
+
+
+# ── Upstream-compatibility surface (Batch 8) ──────────────────────────────────
+# context_compaction.py and other ported upstream callers expect a
+# ``DeerFlowSummarizationMiddleware`` name and a ``create_summarization_middleware``
+# factory. OClaw's implementation is ``KKOCLAWSummarizationMiddleware`` (with
+# pre-compression hooks + skill rescue); expose it under the upstream name so
+# ported modules import cleanly without changing OClaw's summarization behavior.
+DeerFlowSummarizationMiddleware = KKOCLAWSummarizationMiddleware
+
+
+def create_summarization_middleware(
+    *,
+    app_config: Any | None = None,
+    keep: tuple[str, int | float] | None = None,
+    skip_memory_flush: bool = False,
+) -> DeerFlowSummarizationMiddleware | None:
+    """Create the configured summarization middleware (upstream-compatible factory).
+
+    Mirrors ``deerflow...summarization_middleware.create_summarization_middleware``.
+    Delegates to OClaw's configuration-driven construction (the same logic used
+    by ``lead_agent.agent._create_summarization_middleware``) so behavior stays
+    identical to the lead-agent path. Returns ``None`` when summarization is
+    disabled.
+
+    Args:
+        app_config: Application config. ``None`` resolves the global config.
+        keep: Optional override for the ``(channel, threshold)`` keep pair.
+        skip_memory_flush: When True, do not attach the memory-flush hook.
+    """
+    # Lazy imports avoid a circular dependency at module load time.
+    from kkoclaw.config.app_config import AppConfig, get_app_config
+    from kkoclaw.models import create_chat_model
+
+    resolved = app_config or get_app_config()
+    if isinstance(resolved, AppConfig):
+        config = resolved.summarization
+    else:
+        config = getattr(resolved, "summarization", None)
+    if config is None or not getattr(config, "enabled", False):
+        return None
+
+    trigger = None
+    if getattr(config, "trigger", None) is not None:
+        t = config.trigger
+        trigger = [x.to_tuple() for x in t] if isinstance(t, list) else t.to_tuple()
+
+    keep_pair = keep if keep is not None else config.keep.to_tuple()
+
+    model_name = getattr(config, "model_name", None)
+    if model_name:
+        model = create_chat_model(name=model_name, thinking_enabled=False, app_config=resolved)
+    else:
+        model = create_chat_model(thinking_enabled=False, app_config=resolved)
+    model = model.with_config(tags=["middleware:summarize"])
+
+    kwargs: dict[str, Any] = {"model": model, "trigger": trigger, "keep": keep_pair}
+    if getattr(config, "trim_tokens_to_summarize", None) is not None:
+        kwargs["trim_tokens_to_summarize"] = config.trim_tokens_to_summarize
+    if getattr(config, "summary_prompt", None) is not None:
+        kwargs["summary_prompt"] = config.summary_prompt
+
+    hooks: list[BeforeSummarizationHook] = []
+    if not skip_memory_flush and getattr(resolved, "memory", None) and resolved.memory.enabled:
+        try:
+            from kkoclaw.agents.memory.summarization_hook import memory_flush_hook
+
+            hooks.append(memory_flush_hook)
+        except Exception:  # pragma: no cover - memory hook is optional
+            pass
+
+    skills_container_path = (resolved.skills.container_path if hasattr(resolved, "skills") else None) or "/mnt/skills"
+
+    return DeerFlowSummarizationMiddleware(
+        **kwargs,
+        skills_container_path=skills_container_path,
+        skill_file_read_tool_names=getattr(config, "skill_file_read_tool_names", None),
+        before_summarization=hooks,
+        preserve_recent_skill_count=getattr(config, "preserve_recent_skill_count", 5),
+        preserve_recent_skill_tokens=getattr(config, "preserve_recent_skill_tokens", 25_000),
+        preserve_recent_skill_tokens_per_skill=getattr(config, "preserve_recent_skill_tokens_per_skill", 5_000),
+    )
