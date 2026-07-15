@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
@@ -36,6 +36,18 @@ class SkillCategory(StrEnum):
         return None
 
 
+class SecretRequirement:
+    """A request-scoped secret a skill declares it needs (issue #3861).
+
+    ``name`` is both the key looked up in the request's ``context.secrets`` and
+    the environment variable name injected into the skill's sandbox subprocess
+    when the skill is activated.
+    """
+
+    name: str
+    optional: bool = False
+
+
 @dataclass
 class Skill:
     """Represents a skill with its metadata and file path"""
@@ -61,6 +73,15 @@ class Skill:
     # ``resolve_effective_skill_ids`` selects skills whose ``work_modes``
     # contains the active mode id or "core".
     work_modes: tuple[str, ...] = ()
+    # Secrets the skill declares it needs (deer-flow issue #3861). Each entry's
+    # ``name`` is resolved against the run's secret context and injected into the
+    # sandbox subprocess environment when the skill activates. Default empty so
+    # existing skills (which declare none) are unaffected.
+    required_secrets: tuple[SecretRequirement, ...] = field(default_factory=tuple)
+    # Whether declared secrets may bind when the skill is in-context via an
+    # autonomous model load (skill_context), or only on explicit /slash
+    # activation. Defaults to True (autonomous binding allowed).
+    secrets_autonomous: bool = True
 
     @property
     def mode_scope(self) -> str | None:

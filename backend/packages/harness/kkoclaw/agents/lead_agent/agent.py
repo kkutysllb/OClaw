@@ -11,6 +11,7 @@ from kkoclaw.agents.middlewares.durable_context_middleware import DurableContext
 from kkoclaw.agents.middlewares.dynamic_context_middleware import DynamicContextMiddleware
 from kkoclaw.agents.middlewares.inject_middleware import InjectMiddleware
 from kkoclaw.agents.middlewares.input_sanitization_middleware import InputSanitizationMiddleware
+from kkoclaw.agents.middlewares.skill_activation_middleware import SkillActivationMiddleware
 from kkoclaw.agents.middlewares.internal_content_middleware import InternalContentMiddleware
 from kkoclaw.agents.middlewares.loop_detection_middleware import LoopDetectionMiddleware
 from kkoclaw.agents.middlewares.mcp_routing_middleware import McpRoutingMiddleware
@@ -283,6 +284,12 @@ def _build_middlewares(
     # DynamicContextMiddleware — inject current date (and optionally memory)
     # as <system-reminder> into first HumanMessage for prefix-cache reuse.
     middlewares.append(DynamicContextMiddleware(agent_name=agent_name, app_config=resolved_app_config))
+
+    # SkillActivationMiddleware — when the user starts the turn with /skill-name,
+    # load the full SKILL.md content into context (deer-flow parity). Sits after
+    # DynamicContext so the slash-invoked skill sees the date reminder too.
+    if upstream_enabled:
+        middlewares.append(SkillActivationMiddleware(app_config=resolved_app_config))
 
     # ToolOutputBudgetMiddleware — enforce per-result budget on tool outputs
     tool_output_config = resolved_app_config.tool_output
