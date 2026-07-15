@@ -40,16 +40,15 @@ describe("coding diff workflow", () => {
       "utf8",
     );
 
-    expect(workbench).toContain("CodingDiffPanel");
-    expect(workbench).toContain("selectedFile={selectedFile}");
-    expect(workbench).toContain("workbenchView === \"diff\"");
+    // "项目 Diff" tab and CodingDiffPanel were removed from the workbench
+    expect(workbench).not.toContain("CodingDiffPanel");
+    expect(workbench).not.toContain("workbenchView === \"diff\"");
     expect(workbench).toContain("showWorkbenchPane &&");
     expect(workbench).toContain("<CodeViewer");
     expect(workbench).toContain('aria-label="代码区视图"');
-    expect(workbench).toContain('label="项目 Diff"');
-    expect(workbench).toContain('handleSelectWorkbenchTab("diff")');
+    expect(workbench).not.toContain('label="项目 Diff"');
+    expect(workbench).not.toContain('handleSelectWorkbenchTab("diff")');
     expect(workbench).toContain("任务变更");
-    expect(workbench).toContain('activeCodeTab === "diff"');
   });
 
   test("coding diff panel shows changed files and unified diff", () => {

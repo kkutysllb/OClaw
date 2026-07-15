@@ -41,8 +41,8 @@ describe("coding task changes panel", () => {
     expect(workbench).toContain("const codingThreadId = agentThreadId ?? projectId");
     expect(workbench).toContain("threadId={codingThreadId}");
     expect(workbench).toContain("selectedFilePath={selectedFile}");
-    expect(workbench).toContain("setActiveInspectorTab");
-    expect(workbench).not.toContain('setActiveInspectorTab("events")');
+    // Inspector tab system was removed — setActiveInspectorTab no longer exists
+    expect(workbench).not.toContain("setActiveInspectorTab");
     expect(workbench).toContain('setWorkbenchView(target)');
     expect(workbench).toContain("openWorkbenchPane()");
     expect(workbench).toContain("onFocusFile={focusWorkbenchFile}");

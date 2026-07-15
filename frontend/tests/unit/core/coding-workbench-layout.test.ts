@@ -33,7 +33,7 @@ describe("coding workbench layout", () => {
     expect(workbench).toContain("openWorkbenchPane");
     expect(workbench).toContain("closeWorkbenchPane");
     expect(workbench).toContain("const [leftCollapsed, setLeftCollapsed] = useState(false)");
-    expect(workbench).toContain("const [rightCollapsed, setRightCollapsed] = useState(true)");
+    expect(workbench).toContain("const [rightCollapsed, setRightCollapsed] = useState(false)");
     expect(workbench).toContain("environmentCardCollapsed");
     expect(workbench).toContain("useState(false)");
     expect(workbench).toContain("const showEnvironmentCard = !showWorkbenchPane && !environmentCardCollapsed");
@@ -58,16 +58,20 @@ describe("coding workbench layout", () => {
     expect(workbench).toContain("2xl:pr-[360px] xl:pr-[340px]");
     expect(workbench).toContain('data-testid="coding-workbench-right-panel"');
     expect(workbench).toContain("const [workbenchView, setWorkbenchView]");
-    expect(workbench).toContain('TabsTrigger value="agent"');
-    expect(workbench).toContain("PersistentInspectorPanel");
-    expect(workbench).toContain('active={activeTab === "agent"}');
-    expect(workbench).toContain('TabsTrigger value="events"');
-    expect(workbench).toContain('TabsTrigger value="session"');
-    expect(workbench).toContain('TabsTrigger value="roi"');
-    expect(workbench).toContain('TabsTrigger value="workflow"');
-    expect(workbench).toContain('TabsTrigger value="skills"');
-    expect(workbench).toContain("CodingEventsInspector");
-    expect(workbench).toContain("CodingSessionInspector");
+    // Tabs were removed — ROI/流程/技能 moved to toolbar icon buttons,
+    // 对话/session/事件 removed, AgentPanel renders directly as the main view.
+    expect(workbench).not.toContain('TabsTrigger value="agent"');
+    expect(workbench).not.toContain('TabsTrigger value="events"');
+    expect(workbench).not.toContain('TabsTrigger value="session"');
+    expect(workbench).not.toContain('TabsTrigger value="roi"');
+    expect(workbench).not.toContain('TabsTrigger value="workflow"');
+    expect(workbench).not.toContain('TabsTrigger value="skills"');
+    expect(workbench).toContain('handleSelectWorkbenchTab("roi")');
+    expect(workbench).toContain('handleSelectWorkbenchTab("workflow")');
+    expect(workbench).toContain('handleSelectWorkbenchTab("skills")');
+    expect(workbench).toContain("CodingRoiInspector");
+    expect(workbench).toContain("CodingWorkflowInspector");
+    expect(workbench).toContain("CodingSkillsInspector");
     expect(workbench).toContain("useCodingSessionChanges(threadId)");
     expect(workbench).toContain("effectiveChangeSummary");
     expect(workbench).toContain("buildChangeSummaryFromChanges");
@@ -166,8 +170,8 @@ describe("coding workbench layout", () => {
     expect(workbench).toContain("setEnvironmentCardCollapsed((value) => !value)");
     expect(workbench).toContain("MonitorCogIcon");
     expect(workbench).toContain('aria-label="打开项目终端"');
-    expect(workbench).toContain('aria-label="新建项目终端"');
-    expect(workbench).toContain("PlusIcon");
+    // The toolbar no longer has a duplicate terminal "+" button — only the
+    // EmbeddedTerminalTabsPanel still has its own "新建项目终端" for adding tabs.
     expect(workbench).toContain('aria-label="切换文件树"');
     expect(workbench).toContain('aria-label="切换代码面板"');
     expect(workbench).toContain("openProjectTerminal(project.path)");

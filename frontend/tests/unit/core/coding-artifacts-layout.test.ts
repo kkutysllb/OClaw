@@ -23,9 +23,9 @@ describe("coding artifacts layout", () => {
 
     expect(workbench).toContain("ArtifactsProvider");
     expect(workbench).toContain('aria-label="代码区视图"');
-    expect(workbench).toContain('label="结果"');
-    expect(workbench).toContain('handleSelectWorkbenchTab("results")');
-    expect(workbench).toContain("<CodingResultsPanel");
+    // "结果" tab and CodingResultsPanel were removed from the workbench
+    expect(workbench).not.toContain('handleSelectWorkbenchTab("results")');
+    expect(workbench).not.toContain("<CodingResultsPanel");
   });
 
   test("coding results panel treats missing artifacts as an empty list", () => {
