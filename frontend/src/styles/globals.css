@@ -399,3 +399,14 @@
 .scrollbar-none::-webkit-scrollbar {
   display: none; /* Chrome/Safari/macOS */
 }
+
+/* Coding workbench: hide all scrollbars inside the three-panel layout. */
+.coding-workbench-scroll,
+.coding-workbench-scroll * {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.coding-workbench-scroll::-webkit-scrollbar,
+.coding-workbench-scroll *::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/macOS */
+}

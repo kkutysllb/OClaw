@@ -526,7 +526,7 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
         </div>
 
         {/* Three-panel resizable layout */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="coding-workbench-scroll flex min-h-0 flex-1 flex-col overflow-hidden">
           <div
             className="flex h-11 shrink-0 items-center gap-3 overflow-x-auto border-b px-3"
             data-testid="coding-workbench-toolbar"
