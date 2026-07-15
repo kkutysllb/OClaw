@@ -1,0 +1,13 @@
+{
+  "id": "diff-analysis",
+  "name": "diff-analysis",
+  "description": "Use this skill when analyzing project diffs, task changes, changed hunks, additions/deletions, file-level risk, before/after code comparisons, or review findings that must be grounded in concrete chan",
+  "entry": "SKILL.md",
+  "permissions": {
+    "write": false,
+    "bash": false
+  },
+  "activation": {
+    "keywords": []
+  }
+}

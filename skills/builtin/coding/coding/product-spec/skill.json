@@ -1,0 +1,12 @@
+{
+  "id": "product-spec",
+  "name": "product-spec",
+  "description": "Use this skill when writing a product specification, feature brief, user stories, workflow definition, MVP scope, or product decision record.",
+  "entry": "SKILL.md",
+  "permissions": {
+    "bash": false
+  },
+  "activation": {
+    "keywords": []
+  }
+}

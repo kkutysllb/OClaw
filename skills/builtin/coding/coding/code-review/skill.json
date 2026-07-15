@@ -1,0 +1,13 @@
+{
+  "id": "code-review",
+  "name": "code-review",
+  "description": "Use this skill when the user asks to review code, check for issues, audit quality, or inspect changes. Trigger on requests like \"review this code\", \"check this PR\", \"what's wrong with this code\", \"aud",
+  "entry": "SKILL.md",
+  "permissions": {
+    "write": false,
+    "bash": false
+  },
+  "activation": {
+    "keywords": []
+  }
+}

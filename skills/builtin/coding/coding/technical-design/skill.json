@@ -1,0 +1,12 @@
+{
+  "id": "technical-design",
+  "name": "technical-design",
+  "description": "Use this skill when producing a technical design, module plan, data flow, interface contract, risk analysis, or implementation strategy before coding.",
+  "entry": "SKILL.md",
+  "permissions": {
+    "bash": false
+  },
+  "activation": {
+    "keywords": []
+  }
+}

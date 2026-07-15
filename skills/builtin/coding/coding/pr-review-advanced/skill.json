@@ -1,0 +1,13 @@
+{
+  "id": "pr-review-advanced",
+  "name": "pr-review-advanced",
+  "description": "Use this skill for PR-level review that needs merge-base context, multiple commits, commit intent, aggregate diff, risk grouping, review decision, and findings across the full branch.",
+  "entry": "SKILL.md",
+  "permissions": {
+    "write": false,
+    "bash": false
+  },
+  "activation": {
+    "keywords": []
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "id": "architecture",
+  "name": "architecture",
+  "description": "Use this skill for module design, boundaries, dependency direction, service extraction, core engine design, plugin systems, and cross-cutting technical decisions.",
+  "entry": "SKILL.md",
+  "permissions": {
+    "bash": false
+  },
+  "activation": {
+    "keywords": []
+  }
+}

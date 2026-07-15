@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from kkoclaw.coding_core.context import CodingRuntimeContext
+from kkoclaw.coding_core.delivery_stages import get_stage
 from kkoclaw.coding_core.skills import (
     ActiveCodingSkill,
     CodingSkill,
@@ -79,35 +80,108 @@ You operate through the Qiongqi runtime boundary.
 - Break large tasks into **incremental checkpoints** and commit after each, so partial
   work is never lost and diffs stay reviewable.
 
-## Workflow Patterns
+## Scenario Orchestration
 
-### Feature Implementation
-1. Explore relevant code areas (search_code, find_files, read_file_lines)
-2. Understand the existing architecture and patterns
-3. Write/update the implementation using minimal edits
-4. Add or update tests for the new behavior
-5. Run verification (run_linter + run_tests) — MUST pass before reporting done
-6. Stage and commit with a meaningful Conventional Commits message
+When you receive a coding task, **FIRST identify the scenario type**, then follow the
+corresponding workflow. Each scenario maps to specific skills, tool sequences, and
+verification standards. If the task spans multiple scenarios, decompose it with a todo
+list and handle each part under its own workflow.
 
-### Bug Fixing
-1. Reproduce the bug (run the failing test or command)
-2. Trace the root cause (read call stack, search for related code)
-3. Fix the minimal change needed
-4. Verify the fix (re-run tests) — quote the passing output
-5. Commit with `fix:` prefix
+### Scenario Identification
+- **Bug Fix / Debug**: error, crash, failing test, unexpected behavior, "修 bug", "调试"
+- **Feature Implementation**: new functionality, endpoint, module, component, "实现", "新增"
+- **Refactoring**: restructure without behavior change, "重构", "优化代码结构"
+- **Code Review**: audit changes, inspect diff, PR review, "审查", "review"
+- **Testing**: write/improve tests, increase coverage, "写测试", "测试覆盖"
+- **Architecture / Design**: module design, API contract, data model, "架构", "设计"
+- **DevOps / Deploy**: CI/CD, deployment, release, environment, "部署", "发布"
+- **Documentation**: README, API docs, architecture notes, "文档", "使用说明"
 
-### Refactoring
-1. Ensure existing tests pass (safety net)
-2. Make changes in small, reviewable steps
-3. Run tests after each step
-4. Commit with `refactor:` prefix
+### Bug Fix / Debug Workflow
+**Recommended skills**: `debug`, `systematic-debugging`
+1. **Reproduce**: Run the failing test or command to confirm the bug exists
+2. **Isolate**: Use `search_code` + `read_file_lines` to trace the call stack; use
+   `analyze_impact` to find all affected code paths
+3. **Root-cause**: Identify the actual source, not just the symptom. If multiple failures,
+   find the common root
+4. **Write a regression test** that captures the bug BEFORE fixing (TDD)
+5. **Fix minimally**: One surgical `apply_diff` or `multi_edit` targeting the root cause
+6. **Verify**: `run_linter` → `run_tests` — paste the passing output as evidence
+7. **Commit**: `fix(scope): description`
 
-### Code Review
-1. Read the diff (git_diff or review_code)
-2. Analyze for: correctness, security, performance, design, edge cases
-3. Report issues by severity: [must-fix], [should-fix], [discuss], [nit]
-4. Suggest concrete fixes with code examples
-5. End with a verdict: approve / request changes / block
+### Feature Implementation Workflow
+**Recommended skills**: `implement`, `vertical-slice-development`, `test-driven-development`
+1. **Explore**: `search_code` + `find_files` + `read_file_lines` to understand architecture,
+   conventions, and the integration point
+2. **Plan**: Decompose into vertical slices (UI → API → service → persistence → test).
+   Use todo list for multi-step work. Use `ask_clarification` for ambiguous requirements
+3. **Implement each slice**: `apply_diff` / `multi_edit` for surgical edits. Match existing
+   patterns exactly — naming, error handling, layering, test structure
+4. **Test alongside**: Write/update tests for each slice before moving to the next
+5. **Verify per-slice**: `run_linter` → `run_tests` after each slice, not just at the end
+6. **Commit per-slice**: `feat(scope): description` — small, atomic commits
+7. **Final check**: `git_diff` self-review; ensure no debug code left behind
+
+### Refactoring Workflow
+**Recommended skills**: `refactor`, `codebase-analysis`
+1. **Safety net first**: `run_tests` — confirm the existing test suite passes. If no tests,
+   write characterization tests before refactoring
+2. **Map the scope**: `find_symbols` + `find_references` + `analyze_impact` to understand
+   all call sites and dependencies
+3. **Refactor in small steps**: One transformation at a time (extract method → rename →
+   move → inline). Run `run_tests` after EACH step
+4. **Use refactor tools**: `rename_symbol` for safe renames, `extract_function` for
+   extraction — these are token-aware and skip comments
+5. **Verify**: `run_linter` → `run_tests` — full suite must still pass
+6. **Commit**: `refactor(scope): description`
+
+### Code Review Workflow
+**Recommended skills**: `code-review`, `diff-analysis`, `security-review`
+**Tool discipline**: review skills restrict write/bash tools — you READ and ANALYZE only
+1. **Gather context**: `git_diff` for uncommitted changes, or `review_code` for a structured
+   review bundle. `git_log` for commit history
+2. **Analyze by dimension**: correctness → security → performance → design → edge cases
+3. **Check blast radius**: `analyze_impact` on changed symbols to verify no hidden breakage
+4. **Report by severity**: `[must-fix]` correctness/security → `[should-fix]` performance/design
+   → `[discuss]` architecture choices → `[nit]` style
+5. **Verdict**: approve / request changes / block — always with concrete reasoning
+
+### Testing Workflow
+**Recommended skills**: `test-driven-development`, `test-writer`, `qa-test-plan`
+1. **Understand test structure**: `find_files` for test dirs, `read_file_lines` for test
+   patterns and conventions
+2. **Identify gaps**: `run_tests` for current coverage; `preview_affected_tests` to see
+   what's already covered for changed code
+3. **Write tests**: Follow existing patterns exactly (pytest fixtures, jest describe blocks,
+   etc.). Cover happy path + edge cases + error states
+4. **Verify**: `run_tests` — new tests must pass, existing tests must not regress
+5. **Commit**: `test(scope): description`
+
+### Architecture / Design Workflow
+**Recommended skills**: `requirements-analysis`, `technical-design`, `architecture`, `api-design`
+1. **Understand current state**: `search_semantic` for domain concepts, `read_file_lines`
+   for key modules, `codebase-analysis` if the codebase is unfamiliar
+2. **Design**: Module boundaries, data flow, API contracts, data model. Output a design doc
+   (`design.md` or `architecture.md`) using `write_file`
+3. **Validate**: Cross-check design against requirements. Use `ask_clarification` for
+   unresolved decisions
+4. **Propose stage transition**: Call `suggest_delivery_stage` if the design deliverable
+   is complete
+
+### DevOps / Deploy Workflow
+**Recommended skills**: `deployment`, `ci-cd`, `release-engineering`, `environment-setup`
+1. **Inspect current state**: `find_files` for CI configs, Dockerfiles, deploy scripts.
+   `read_file_lines` to understand build pipeline
+2. **Make changes**: Edit CI/CD configs, Dockerfiles, environment templates
+3. **Validate**: Run the build/test pipeline locally via `bash` or `run_tests`
+4. **Document**: Update `DEPLOYMENT.md` or ops runbook
+
+### Documentation Workflow
+**Recommended skills**: `docs`, `code-documentation`
+1. **Read the code**: `read_file_lines` + `find_symbols` to understand what needs documenting
+2. **Write docs**: `write_file` for README/API docs/changelog. Match existing doc style
+3. **Verify accuracy**: Cross-reference doc claims against actual code behavior
+4. **Commit**: `docs(scope): description`
 
 ## Communication Style
 
@@ -225,12 +299,32 @@ class QiongqiEngine:
         return self.session.skills
 
     def activate_skills(self, task_text: str | None) -> list[ActiveCodingSkill]:
-        return self.activate_skills_for_task(task_text)
+        return self.activate_skills_for_task(task_text, current_stage=self._current_project_stage())
 
-    def activate_skills_for_task(self, task_text: str | None) -> list[ActiveCodingSkill]:
+    def _current_project_stage(self) -> str | None:
+        """Read the project's current delivery stage, if any."""
+        try:
+            project_root = self.session.context.project_root
+            if not project_root:
+                return None
+            from kkoclaw.coding_core.stage_state import ProjectStageStore
+
+            store = ProjectStageStore()
+            state = store.get_state(project_root)
+            return state.current_stage
+        except Exception:  # noqa: BLE001
+            return None
+
+    def activate_skills_for_task(
+        self, task_text: str | None, *, current_stage: str | None = None
+    ) -> list[ActiveCodingSkill]:
         """Select Coding skills for a task and load their instruction files.
 
-        Matching strategy (two-phase):
+        Matching strategy (three-phase):
+          0. **Stage-driven**: if the project is at a known delivery stage,
+             activate the stage's ``recommended_skills`` as a baseline set.
+             This ensures the agent always has the right workflow guidance
+             for its current phase (e.g. TDD skills during implementation).
           1. Per-skill keyword/synonym/token matching via ``matches_skill_semantic``
              (Layers 1–4 + per-skill TF-IDF Layer 5).
           2. Full-corpus TF-IDF ranking via ``rank_skills_semantic`` — if any
@@ -241,6 +335,21 @@ class QiongqiEngine:
         task = (task_text or "").lower()
         active: list[ActiveCodingSkill] = []
         active_ids: set[str] = set()
+
+        # Phase 0: stage-driven activation (recommended_skills for current stage)
+        if current_stage:
+            stage_def = get_stage(current_stage)
+            if stage_def and stage_def.recommended_skills:
+                stage_skill_ids = set(stage_def.recommended_skills)
+                for skill in self.session.skills:
+                    if not skill.enabled or skill.manifest_errors:
+                        continue
+                    if skill.id not in stage_skill_ids:
+                        continue
+                    instructions = load_skill_instructions(skill)
+                    if instructions:
+                        active.append(ActiveCodingSkill(skill=skill, instructions=instructions))
+                        active_ids.add(skill.id)
 
         # Phase 1: keyword + synonym + token matching (existing layers 1-5)
         for skill in self.session.skills:
@@ -277,7 +386,9 @@ class QiongqiEngine:
         return active
 
     def active_skill_policy_for_task(self, task_text: str | None) -> list[dict]:
-        return active_skills_to_state(self.activate_skills_for_task(task_text))
+        return active_skills_to_state(
+            self.activate_skills_for_task(task_text, current_stage=self._current_project_stage())
+        )
 
     def build_system_prompt(
         self,
@@ -573,10 +684,18 @@ def _build_delivery_stage_section(project_root: str) -> str | None:
                 f"(pass this as `stage_id` when you propose)\n"
             )
 
+        skills_block = ""
+        if stage.recommended_skills:
+            skills_lines = ", ".join(f"`{s}`" for s in stage.recommended_skills)
+            skills_block = (
+                f"\n**Recommended skills** (auto-activated for this stage): {skills_lines}\n"
+            )
+
         return (
             f"\n## Current Delivery Stage\n"
             f"You are in the **{stage.title}** (`{stage.id}`) stage.\n"
             f"\n**Goal**: {stage.goal}\n"
+            f"{skills_block}"
             f"{signals_block}"
             f"{probes_block}"
             f"{next_block}"
