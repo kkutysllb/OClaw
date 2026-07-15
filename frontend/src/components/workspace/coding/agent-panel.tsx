@@ -64,6 +64,7 @@ interface AgentPanelProps {
     taskId?: string,
     line?: number | null,
   ) => void;
+  onTodosChange?: (todos: import("@/core/todos").Todo[]) => void;
 }
 
 type CodingAgentStatus =
@@ -89,6 +90,7 @@ export function AgentPanel({
   projectId,
   onFocusFile,
   onThreadIdChange,
+  onTodosChange,
 }: AgentPanelProps) {
   return (
     <FollowupsProvider>
@@ -98,6 +100,7 @@ export function AgentPanel({
             projectId={projectId}
             onFocusFile={onFocusFile}
             onThreadIdChange={onThreadIdChange}
+            onTodosChange={onTodosChange}
           />
         </PromptInputProvider>
       </SubtasksProvider>
@@ -105,7 +108,7 @@ export function AgentPanel({
   );
 }
 
-function AgentPanelInner({ projectId, onThreadIdChange, onFocusFile }: AgentPanelProps) {
+function AgentPanelInner({ projectId, onThreadIdChange, onFocusFile, onTodosChange }: AgentPanelProps) {
   const { project } = useProject(projectId);
   const queryClient = useQueryClient();
   // Persist the coding agent thread ID per-project so page refreshes
@@ -316,6 +319,11 @@ function AgentPanelInner({ projectId, onThreadIdChange, onFocusFile }: AgentPane
   // When the run finishes (isLoading→false), one final refresh ensures the
   // final state is reflected.
   const isLoading = thread.isLoading;
+  // Propagate todos from thread state up to the workbench so the floating
+  // TodoList panel can react to write_todos calls.
+  useEffect(() => {
+    onTodosChange?.(thread.values.todos ?? []);
+  }, [thread.values.todos, onTodosChange]);
   useEffect(() => {
     if (!isLoading) return;
     // Immediate refresh when the run starts.

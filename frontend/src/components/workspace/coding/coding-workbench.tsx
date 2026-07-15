@@ -104,6 +104,8 @@ import { CodeViewer } from "./code-viewer";
 import { CodingTaskChangesPanel } from "./coding-task-changes-panel";
 import { FileExplorer } from "./file-explorer";
 import { ReviewPanel } from "./review-panel";
+import { TodoList } from "@/components/workspace/todo-list";
+import type { Todo } from "@/core/todos";
 
 interface CodingWorkbenchProps {
   projectId: string;
@@ -222,6 +224,7 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
   const [rightPanelWidth, setRightPanelWidth] = useState(RIGHT_PANEL_DEFAULT_WIDTH);
   const [environmentCardCollapsed, setEnvironmentCardCollapsed] =
     useState(false);
+  const [todos, setTodos] = useState<Todo[]>([]);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalTabs, setTerminalTabs] = useState<EmbeddedTerminalTab[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
@@ -661,26 +664,39 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
           </div>
           <div className="mt-0 flex min-h-0 flex-1 overflow-hidden">
             <div className="relative flex size-full min-w-0 overflow-hidden">
-              <EnvironmentInfoFloatingCard
-                additions={totalAdditions}
-                deletions={totalDeletions}
-                branch={gitBranch}
-                githubCli={environment?.github_cli ?? null}
-                sourceLabel={environment?.source.label ?? "仅本地"}
-                sourceRemote={environment?.source.remote ?? null}
-                head={environment?.head ?? null}
-                ahead={environment?.ahead ?? 0}
-                behind={environment?.behind ?? 0}
-                changedFiles={totalChangedFiles}
-                commitPending={commitMutation.isPending}
-                pushPending={pushMutation.isPending}
-                commitDisabled={!environment?.is_git_repo || (environment?.changed_files ?? 0) === 0}
-                pushDisabled={!environment?.is_git_repo}
-                onCommit={() => setCommitDialogOpen(true)}
-                onPush={() => void handlePush()}
-                path={project.path}
-                visible={showEnvironmentCard}
-              />
+              {/* Floating right-side panels: environment info + todo list, stacked vertically */}
+              <div className="pointer-events-none absolute right-3 top-3 z-20 flex w-[320px] max-w-[calc(100%-1.5rem)] flex-col gap-2">
+                <div className={cn("pointer-events-auto transition-all", showEnvironmentCard ? "opacity-100" : "pointer-events-none opacity-0")}>
+                  <EnvironmentInfoFloatingCard
+                    additions={totalAdditions}
+                    deletions={totalDeletions}
+                    branch={gitBranch}
+                    githubCli={environment?.github_cli ?? null}
+                    sourceLabel={environment?.source.label ?? "仅本地"}
+                    sourceRemote={environment?.source.remote ?? null}
+                    head={environment?.head ?? null}
+                    ahead={environment?.ahead ?? 0}
+                    behind={environment?.behind ?? 0}
+                    changedFiles={totalChangedFiles}
+                    commitPending={commitMutation.isPending}
+                    pushPending={pushMutation.isPending}
+                    commitDisabled={!environment?.is_git_repo || (environment?.changed_files ?? 0) === 0}
+                    pushDisabled={!environment?.is_git_repo}
+                    onCommit={() => setCommitDialogOpen(true)}
+                    onPush={() => void handlePush()}
+                    path={project.path}
+                    visible={showEnvironmentCard}
+                  />
+                </div>
+                {todos.length > 0 && (
+                  <div className="scrollbar-none pointer-events-auto max-h-[50%] overflow-y-auto rounded-2xl border bg-background/96 p-3 shadow-xl backdrop-blur transition-all">
+                    <p className="text-muted-foreground mb-2 text-[11px] font-semibold tracking-[0.08em] uppercase">
+                      任务清单
+                    </p>
+                    <TodoList todos={todos} className="border-l-0" />
+                  </div>
+                )}
+              </div>
               {showFileExplorer && (
                 <>
                   <aside
@@ -706,13 +722,14 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
                 <div
                   className={cn(
                     "flex h-full min-h-0 flex-col transition-[padding] duration-200",
-                    showEnvironmentCard && "2xl:pr-[360px] xl:pr-[340px]",
+                    (showEnvironmentCard || todos.length > 0) && "2xl:pr-[360px] xl:pr-[340px]",
                   )}
                 >
                   <AgentInspector
                     onFocusFile={focusWorkbenchFile}
                     projectId={projectId}
                     onThreadIdChange={setAgentThreadId}
+                    onTodosChange={setTodos}
                   />
                 </div>
               </section>
@@ -1185,10 +1202,12 @@ function AgentInspector({
   onFocusFile,
   onThreadIdChange,
   projectId,
+  onTodosChange,
 }: {
   onFocusFile?: WorkbenchFocusHandler;
   projectId: string;
   onThreadIdChange?: (threadId: string | undefined) => void;
+  onTodosChange?: (todos: Todo[]) => void;
 }) {
   return (
     <div className="bg-background flex h-full min-h-0 flex-col">
@@ -1196,6 +1215,7 @@ function AgentInspector({
         projectId={projectId}
         onFocusFile={onFocusFile}
         onThreadIdChange={onThreadIdChange}
+        onTodosChange={onTodosChange}
       />
     </div>
   );
@@ -1254,8 +1274,8 @@ function EnvironmentInfoFloatingCard({
   return (
     <div
       className={cn(
-        "scrollbar-none absolute right-3 top-3 z-20 max-h-[calc(100%-1.5rem)] w-[320px] max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-2xl border bg-background/96 p-3 shadow-xl backdrop-blur transition-all",
-        visible ? "opacity-100" : "pointer-events-none opacity-0",
+        "scrollbar-none w-full max-h-[calc(100%-1.5rem)] overflow-y-auto rounded-2xl border bg-background/96 p-3 shadow-xl backdrop-blur transition-all",
+        visible ? "opacity-100" : "hidden",
       )}
     >
       <div className="mb-3 flex items-start justify-between gap-3">
