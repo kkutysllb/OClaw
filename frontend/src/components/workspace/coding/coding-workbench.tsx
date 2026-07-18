@@ -219,7 +219,7 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
 
   // Collapse state for the left file explorer and the right workbench panel.
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(true);
   const [leftPanelWidth, setLeftPanelWidth] = useState(LEFT_PANEL_DEFAULT_WIDTH);
   const [rightPanelWidth, setRightPanelWidth] = useState(RIGHT_PANEL_DEFAULT_WIDTH);
   const [environmentCardCollapsed, setEnvironmentCardCollapsed] =

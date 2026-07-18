@@ -33,7 +33,7 @@ describe("coding workbench layout", () => {
     expect(workbench).toContain("openWorkbenchPane");
     expect(workbench).toContain("closeWorkbenchPane");
     expect(workbench).toContain("const [leftCollapsed, setLeftCollapsed] = useState(false)");
-    expect(workbench).toContain("const [rightCollapsed, setRightCollapsed] = useState(false)");
+    expect(workbench).toContain("const [rightCollapsed, setRightCollapsed] = useState(true)");
     expect(workbench).toContain("environmentCardCollapsed");
     expect(workbench).toContain("useState(false)");
     expect(workbench).toContain("const showEnvironmentCard = !showWorkbenchPane && !environmentCardCollapsed");
