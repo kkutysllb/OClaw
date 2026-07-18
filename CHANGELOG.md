@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.2 - 2026-07-18
+
+Compare: `v0.3.1...v0.3.2`
+
+- fix(desktop): enable allow_host_bash by default for desktop local environment (b98c7c1)
+- fix(coding-ui): prevent empty-state hint from flashing on stop/resume (4f6cea6)
+- fix(title): improve title generation prompt — emphasize user intent over assistant response (7c3a8a5)
+
 ## v0.3.1 - 2026-07-16
 
 Compare: `v0.3.0...v0.3.1`
