@@ -257,12 +257,8 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
   // and the user hasn't manually dismissed it. Auto-hides when all done.
   const hasActiveTodos =
     todos.length > 0 && todos.some((t) => t.status !== "completed");
-
-  // When new todos arrive (agent starts a new task), re-show the panel.
   useEffect(() => {
-    if (hasActiveTodos) {
-      setTodoPanelDismissed(false);
-    }
+    if (hasActiveTodos) setTodoPanelDismissed(false);
   }, [hasActiveTodos]);
 
   if (isLoading) {
