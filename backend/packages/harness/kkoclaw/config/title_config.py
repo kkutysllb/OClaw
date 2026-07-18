@@ -27,7 +27,9 @@ class TitleConfig(BaseModel):
         description="Model name to use for title generation (None = use default model)",
     )
     prompt_template: str = Field(
-        default=("请为以下对话生成一个简洁的中文标题（最多{max_words}个词）。\n"
+        default=("请根据用户的提问生成一个简洁准确的中文标题（最多{max_words}个词）。\n"
+                 "标题必须忠实概括用户的问题或需求，不要根据助手的回复内容来命名。\n"
+                 "保留用户问题中的关键词和领域术语。\n\n"
                  "用户: {user_msg}\n"
                  "助手: {assistant_msg}\n\n"
                  "只返回标题文字，不要加引号，不要解释。"),
