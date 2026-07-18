@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.3 - 2026-07-18
+
+Compare: `v0.3.2...v0.3.3`
+
+- fix(coding-ui): move hasEverHadMessages ref update into useEffect (fix React #310) (9f6d524)
+
 ## v0.3.2 - 2026-07-18
 
 Compare: `v0.3.1...v0.3.2`
