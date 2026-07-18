@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.4 - 2026-07-18
+
+Compare: `v0.3.3...v0.3.4`
+
+- fix(coding-ui): right sidebar closed by default (revert to original behavior) (22b28a7)
+- fix(coding-ui): ensure hasActiveTodos + useEffect are before conditional returns (React hooks rules) (e3389df)
+- fix(coding-ui): move todo-panel hooks before conditional returns (fix React #310) (7229b86)
+
 ## v0.3.3 - 2026-07-18
 
 Compare: `v0.3.2...v0.3.3`
