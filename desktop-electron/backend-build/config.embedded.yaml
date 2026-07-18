@@ -545,10 +545,9 @@ uploads:
 
 sandbox:
   use: kkoclaw.sandbox.local:LocalSandboxProvider
-  # Host bash execution is disabled by default because LocalSandboxProvider is
-  # not a secure isolation boundary for shell access. Enable only for fully
-  # trusted, single-user local workflows.
-  allow_host_bash: false
+  # Host bash execution is enabled for the desktop app because it runs in a
+  # fully trusted, single-user local environment on the user's own machine.
+  allow_host_bash: true
   # Optional: Mount additional host directories into the sandbox.
   # Each mount maps a host path to a virtual container path accessible by the agent.
   # mounts:
