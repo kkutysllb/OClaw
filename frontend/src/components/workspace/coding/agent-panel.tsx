@@ -329,9 +329,11 @@ function AgentPanelInner({ projectId, onThreadIdChange, onFocusFile, onTodosChan
   }, [thread.values.todos, onTodosChange]);
   // Latch: once messages have appeared, never show the empty-state hint again
   // (prevents flashing on stop/resume when messages are transiently empty).
-  if (thread.messages.length > 0) {
-    hasEverHadMessages.current = true;
-  }
+  useEffect(() => {
+    if (thread.messages.length > 0) {
+      hasEverHadMessages.current = true;
+    }
+  }, [thread.messages]);
   useEffect(() => {
     if (!isLoading) return;
     // Immediate refresh when the run starts.
