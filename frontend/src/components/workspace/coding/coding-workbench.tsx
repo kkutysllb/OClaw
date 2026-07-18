@@ -253,6 +253,18 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
     };
   }, []);
 
+  // Todo panel: visible when there are todos, at least one is not completed,
+  // and the user hasn't manually dismissed it. Auto-hides when all done.
+  const hasActiveTodos =
+    todos.length > 0 && todos.some((t) => t.status !== "completed");
+
+  // When new todos arrive (agent starts a new task), re-show the panel.
+  useEffect(() => {
+    if (hasActiveTodos) {
+      setTodoPanelDismissed(false);
+    }
+  }, [hasActiveTodos]);
+
   if (isLoading) {
     return (
       <div className="flex size-full items-center justify-center">
@@ -293,19 +305,7 @@ export function CodingWorkbench({ projectId }: CodingWorkbenchProps) {
   const showFileExplorer = !leftCollapsed;
   const showWorkbenchPane = !rightCollapsed;
   const showEnvironmentCard = !showWorkbenchPane && !environmentCardCollapsed;
-
-  // Todo panel: visible when there are todos, at least one is not completed,
-  // and the user hasn't manually dismissed it. Auto-hides when all done.
-  const hasActiveTodos =
-    todos.length > 0 && todos.some((t) => t.status !== "completed");
   const showTodoPanel = hasActiveTodos && !todoPanelDismissed;
-
-  // When new todos arrive (agent starts a new task), re-show the panel.
-  useEffect(() => {
-    if (hasActiveTodos) {
-      setTodoPanelDismissed(false);
-    }
-  }, [hasActiveTodos]);
 
   const startPanelResize = (
     side: "left" | "right",
