@@ -10,7 +10,7 @@ import {
   Undo2Icon,
   XCircleIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
@@ -111,6 +111,9 @@ export function AgentPanel({
 function AgentPanelInner({ projectId, onThreadIdChange, onFocusFile, onTodosChange }: AgentPanelProps) {
   const { project } = useProject(projectId);
   const queryClient = useQueryClient();
+  // Track whether we've ever seen messages in this session, so the empty-state
+  // hint doesn't flash when stopping a run (isLoading→false with transient empty messages).
+  const hasEverHadMessages = useRef(false);
   // Persist the coding agent thread ID per-project so page refreshes
   // can rejoin the same run. Without this, the backend keeps the run alive
   // (onDisconnect:"continue") but the frontend loses track of the thread.
@@ -324,6 +327,11 @@ function AgentPanelInner({ projectId, onThreadIdChange, onFocusFile, onTodosChan
   useEffect(() => {
     onTodosChange?.(thread.values.todos ?? []);
   }, [thread.values.todos, onTodosChange]);
+  // Latch: once messages have appeared, never show the empty-state hint again
+  // (prevents flashing on stop/resume when messages are transiently empty).
+  if (thread.messages.length > 0) {
+    hasEverHadMessages.current = true;
+  }
   useEffect(() => {
     if (!isLoading) return;
     // Immediate refresh when the run starts.
@@ -483,8 +491,8 @@ function AgentPanelInner({ projectId, onThreadIdChange, onFocusFile, onTodosChan
             </div>
           </main>
 
-          {/* Empty-state hint shown before any messages */}
-          {thread.messages.length === 0 && !thread.isLoading && (
+          {/* Empty-state hint shown only before any messages have ever appeared */}
+          {!hasEverHadMessages.current && thread.messages.length === 0 && !thread.isLoading && (
             <div className="pointer-events-none absolute inset-0 top-9 flex flex-col items-center justify-center gap-2 px-6 text-center">
               <div className="bg-muted/50 flex h-12 w-12 items-center justify-center rounded-xl">
                 <TerminalIcon className="text-muted-foreground h-6 w-6" />
